@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+env/
+
+# Environment & credentials
+.env
+*.json
+!package.json
+!launch.json
+
+# Service account keys
+*-credentials.json
+*-key.json
+service-account*.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/
+
+# Node
+node_modules/
+
+# Separate git repo
+investment-dashboard/
+
+# Slides images (binary)
+slides_img/
+
+# Local data (DB, uploads)
+meeting-dashboard/data/
+
+# PDF/PPTX exports
+*.pdf
+*.pptx

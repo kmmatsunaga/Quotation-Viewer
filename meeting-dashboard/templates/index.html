@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weekly Meeting Agenda</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ヘッダー -->
+<header class="app-header">
+  <div class="header-left">
+    <span class="header-logo">📦</span>
+    <h1>Weekly Meeting Agenda</h1>
+    <span id="edit-mode-badge" class="edit-mode-badge" style="display:none">編集モード</span>
+  </div>
+  <div class="header-right">
+    <span id="current-date" class="header-date"></span>
+    <span id="last-refresh-info" class="last-refresh-info" title="BigQueryデータの最終更新日時"></span>
+    <select id="week-selector" class="week-selector"></select>
+    <button id="btn-bq-refresh" onclick="triggerRefresh()" class="btn-refresh" title="BigQueryデータを手動更新" style="display:none">🔄 更新</button>
+    <button id="btn-preview-toggle" onclick="togglePreviewMode()" class="btn-preview-toggle" style="display:none" title="編集/プレビュー切り替え">👁 プレビューモードへ</button>
+    <div class="user-info" id="user-info">
+      <span id="user-badge" class="user-badge"></span>
+      <button onclick="toggleUserMenu()" class="btn-user" id="btn-user-menu">▾</button>
+      <div class="user-menu" id="user-menu" style="display:none">
+        <div id="user-menu-admin" style="display:none">
+          <button onclick="openUserManager()">👥 ユーザー管理</button>
+          <hr>
+        </div>
+        <button onclick="logout()">🚪 ログアウト</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- エリアタブ -->
+<nav class="area-tabs">
+  <div id="tab-list" class="tab-list"></div>
+</nav>
+
+<!-- メインコンテンツ -->
+<main id="main-content" class="main-content">
+  <div class="loading-overlay" id="loading">
+    <div class="spinner"></div>
+    <p>BigQueryからデータ取得中…</p>
+  </div>
+
+  <!-- エリアコンテンツ (動的生成) -->
+  <div id="area-panels"></div>
+</main>
+
+<!-- テンプレート: エリアパネル -->
+<template id="area-panel-template">
+  <section class="area-panel" data-area="">
+
+    <div class="panel-topbar">
+      <h2 class="area-title"></h2>
+    </div>
+
+    <!-- Row 1: 月間推移グラフ + Top5表 -->
+    <div class="row-grid two-col">
+
+      <!-- 月間推移チャート -->
+      <div class="card">
+        <div class="card-header">
+          <span class="monthly-chart-title">月間推移</span>
+          <span class="chart-legend">
+            <span class="leg-bar actual">■ 実績TEU</span>
+            <span class="leg-bar prospect">■ 見込TEU</span>
+            <span class="leg-line">— CM1/TEU</span>
+          </span>
+        </div>
+        <div class="card-body chart-wrap">
+          <canvas class="monthly-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- Top5 Shipper テーブル -->
+      <div class="card">
+        <div class="card-header">Top5 Shipper (直近6か月合計順)</div>
+        <div class="card-body">
+          <table class="shipper-table">
+            <thead>
+              <tr>
+                <th>Shipper</th>
+                <th>前月<br>TEU</th>
+                <th>前月<br>CM1/T</th>
+                <th>今月<br>TEU</th>
+                <th>今月<br>CM1/T</th>
+                <th>来月<br>TEU</th>
+                <th>GAP<br>±TEU</th>
+              </tr>
+            </thead>
+            <tbody class="shipper-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: 週間推移グラフ -->
+    <div class="row-grid one-col">
+      <div class="card">
+        <div class="card-header">
+          <span class="weekly-chart-title">週間推移</span>
+          <span class="chart-legend">
+            <span class="leg-bar actual">■ 実績TEU</span>
+            <span class="leg-bar prospect">■ 見込TEU</span>
+            <span class="leg-line">— CM1/TEU</span>
+          </span>
+        </div>
+        <div class="card-body chart-wrap tall">
+          <canvas class="weekly-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2.5: BSA Chart -->
+    <div class="row-grid one-col bsa-chart-row">
+      <div class="card">
+        <div class="card-header">
+          <span>📊 BSA Chart</span>
+          <button class="btn-bsa-refresh editor-only" title="BSAデータ更新">🔄 更新</button>
+        </div>
+        <div class="card-body chart-wrap tall">
+          <canvas class="bsa-chart-canvas"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3: 左カード(Prospect/グラフ切り替え) + メモ欄 -->
+    <div class="row-grid two-col">
+
+      <!-- 左カード: Prospect入力 / グラフ設定 -->
+      <div class="card left-panel-card">
+        <div class="card-header left-panel-header">
+          <!-- 編集者用タブ -->
+          <div class="left-panel-tabs editor-only">
+            <button class="lp-tab active" data-tab="prospect">Prospect</button>
+            <button class="lp-tab" data-tab="graph">Summary</button>
+          </div>
+          <!-- Prospect ヘッダーボタン -->
+          <div class="prospect-header-btns" data-tab-content="prospect">
+            <button class="btn-predict-prospects editor-only" title="過去データの季節性分析から自動予測">🔮 予測入力</button>
+            <button class="btn-save-all-prospects editor-only">💾 一括保存</button>
+          </div>
+          <!-- Summary ヘッダーボタン -->
+          <div class="graph-header-btns" data-tab-content="graph" style="display:none">
+            <span class="summary-title">Summary</span>
+            <button class="btn-save-graph-config editor-only">Save</button>
+            <button class="btn-template-config editor-only" title="テンプレートとして保存・読み込み">Template</button>
+            <button class="btn-propagate-config editor-only" title="このAreaのスタイルを固定">適用</button>
+            <button class="btn-clear-graph-config editor-only" title="すべてのブロックをクリア">クリア</button>
+          </div>
+        </div>
+
+        <!-- Prospect入力パネル -->
+        <div class="card-body tab-body prospect-panel" data-tab-panel="prospect">
+          <div class="monthly-prospect-section">
+            <div class="monthly-prospect-title">Monthly Prospect</div>
+            <table class="monthly-prospect-table">
+              <thead>
+                <tr>
+                  <th>月</th>
+                  <th>期間</th>
+                  <th>実績 TEU</th>
+                  <th>実績 CM1/T</th>
+                  <th>見込 TEU</th>
+                  <th>見込 CM1/T</th>
+                </tr>
+              </thead>
+              <tbody class="monthly-prospect-tbody"></tbody>
+            </table>
+          </div>
+          <div class="weekly-prospect-title" style="margin-top:16px">Weekly Prospect</div>
+          <table class="prospect-table" style="margin-top:6px">
+            <thead>
+              <tr>
+                <th>月</th>
+                <th>週</th>
+                <th>期間</th>
+                <th>実績 TEU</th>
+                <th>実績 CM1/T</th>
+                <th>見込 TEU</th>
+                <th>見込 CM1/T</th>
+              </tr>
+            </thead>
+            <tbody class="prospect-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- グラフ設定パネル (編集者専用) -->
+        <div class="card-body tab-body graph-config-panel" data-tab-panel="graph" style="display:none">
+          <div class="graph-config-list"></div>
+        </div>
+      </div>
+
+      <!-- ⑤ ブロックエディター -->
+      <div class="card">
+        <div class="card-header">コメント・戦略メモ</div>
+        <div class="card-body blocks-area">
+          <div class="blocks-container"></div>
+          <div class="add-block-bar editor-only">
+            <span class="add-block-label">＋ ブロック追加:</span>
+            <button class="btn-add-block" data-type="text">📝 テキスト</button>
+            <button class="btn-add-block" data-type="image">🖼 Image</button>
+            <button class="btn-add-block" data-type="ai">🤖 AI分析</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+</template>
+
+<!-- ユーザー管理モーダル -->
+<div id="user-manager-modal" class="modal" style="display:none">
+  <div class="modal-backdrop" onclick="closeUserManager()"></div>
+  <div class="modal-content user-manager-content">
+    <button class="modal-close" onclick="closeUserManager()">✕</button>
+    <h3 style="margin-bottom:16px">👥 ユーザー管理</h3>
+
+    <table class="user-table" id="user-table">
+      <thead><tr>
+        <th>メールアドレス (Googleアカウント)</th><th>表示名</th><th>ロール</th><th>操作</th>
+      </tr></thead>
+      <tbody id="user-table-body"></tbody>
+    </table>
+
+    <hr style="margin:16px 0">
+    <h4 style="margin-bottom:10px">新規ユーザー追加</h4>
+    <div class="add-user-form">
+      <input type="email" id="new-username" placeholder="メールアドレス (@ekmtc.com)" class="user-input">
+      <input type="text"  id="new-display"  placeholder="表示名（任意）"               class="user-input">
+      <select id="new-role" class="user-input">
+        <option value="viewer">閲覧者</option>
+        <option value="editor">編集者</option>
+      </select>
+      <button onclick="addUser()" class="btn-add-user">追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- 画像プレビューモーダル -->
+<div id="img-modal" class="modal" style="display:none">
+  <div class="modal-backdrop" onclick="closeModal()"></div>
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <img id="modal-img" src="" alt="">
+    <p id="modal-caption"></p>
+  </div>
+</div>
+
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

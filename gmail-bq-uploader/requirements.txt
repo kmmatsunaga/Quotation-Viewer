@@ -1,0 +1,9 @@
+streamlit>=1.32.0
+google-auth>=2.29.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.125.0
+google-cloud-bigquery>=3.20.0
+google-cloud-run>=0.10.0
+python-dotenv>=1.0.1
+pandas>=2.2.0

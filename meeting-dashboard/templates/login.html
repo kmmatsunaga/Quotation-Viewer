@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ログイン — Weekly Meeting Agenda</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #1a3a5c 0%, #1a6fc4 100%);
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .login-card {
+      background: #fff; border-radius: 12px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+      width: 380px; padding: 44px 40px;
+      text-align: center;
+    }
+    .login-logo  { font-size: 44px; margin-bottom: 10px; }
+    .login-title { font-size: 19px; font-weight: 700; color: #1a6fc4; margin-bottom: 4px; }
+    .login-sub   { font-size: 13px; color: #888; margin-bottom: 32px; }
+    .btn-google  {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      width: 100%; padding: 13px 20px; border: 1.5px solid #ddd; border-radius: 8px;
+      background: #fff; font-size: 15px; font-weight: 500; color: #333;
+      cursor: pointer; transition: all .2s; box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    .btn-google:hover { background: #f8f8f8; box-shadow: 0 2px 8px rgba(0,0,0,.14); border-color: #bbb; }
+    .btn-google:disabled { opacity: .5; cursor: not-allowed; }
+    .google-icon { width: 22px; height: 22px; }
+    .error-msg {
+      background: #fdecea; color: #c0392b; border: 1px solid #f5c6cb;
+      border-radius: 6px; padding: 12px 14px; font-size: 13px;
+      margin-bottom: 16px; display: none; text-align: left;
+    }
+    .loading-msg {
+      color: #888; font-size: 13px; margin-top: 14px; display: none;
+    }
+    .hint { margin-top: 22px; font-size: 11px; color: #bbb; }
+  </style>
+</head>
+<body>
+<div class="login-card">
+  <div class="login-logo">📦</div>
+  <div class="login-title">Weekly Meeting Agenda</div>
+  <div class="login-sub">ekmtc.com アカウントでログイン</div>
+
+  <div class="error-msg" id="error-msg"></div>
+
+  <button id="btn-google" class="btn-google" onclick="signInWithGoogle()">
+    <svg class="google-icon" viewBox="0 0 48 48">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+    </svg>
+    Google でログイン
+  </button>
+
+  <div class="loading-msg" id="loading-msg">ログイン処理中...</div>
+  <div class="hint">登録済みのekmtc.comアカウントのみアクセスできます</div>
+</div>
+
+<!-- Firebase SDK (compat版 - CDNから読み込み) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey:            "AIzaSyBf0FHA_4qWG4ZmKBaexoJ5QUGFN_nDUHM",
+    authDomain:        "booking-data-388605.firebaseapp.com",
+    projectId:         "booking-data-388605",
+    storageBucket:     "booking-data-388605.firebasestorage.app",
+    messagingSenderId: "1073244382246",
+    appId:             "1:1073244382246:web:bcf012b0a25ccd94d472e7",
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({ hd: 'ekmtc.com' });
+
+  async function signInWithGoogle() {
+    const btn  = document.getElementById('btn-google');
+    const errEl = document.getElementById('error-msg');
+    const loadEl = document.getElementById('loading-msg');
+    btn.disabled = true;
+    errEl.style.display = 'none';
+    loadEl.style.display = 'block';
+
+    try {
+      const result = await auth.signInWithPopup(provider);
+      const idToken = await result.user.getIdToken();
+
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_token: idToken })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        window.location.href = '/';
+      } else {
+        errEl.textContent = data.error || 'ログインに失敗しました';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        loadEl.style.display = 'none';
+      }
+    } catch(e) {
+      // Firebase popup closed or error
+      if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+        errEl.textContent = 'エラー: ' + (e.message || 'ログインできませんでした');
+        errEl.style.display = 'block';
+      }
+      btn.disabled = false;
+      loadEl.style.display = 'none';
+    }
+  }
+</script>
+</body>
+</html>

@@ -400,7 +400,7 @@ function ensurePanel(area) {
 async function loadSummary(area) {
   try {
     const mw = CURRENT_WEEK_KEY ? `&meeting_week=${encodeURIComponent(CURRENT_WEEK_KEY)}` : '';
-    const res = await fetch(`/api/summary?area=${area}${mw}`);
+    const res = await fetch(`/api/summary?area=${encodeURIComponent(area)}${mw}`);
     const data = await res.json();
     DATA_CACHE[area] = data;
     renderArea(area, data);

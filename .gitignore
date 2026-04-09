@@ -31,8 +31,9 @@ Thumbs.db
 # Node
 node_modules/
 
-# Separate git repo
-investment-dashboard/
+# Investment dashboard local data
+investment-dashboard/portfolio.db
+investment-dashboard/__pycache__/
 
 # Slides images (binary)
 slides_img/

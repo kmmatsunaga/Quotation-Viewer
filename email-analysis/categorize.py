@@ -11,6 +11,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from datetime import datetime, timezone
@@ -24,6 +25,32 @@ from config import (
     BQ_KEY_PATH, GEMINI_MODEL, BATCH_SIZE, MAX_BODY_CHARS, CATEGORIES,
     EXCLUDE_SUBJECT_PATTERNS,
 )
+
+def extract_latest_message(body: str, max_chars: int = 500) -> str:
+    """
+    メール本文から最新（一番上）のメッセージ部分のみを抽出する。
+    引用された過去のやり取りは除外する。
+    """
+    if not body:
+        return ""
+
+    # 引用ブロックの開始を示すパターン（ここより後は過去メール）
+    QUOTE_PATTERNS = [
+        r"\n{1,2}From:",                          # 英語Outlook: From: xxxx
+        r"\n{1,2}差出人:",                         # 日本語Outlook
+        r"\n{1,2}送信元:",
+        r"\n{1,2}On .{5,50}wrote:",               # Gmail英語: On Mon, Jan 1 wrote:
+        r"\n{1,2}_{5,}",                          # _____ 区切り線
+        r"\n{1,2}-{5,}",                          # ----- 区切り線
+        r"\n{1,2}[0-9]{4}年[0-9]{1,2}月[0-9]{1,2}日.{0,30}[0-9]{1,2}:[0-9]{2}",  # 2025年1月9日(木) 14:39
+        r"\n{1,2}>[ \t]*[^\n]",                   # > 引用行
+    ]
+
+    combined = "|".join(f"(?:{p})" for p in QUOTE_PATTERNS)
+    match = re.search(combined, body)
+    latest = body[:match.start()] if match else body
+    return latest.strip()[:max_chars]
+
 
 # カテゴリのJSON文字列（プロンプト用）
 CATEGORY_JSON = json.dumps(CATEGORIES, ensure_ascii=False, indent=2)
@@ -69,7 +96,7 @@ def fetch_uncategorized(bq_client, source_table: str, limit: int) -> list[dict]:
         rows.append({
             "message_id":   row.message_id,
             "subject":      row.Subject or "",
-            "body_preview": row.Body_preview or "",
+            "body_preview": extract_latest_message(row.Body_preview or "", MAX_BODY_CHARS),
             "user":         row.User or "",
             "datetime":     str(row.Datetime),
         })

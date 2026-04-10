@@ -16,6 +16,7 @@ env/
 *-credentials.json
 *-key.json
 service-account*.json
+key/
 
 # IDE
 .vscode/

@@ -19,8 +19,10 @@ _EMAIL_SCHEMA = [
     bigquery.SchemaField("bcc",          "STRING",    mode="NULLABLE"),
     bigquery.SchemaField("Subject",      "STRING",    mode="NULLABLE"),
     bigquery.SchemaField("Body",         "STRING",    mode="NULLABLE"),
-    bigquery.SchemaField("message_id",   "STRING",    mode="NULLABLE"),
-    bigquery.SchemaField("thread_id",    "STRING",    mode="NULLABLE"),
+    bigquery.SchemaField("message_id",      "STRING",    mode="NULLABLE"),
+    bigquery.SchemaField("thread_id",       "STRING",    mode="NULLABLE"),
+    bigquery.SchemaField("in_reply_to",     "STRING",    mode="NULLABLE"),
+    bigquery.SchemaField("gmail_internal_id", "STRING",  mode="NULLABLE"),
 ]
 
 _TOKEN_SCHEMA = [
@@ -102,6 +104,7 @@ class BigQueryClient:
         # カラム追加マイグレーション
         self._add_sync_enabled_if_missing()
         self._add_execution_name_if_missing()
+        self._add_in_reply_to_if_missing()
 
     def _add_execution_name_if_missing(self) -> None:
         table_ref_str = f"{PROJECT_ID}.{DATASET_ID}.job_status"
@@ -115,6 +118,23 @@ class BigQueryClient:
                 self.client.update_table(table, ["schema"])
         except Exception:
             pass
+
+    def _add_in_reply_to_if_missing(self) -> None:
+        for table_name in ("csmail_send", "csmail_receive"):
+            table_ref_str = f"{PROJECT_ID}.{DATASET_ID}.{table_name}"
+            try:
+                table = self.client.get_table(table_ref_str)
+                new_fields = []
+                existing = {f.name for f in table.schema}
+                if "in_reply_to" not in existing:
+                    new_fields.append(bigquery.SchemaField("in_reply_to", "STRING", mode="NULLABLE"))
+                if "gmail_internal_id" not in existing:
+                    new_fields.append(bigquery.SchemaField("gmail_internal_id", "STRING", mode="NULLABLE"))
+                if new_fields:
+                    table.schema = list(table.schema) + new_fields
+                    self.client.update_table(table, ["schema"])
+            except Exception:
+                pass
 
     def _add_sync_enabled_if_missing(self) -> None:
         table_ref_str = f"{PROJECT_ID}.{DATASET_ID}.user_tokens"

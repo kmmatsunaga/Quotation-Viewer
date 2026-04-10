@@ -4,3 +4,5 @@ data/
 .claude/
 *.bat
 start.bat
+.env
+gas/

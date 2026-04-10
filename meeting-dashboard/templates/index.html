@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Weekly Meeting Agenda</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=20260410i">
 </head>
 <body>
 
@@ -13,23 +13,29 @@
   <div class="header-left">
     <span class="header-logo">📦</span>
     <h1>Weekly Meeting Agenda</h1>
-    <span id="edit-mode-badge" class="edit-mode-badge" style="display:none">編集モード</span>
+    <span id="edit-mode-badge" class="edit-mode-badge" style="display:none" data-i18n="edit_mode">編集モード</span>
   </div>
   <div class="header-right">
     <span id="current-date" class="header-date"></span>
     <span id="last-refresh-info" class="last-refresh-info" title="BigQueryデータの最終更新日時"></span>
     <select id="week-selector" class="week-selector"></select>
-    <button id="btn-bq-refresh" onclick="triggerRefresh()" class="btn-refresh" title="BigQueryデータを手動更新" style="display:none">🔄 更新</button>
+    <div class="lang-switcher">
+      <button class="lang-btn active" data-lang="ja" onclick="setLang('ja')">JP</button>
+      <button class="lang-btn" data-lang="en" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" data-lang="kr" onclick="setLang('kr')">KR</button>
+    </div>
+    <button id="btn-bq-refresh" onclick="triggerRefresh()" class="btn-refresh" title="BigQueryデータを手動更新" style="display:none" data-i18n="refresh">🔄 更新</button>
     <button id="btn-preview-toggle" onclick="togglePreviewMode()" class="btn-preview-toggle" style="display:none" title="編集/プレビュー切り替え">👁 プレビューモードへ</button>
     <div class="user-info" id="user-info">
       <span id="user-badge" class="user-badge"></span>
       <button onclick="toggleUserMenu()" class="btn-user" id="btn-user-menu">▾</button>
       <div class="user-menu" id="user-menu" style="display:none">
+        <button onclick="openDownloadModal()">📥 Data Download</button>
         <div id="user-menu-admin" style="display:none">
-          <button onclick="openUserManager()">👥 ユーザー管理</button>
+          <button onclick="openUserManager()" data-i18n="user_mgmt">👥 ユーザー管理</button>
           <hr>
         </div>
-        <button onclick="logout()">🚪 ログアウト</button>
+        <button onclick="logout()" data-i18n="logout">🚪 ログアウト</button>
       </div>
     </div>
   </div>
@@ -44,7 +50,7 @@
 <main id="main-content" class="main-content">
   <div class="loading-overlay" id="loading">
     <div class="spinner"></div>
-    <p>BigQueryからデータ取得中…</p>
+    <p data-i18n="loading">BigQueryからデータ取得中…</p>
   </div>
 
   <!-- エリアコンテンツ (動的生成) -->
@@ -65,11 +71,11 @@
       <!-- 月間推移チャート -->
       <div class="card">
         <div class="card-header">
-          <span class="monthly-chart-title">月間推移</span>
+          <span class="monthly-chart-title" data-i18n="monthly_trend">月間推移</span>
           <span class="chart-legend">
-            <span class="leg-bar actual">■ 実績TEU</span>
-            <span class="leg-bar prospect">■ 見込TEU</span>
-            <span class="leg-line">— CM1/TEU</span>
+            <span class="leg-bar actual" data-i18n="actual_teu">■ 実績TEU</span>
+            <span class="leg-bar prospect" data-i18n="prospect_teu">■ 見込TEU</span>
+            <span class="leg-line" data-i18n="cm1_teu">— CM1/TEU</span>
           </span>
         </div>
         <div class="card-body chart-wrap">
@@ -79,18 +85,18 @@
 
       <!-- Top5 Shipper テーブル -->
       <div class="card">
-        <div class="card-header">Top5 Shipper (直近6か月合計順)</div>
+        <div class="card-header" data-i18n="top5_shipper">Top5 Shipper (直近6か月合計順)</div>
         <div class="card-body">
           <table class="shipper-table">
             <thead>
               <tr>
-                <th>Shipper</th>
-                <th>前月<br>TEU</th>
-                <th>前月<br>CM1/T</th>
-                <th>今月<br>TEU</th>
-                <th>今月<br>CM1/T</th>
-                <th>来月<br>TEU</th>
-                <th>GAP<br>±TEU</th>
+                <th data-i18n="shipper">Shipper</th>
+                <th><span data-i18n="prev_month">前月</span><br>TEU</th>
+                <th><span data-i18n="prev_month">前月</span><br>CM1/T</th>
+                <th><span data-i18n="curr_month">今月</span><br>TEU</th>
+                <th><span data-i18n="curr_month">今月</span><br>CM1/T</th>
+                <th><span data-i18n="next_month">来月</span><br>TEU</th>
+                <th data-i18n="gap_teu">GAP<br>±TEU</th>
               </tr>
             </thead>
             <tbody class="shipper-tbody"></tbody>
@@ -103,11 +109,11 @@
     <div class="row-grid one-col">
       <div class="card">
         <div class="card-header">
-          <span class="weekly-chart-title">週間推移</span>
+          <span class="weekly-chart-title" data-i18n="weekly_trend">週間推移</span>
           <span class="chart-legend">
-            <span class="leg-bar actual">■ 実績TEU</span>
-            <span class="leg-bar prospect">■ 見込TEU</span>
-            <span class="leg-line">— CM1/TEU</span>
+            <span class="leg-bar actual" data-i18n="actual_teu">■ 実績TEU</span>
+            <span class="leg-bar prospect" data-i18n="prospect_teu">■ 見込TEU</span>
+            <span class="leg-line" data-i18n="cm1_teu">— CM1/TEU</span>
           </span>
         </div>
         <div class="card-body chart-wrap tall">
@@ -120,8 +126,8 @@
     <div class="row-grid one-col bsa-chart-row">
       <div class="card">
         <div class="card-header">
-          <span>📊 BSA Chart</span>
-          <button class="btn-bsa-refresh editor-only" title="BSAデータ更新">🔄 更新</button>
+          <span data-i18n="bsa_chart">📊 BSA Chart</span>
+          <button class="btn-bsa-refresh editor-only" title="BSAデータ更新" data-i18n="refresh">🔄 更新</button>
         </div>
         <div class="card-body chart-wrap tall">
           <canvas class="bsa-chart-canvas"></canvas>
@@ -137,53 +143,53 @@
         <div class="card-header left-panel-header">
           <!-- 編集者用タブ -->
           <div class="left-panel-tabs editor-only">
-            <button class="lp-tab active" data-tab="prospect">Prospect</button>
-            <button class="lp-tab" data-tab="graph">Summary</button>
+            <button class="lp-tab active" data-tab="prospect" data-i18n="prospect">Prospect</button>
+            <button class="lp-tab" data-tab="graph" data-i18n="summary">Summary</button>
           </div>
           <!-- Prospect ヘッダーボタン -->
           <div class="prospect-header-btns" data-tab-content="prospect">
-            <button class="btn-predict-prospects editor-only" title="過去データの季節性分析から自動予測">🔮 予測入力</button>
-            <button class="btn-save-all-prospects editor-only">💾 一括保存</button>
+            <button class="btn-predict-prospects editor-only" title="過去データの季節性分析から自動予測" data-i18n="predict_btn">🔮 予測入力</button>
+            <button class="btn-save-all-prospects editor-only" data-i18n="save_all">💾 一括保存</button>
           </div>
           <!-- Summary ヘッダーボタン -->
           <div class="graph-header-btns" data-tab-content="graph" style="display:none">
-            <span class="summary-title">Summary</span>
-            <button class="btn-save-graph-config editor-only">Save</button>
-            <button class="btn-template-config editor-only" title="テンプレートとして保存・読み込み">Template</button>
-            <button class="btn-propagate-config editor-only" title="このAreaのスタイルを固定">適用</button>
-            <button class="btn-clear-graph-config editor-only" title="すべてのブロックをクリア">クリア</button>
+            <span class="summary-title" data-i18n="summary">Summary</span>
+            <button class="btn-save-graph-config editor-only" data-i18n="save">Save</button>
+            <button class="btn-template-config editor-only" title="テンプレートとして保存・読み込み" data-i18n="template">Template</button>
+            <button class="btn-propagate-config editor-only" title="このAreaのスタイルを固定" data-i18n="apply">適用</button>
+            <button class="btn-clear-graph-config editor-only" title="すべてのブロックをクリア" data-i18n="clear">クリア</button>
           </div>
         </div>
 
         <!-- Prospect入力パネル -->
         <div class="card-body tab-body prospect-panel" data-tab-panel="prospect">
           <div class="monthly-prospect-section">
-            <div class="monthly-prospect-title">Monthly Prospect</div>
+            <div class="monthly-prospect-title" data-i18n="monthly_prospect">Monthly Prospect</div>
             <table class="monthly-prospect-table">
               <thead>
                 <tr>
-                  <th>月</th>
-                  <th>期間</th>
-                  <th>実績 TEU</th>
-                  <th>実績 CM1/T</th>
-                  <th>見込 TEU</th>
-                  <th>見込 CM1/T</th>
+                  <th data-i18n="month_col">月</th>
+                  <th data-i18n="period_col">期間</th>
+                  <th data-i18n="actual_teu_col">実績 TEU</th>
+                  <th data-i18n="actual_cm1_col">実績 CM1/T</th>
+                  <th data-i18n="prospect_teu_col">見込 TEU</th>
+                  <th data-i18n="prospect_cm1_col">見込 CM1/T</th>
                 </tr>
               </thead>
               <tbody class="monthly-prospect-tbody"></tbody>
             </table>
           </div>
-          <div class="weekly-prospect-title" style="margin-top:16px">Weekly Prospect</div>
+          <div class="weekly-prospect-title" style="margin-top:16px" data-i18n="weekly_prospect">Weekly Prospect</div>
           <table class="prospect-table" style="margin-top:6px">
             <thead>
               <tr>
-                <th>月</th>
-                <th>週</th>
-                <th>期間</th>
-                <th>実績 TEU</th>
-                <th>実績 CM1/T</th>
-                <th>見込 TEU</th>
-                <th>見込 CM1/T</th>
+                <th data-i18n="month_col">月</th>
+                <th data-i18n="week_col">週</th>
+                <th data-i18n="period_col">期間</th>
+                <th data-i18n="actual_teu_col">実績 TEU</th>
+                <th data-i18n="actual_cm1_col">実績 CM1/T</th>
+                <th data-i18n="prospect_teu_col">見込 TEU</th>
+                <th data-i18n="prospect_cm1_col">見込 CM1/T</th>
               </tr>
             </thead>
             <tbody class="prospect-tbody"></tbody>
@@ -198,14 +204,14 @@
 
       <!-- ⑤ ブロックエディター -->
       <div class="card">
-        <div class="card-header">コメント・戦略メモ</div>
+        <div class="card-header" data-i18n="comment_memo">コメント・戦略メモ</div>
         <div class="card-body blocks-area">
           <div class="blocks-container"></div>
           <div class="add-block-bar editor-only">
-            <span class="add-block-label">＋ ブロック追加:</span>
-            <button class="btn-add-block" data-type="text">📝 テキスト</button>
-            <button class="btn-add-block" data-type="image">🖼 Image</button>
-            <button class="btn-add-block" data-type="ai">🤖 AI分析</button>
+            <span class="add-block-label" data-i18n="add_block">＋ ブロック追加:</span>
+            <button class="btn-add-block" data-type="text" data-i18n="block_text">📝 テキスト</button>
+            <button class="btn-add-block" data-type="image" data-i18n="block_image">🖼 Image</button>
+            <button class="btn-add-block" data-type="ai" data-i18n="block_ai">🤖 AI分析</button>
           </div>
         </div>
       </div>
@@ -256,6 +262,37 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
-<script src="/static/app.js"></script>
+<!-- Data Download Modal -->
+<div id="download-modal" class="dl-modal-overlay" style="display:none" onclick="if(event.target===this)closeDownloadModal()">
+  <div class="dl-modal">
+    <div class="dl-modal-header">
+      <span>📥 Data Download</span>
+      <button onclick="closeDownloadModal()" class="dl-modal-close">&times;</button>
+    </div>
+    <div class="dl-modal-body">
+      <div class="dl-row">
+        <label>ETD Period</label>
+        <div class="dl-dates">
+          <input type="date" id="dl-date-from">
+          <span>〜</span>
+          <input type="date" id="dl-date-to">
+        </div>
+      </div>
+      <div class="dl-row">
+        <label>Area</label>
+        <div class="dl-area-wrap">
+          <label class="dl-area-all"><input type="checkbox" id="dl-area-all" checked onchange="toggleDlAreaAll(this)"> ALL</label>
+          <div id="dl-area-checks" class="dl-area-checks"></div>
+        </div>
+      </div>
+    </div>
+    <div class="dl-modal-footer">
+      <button onclick="executeDownload()" class="dl-btn-download" id="dl-btn">📥 Download Excel</button>
+      <span id="dl-status" class="dl-status"></span>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js?v=20260410i"></script>
 </body>
 </html>

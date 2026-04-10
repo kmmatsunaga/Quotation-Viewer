@@ -2,6 +2,135 @@
  * 会議資料ダッシュボード - フロントエンド
  */
 
+// ── 多言語対応 (i18n) ────────────────────────────────
+let CURRENT_LANG = localStorage.getItem('meeting_lang') || 'en';
+
+const I18N = {
+  // ── ヘッダー・共通 ──
+  'edit_mode':          { ja: 'Edit Mode', en: 'Edit Mode', kr: '편집 모드' },
+  'refresh':            { ja: '🔄 Refresh', en: '🔄 Refresh', kr: '🔄 갱신' },
+  'preview_mode':       { ja: '👁 Preview Mode', en: '👁 Preview Mode', kr: '👁 미리보기 모드' },
+  'edit_mode_btn':      { ja: '✏️ Edit Mode', en: '✏️ Edit Mode', kr: '✏️ 편집 모드' },
+  'user_mgmt':          { ja: '👥 User Management', en: '👥 User Management', kr: '👥 사용자 관리' },
+  'logout':             { ja: '🚪 Logout', en: '🚪 Logout', kr: '🚪 로그아웃' },
+  'loading':            { ja: 'Loading data from BigQuery…', en: 'Loading data from BigQuery…', kr: 'BigQuery에서 데이터 로딩 중…' },
+
+  // ── チャートタイトル ──
+  'monthly_trend':      { ja: 'Monthly Trend', en: 'Monthly Trend', kr: '월간 추이' },
+  'weekly_trend':       { ja: 'Weekly Trend', en: 'Weekly Trend', kr: '주간 추이' },
+  'bsa_chart':          { ja: '📊 BSA Chart', en: '📊 BSA Chart', kr: '📊 BSA 차트' },
+  'top5_shipper':       { ja: 'Top5 Shippers (Last 6 Months Total)', en: 'Top5 Shippers (Last 6 Months Total)', kr: 'Top5 화주 (최근 6개월 합계순)' },
+
+  // ── 凡例 ──
+  'actual_teu':         { ja: '■ Actual TEU', en: '■ Actual TEU', kr: '■ 실적TEU' },
+  'prospect_teu':       { ja: '■ Prospect TEU', en: '■ Prospect TEU', kr: '■ 예상TEU' },
+  'cm1_teu':            { ja: '— CM1/TEU', en: '— CM1/TEU', kr: '— CM1/TEU' },
+
+  // ── テーブルヘッダー ──
+  'shipper':            { ja: 'Shipper', en: 'Shipper', kr: '화주' },
+  'prev_month':         { ja: 'Prev', en: 'Prev', kr: '전월' },
+  'curr_month':         { ja: 'Curr', en: 'Curr', kr: '금월' },
+  'next_month':         { ja: 'Next', en: 'Next', kr: '익월' },
+  'gap_teu':            { ja: 'GAP<br>±TEU', en: 'GAP<br>±TEU', kr: 'GAP<br>±TEU' },
+
+  // ── Prospect ──
+  'prospect':           { ja: 'Prospect', en: 'Prospect', kr: 'Prospect' },
+  'summary':            { ja: 'Summary', en: 'Summary', kr: 'Summary' },
+  'monthly_prospect':   { ja: 'Monthly Prospect', en: 'Monthly Prospect', kr: 'Monthly Prospect' },
+  'weekly_prospect':    { ja: 'Weekly Prospect', en: 'Weekly Prospect', kr: 'Weekly Prospect' },
+  'predict_btn':        { ja: '🔮 Predict', en: '🔮 Predict', kr: '🔮 예측입력' },
+  'save_all':           { ja: '💾 Save All', en: '💾 Save All', kr: '💾 일괄저장' },
+  'save':               { ja: 'Save', en: 'Save', kr: '저장' },
+  'template':           { ja: 'Template', en: 'Template', kr: '템플릿' },
+  'apply':              { ja: 'Apply', en: 'Apply', kr: '적용' },
+  'clear':              { ja: 'Clear', en: 'Clear', kr: '초기화' },
+  'month_col':          { ja: 'Month', en: 'Month', kr: '월' },
+  'week_col':           { ja: 'Week', en: 'Week', kr: '주' },
+  'period_col':         { ja: 'Period', en: 'Period', kr: '기간' },
+  'actual_teu_col':     { ja: 'Actual TEU', en: 'Actual TEU', kr: '실적 TEU' },
+  'actual_cm1_col':     { ja: 'Actual CM1/T', en: 'Actual CM1/T', kr: '실적 CM1/T' },
+  'prospect_teu_col':   { ja: 'Prospect TEU', en: 'Prospect TEU', kr: '예상 TEU' },
+  'prospect_cm1_col':   { ja: 'Prospect CM1/T', en: 'Prospect CM1/T', kr: '예상 CM1/T' },
+
+  // ── ブロックエディタ ──
+  'comment_memo':       { ja: 'Comments & Strategy', en: 'Comments & Strategy', kr: '코멘트・전략 메모' },
+  'add_block':          { ja: '+ Add Block:', en: '+ Add Block:', kr: '+ 블록 추가:' },
+  'block_text':         { ja: '📝 Text', en: '📝 Text', kr: '📝 텍스트' },
+  'block_image':        { ja: '🖼 Image', en: '🖼 Image', kr: '🖼 이미지' },
+  'block_ai':           { ja: '🤖 AI Analysis', en: '🤖 AI Analysis', kr: '🤖 AI분석' },
+
+  // ── Summary テンプレート ──
+  'shipper_increase':   { ja: 'Top3 Shipper Increase', en: 'Top3 Shipper Increase', kr: '증가화주 TOP3' },
+  'shipper_decrease':   { ja: 'Top3 Shipper Decrease', en: 'Top3 Shipper Decrease', kr: '감소화주 TOP3' },
+  'combo_increase':     { ja: 'Top5 Shipper×Route Increase', en: 'Top5 Shipper×Route Increase', kr: '화주×항로 증가 TOP5' },
+  'combo_decrease':     { ja: 'Top5 Shipper×Route Decrease', en: 'Top5 Shipper×Route Decrease', kr: '화주×항로 감소 TOP5' },
+  'curr_month_label':   { ja: 'This Month', en: 'This Month', kr: '금월' },
+  'next_month_label':   { ja: 'Next Month', en: 'Next Month', kr: '익월' },
+  'new_customer':       { ja: '🆕 New Customer', en: '🆕 New Customer', kr: '🆕 신규고객' },
+  'regain_customer':    { ja: '🔄 Regain Customer', en: '🔄 Regain Customer', kr: '🔄 복귀고객' },
+  'new_cust_desc':      { ja: 'No bookings in last 12 months → Reappeared this/next month', en: 'No bookings in last 12 months → Reappeared this/next month', kr: '과거 12개월 실적 제로 → 금/익월 복귀' },
+  'regain_cust_desc':   { ja: 'Active 7-12 months ago → 6 months inactive → Reappeared', en: 'Active 7-12 months ago → 6 months inactive → Reappeared', kr: '7-12개월 전 실적 → 6개월 휴지 → 금월 복귀' },
+  'no_data':            { ja: 'No Data', en: 'No Data', kr: '해당없음' },
+  'data_none':          { ja: 'No Data', en: 'No Data', kr: '데이터 없음' },
+  'total_count':        { ja: 'Total', en: 'Total', kr: '합계' },
+  'others':             { ja: 'Others', en: 'Others', kr: '기타' },
+  'companies':          { ja: 'companies', en: 'companies', kr: '사' },
+  'cm1_range':          { ja: '💰 CM1 Range Analysis', en: '💰 CM1 Range Analysis', kr: '💰 CM1 범위분석' },
+  'cm1_range_desc':     { ja: 'CM1/TEU segmented: Top 25% (High), Middle (Mid), Bottom 25% (Low)', en: 'CM1/TEU segmented: Top 25% (High), Middle (Mid), Bottom 25% (Low)', kr: 'CM1/TEU 상위25%(High)·중간(Mid)·하위25%(Low) 분류' },
+  'trade_lane':         { ja: '🗺️ Trade Lane', en: '🗺️ Trade Lane', kr: '🗺️ Trade Lane' },
+  'cm1_waterfall':      { ja: '📊 CM1/TEU MoM Factor Analysis', en: '📊 CM1/TEU MoM Factor Analysis', kr: '📊 CM1/TEU 전월대비 요인분해' },
+  'booking_monthly':    { ja: '📋 Booking Count (Monthly)', en: '📋 Booking Count (Monthly)', kr: '📋 부킹건수(월간)' },
+  'booking_weekly':     { ja: '📋 Booking Count (Weekly)', en: '📋 Booking Count (Weekly)', kr: '📋 부킹건수(주간)' },
+  'pol_count':          { ja: '🏭 POL Count', en: '🏭 POL Count', kr: '🏭 POL수' },
+  'sales_contribution': { ja: '👤 Sales Contribution', en: '👤 Sales Contribution', kr: '👤 영업기여도' },
+  'koshi_shipper':      { ja: '📦 Waste Paper Shippers', en: '📦 Waste Paper Shippers', kr: '📦 고지화주' },
+  'three_m_avg':        { ja: '3M Avg', en: '3M Avg', kr: '3M 평균' },
+  'avg_3m_teu':         { ja: '3M Avg TEU', en: '3M Avg TEU', kr: '3M 평균 TEU' },
+  'remark':             { ja: 'Remark', en: 'Remark', kr: '비고' },
+  'route':              { ja: '航路', en: 'Route', kr: '항로' },
+  'bsa_no_data':        { ja: 'No BSA Data', en: 'No BSA Data', kr: 'BSA 데이터 없음' },
+  'bsa_refreshing':     { ja: '⏳ Refreshing...', en: '⏳ Refreshing...', kr: '⏳ 갱신중...' },
+  'bsa_refreshed':      { ja: 'BSA data refreshed', en: 'BSA data refreshed', kr: 'BSA 데이터 갱신완료' },
+};
+
+function t(key) {
+  const entry = I18N[key];
+  if (!entry) return key;
+  return entry[CURRENT_LANG] || entry['en'] || key;
+}
+
+function setLang(lang) {
+  CURRENT_LANG = lang;
+  localStorage.setItem('meeting_lang', lang);
+  applyTranslations();
+  // 現在表示中のエリアをキャッシュから再描画（チャート・テーブルの翻訳反映）
+  if (CURRENT_AREA && DATA_CACHE[CURRENT_AREA]) {
+    renderArea(CURRENT_AREA, DATA_CACHE[CURRENT_AREA]);
+  }
+  // AIコメントの言語自動更新
+  document.querySelectorAll('.gc-block').forEach(el => {
+    if (el._aiLangCheck) el._aiLangCheck();
+  });
+}
+
+function applyTranslations() {
+  // data-i18n 属性を持つ要素を一括翻訳
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    const val = t(key);
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+      el.placeholder = val;
+    } else {
+      // innerHTML対応（<br>を含むキー用）
+      el.innerHTML = val;
+    }
+  });
+  // 言語ボタンのアクティブ状態
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === CURRENT_LANG);
+  });
+}
+
 // ── グローバル状態 ───────────────────────────────────
 let AREAS = [];
 let CURRENT_AREA = null;
@@ -28,6 +157,8 @@ if (window.ChartDataLabels) {
   // デフォルトはOFF (各チャートで個別ON)
   Chart.defaults.plugins.datalabels = { display: false };
 }
+// Chart.js グローバル文字色を黒に
+Chart.defaults.color = '#000';
 
 const COLORS = {
   actual:   '#1a6fc4',
@@ -35,15 +166,24 @@ const COLORS = {
   prospect: '#e67e22',
   prospectFg: 'rgba(230,126,34,0.75)',
   line:     '#e74c3c',
-  prev:     'rgba(180,180,180,0.6)',
-  curr:     'rgba(26,111,196,0.75)',
-  next:     'rgba(39,174,96,0.65)',
+  prev:     'rgba(80,80,80,0.9)',
+  curr:     'rgba(26,111,196,0.85)',
+  next:     'rgba(22,140,70,0.8)',
   currLine: '#e74c3c',
+  // サブエリア積み上げ用 (実績)
+  sub0_actual: 'rgba(63,81,181,0.80)',   // MNL 青
+  sub1_actual: 'rgba(233,30,99,0.70)',   // MIP ピンク
+  // サブエリア積み上げ用 (見込み)
+  sub0_prospect: 'rgba(92,107,192,0.70)',  // MNL 薄青
+  sub1_prospect: 'rgba(240,98,146,0.60)',  // MIP 薄ピンク
 };
 
 // ── 初期化 ───────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   document.body.insertAdjacentHTML('beforeend', '<div id="toast"></div>');
+
+  // 多言語の初期適用
+  applyTranslations();
 
   document.getElementById('current-date').textContent =
     new Date().toLocaleDateString('ja-JP', {year:'numeric', month:'long', day:'numeric', weekday:'short'});
@@ -224,7 +364,10 @@ function renderTabs() {
   const tabList = document.getElementById('tab-list');
   tabList.innerHTML = '';
   const SUB_AREAS = new Set(["IN-West","IN-East","PKG&PEN","PKW&PGU","MIP","MNL","SGN","HPH"]);
+  // 親エリアに統合されたサブエリアはタブ非表示
+  const HIDDEN_TABS = new Set(["MNL","MIP"]);
   AREAS.forEach(area => {
+    if (HIDDEN_TABS.has(area)) return;  // タブ非表示
     const btn = document.createElement('button');
     btn.className = 'tab-btn' + (SUB_AREAS.has(area) ? ' tab-btn-sub' : '');
     btn.textContent = area;
@@ -394,6 +537,9 @@ function ensurePanel(area) {
   });
 
   document.getElementById('area-panels').appendChild(panel);
+
+  // クローンされたパネルに翻訳適用
+  applyTranslations();
 }
 
 // ── データ読み込み ────────────────────────────────────
@@ -462,22 +608,30 @@ function renderArea(area, data) {
   clearNoData(panel);
 
   // 月間チャート
-  renderMonthlyChart(panel, area, data.monthly || [], data.weekly || []);
+  renderMonthlyChart(panel, area, data.monthly || [], data.weekly || [], data.sub_areas, data.sub_area_names);
 
   // 週間チャート
-  renderWeeklyChart(panel, area, data.weekly || []);
+  renderWeeklyChart(panel, area, data.weekly || [], data.sub_areas, data.sub_area_names);
 
   // BSA Chart（固定位置）
   _renderBSAInPanel(panel, area);
 
   // Top5 Shipper
-  renderShipperTable(panel, data.top_shippers || [], data.monthly || []);
+  renderShipperTable(panel, data.top_shippers || [], data.monthly || [], data.meeting_day);
 
   // 月間見込みテーブル (当月・来月)
-  renderMonthlyProspect(panel, area, data.monthly || []);
+  if (data.sub_areas && data.sub_area_names) {
+    renderSubAreaMonthlyProspect(panel, area, data);
+  } else {
+    renderMonthlyProspect(panel, area, data.monthly || [], data.is_auto_sum_area);
+  }
 
   // Prospect入力テーブル
-  renderProspectTable(panel, area, data.weekly || []);
+  if (data.sub_areas && data.sub_area_names) {
+    renderSubAreaProspectTable(panel, area, data);
+  } else {
+    renderProspectTable(panel, area, data.weekly || [], data.is_auto_sum_area);
+  }
 
   // 週セレクタ更新 (最初のエリアのみ, 週変更時はスキップ) ← loadBlocks より先に呼ぶ
   if (AREAS[0] === area && !window._skipWeekSelectorUpdate) updateWeekSelector(data.weekly || []);
@@ -529,7 +683,7 @@ function buildRangeTitle(prefix, items, ymKey) {
 }
 
 // ── 月間チャート ──────────────────────────────────────
-function renderMonthlyChart(panel, area, monthly, weeklyData) {
+function renderMonthlyChart(panel, area, monthly, weeklyData, subAreas, subAreaNames) {
   const canvas = panel.querySelector('.monthly-chart');
   const key = `${area}_monthly`;
 
@@ -537,7 +691,7 @@ function renderMonthlyChart(panel, area, monthly, weeklyData) {
 
   // タイトル動的更新
   const mTitle = panel.querySelector('.monthly-chart-title');
-  if (mTitle) mTitle.textContent = buildRangeTitle('月間推移', monthly, 'ym');
+  if (mTitle) mTitle.textContent = buildRangeTitle(t('monthly_trend'), monthly, 'ym');
 
   // ラベルに社数を埋め込む (複数行)
   const labels = monthly.map(m => {
@@ -547,7 +701,7 @@ function renderMonthlyChart(panel, area, monthly, weeklyData) {
 
   // 週次の見込み合計を ym 別に集計
   const prospectSumByYm = {};
-  const prospectCM1TotalByYm = {}; // 月の見込み CM1 合計 (CM1/T × TEU)
+  const prospectCM1TotalByYm = {};
   (weeklyData || []).forEach(w => {
     if (w.prospect_TEU != null) {
       prospectSumByYm[w.ym] = (prospectSumByYm[w.ym] || 0) + w.prospect_TEU;
@@ -565,126 +719,194 @@ function renderMonthlyChart(panel, area, monthly, weeklyData) {
     return (pSum != null && pSum > 0) ? pSum : null;
   });
 
-  // 実績: 見込みがある月は実績を非表示 (見込みバーに置き換え)
+  // 実績: 未来月のみ非表示
   const actualTEU = monthly.map((m, i) => {
-    if (_prospectTEU[i] != null) return null;  // 見込みがある→実績バー非表示
+    if (m.is_future) return null;
     return m.TEU > 0 ? m.TEU : null;
   });
-
-  // 見込み: 当月・将来月で見込みデータがある月のみ
   const prospectTEU = _prospectTEU;
 
-  // CM1/T ライン: 見込みがある月は見込みCM1優先、なければ実績
+  // CM1/T ライン
   const cm1PerTEU = monthly.map(m => {
-    if (m.is_future || m.is_current) {
-      // 見込みCM1がある場合はそちらを優先
-      if (m.m_prospect_cm1 != null) return m.m_prospect_cm1;
-      const pTEU = prospectSumByYm[m.ym];
-      const pCM1Total = prospectCM1TotalByYm[m.ym];
-      if (pTEU > 0 && pCM1Total != null) return Math.round(pCM1Total / pTEU * 10) / 10;
-    }
-    // 実績
+    if (m.is_future || m.is_current) return null;
     if (m.CM1_per_TEU > 0) return m.CM1_per_TEU;
     return null;
   });
-  const cm1PointColorsMon = monthly.map((m, i) => {
-    if ((m.is_future || m.is_current) && _prospectTEU[i] != null) return COLORS.prospect;
-    return COLORS.line;
+  const cm1PointColorsMon = monthly.map(() => COLORS.line);
+
+  // ── サブエリア積み上げデータ構築 ──
+  const hasSubStack = subAreas && subAreaNames && subAreaNames.length > 0;
+  let datasets = [];
+
+  if (hasSubStack) {
+    // サブエリアごとの monthly を ym でマップ化
+    const subMonthlyMaps = {};
+    subAreaNames.forEach(name => {
+      const map = {};
+      (subAreas[name]?.monthly || []).forEach(m => { map[m.ym] = m; });
+      subMonthlyMaps[name] = map;
+    });
+
+    // 実績: サブエリアごとのスタック (全サブにバー内表示、合計は上)
+    const lastSub = subAreaNames.length - 1;
+    subAreaNames.forEach((name, si) => {
+      datasets.push({
+        label: `${name} 実績`,
+        data: monthly.map(m => {
+          if (m.is_future) return null;
+          const sm = subMonthlyMaps[name][m.ym];
+          return (sm && sm.TEU > 0) ? sm.TEU : null;
+        }),
+        backgroundColor: COLORS[`sub${si}_actual`],
+        borderWidth: 0, borderRadius: si === lastSub ? 4 : 0,
+        yAxisID: 'y', order: 1, stack: 'actual',
+        datalabels: {
+          display: ctx => ctx.dataset.data[ctx.dataIndex] != null && ctx.dataset.data[ctx.dataIndex] > 0,
+          anchor: 'center', align: 'center',
+          font: { size: 14, weight: 'bold' }, color: '#fff',
+          formatter: v => v != null ? v.toLocaleString() : '',
+        },
+      });
+    });
+    // 実績合計ラベル (最上段に乗せるline型ダミー、Y軸に影響しない)
+    datasets.push({
+      label: '合計', type: 'line',
+      data: actualTEU, showLine: false, pointRadius: 0,
+      yAxisID: 'y', order: 0,
+      datalabels: {
+        display: ctx => actualTEU[ctx.dataIndex] != null,
+        anchor: 'end', align: 'top', offset: 2,
+        font: { size: 14, weight: 'bold' }, color: '#1a237e',
+        formatter: (v, ctx) => actualTEU[ctx.dataIndex] != null ? actualTEU[ctx.dataIndex].toLocaleString() : '',
+      },
+    });
+
+    // 見込み: サブエリアごとのスタック
+    subAreaNames.forEach((name, si) => {
+      const subWeeklyProspect = {};
+      (subAreas[name]?.weekly || []).forEach(w => {
+        if (w.prospect_TEU != null) {
+          subWeeklyProspect[w.ym] = (subWeeklyProspect[w.ym] || 0) + w.prospect_TEU;
+        }
+      });
+      const subMMap = subMonthlyMaps[name];
+      datasets.push({
+        label: `${name} 見込`,
+        data: monthly.map(m => {
+          if (!m.is_future && !m.is_current) return null;
+          const sm = subMMap[m.ym];
+          if (sm && sm.m_prospect_teu != null) return sm.m_prospect_teu;
+          const pSum = subWeeklyProspect[m.ym];
+          return (pSum != null && pSum > 0) ? pSum : null;
+        }),
+        backgroundColor: COLORS[`sub${si}_prospect`],
+        borderWidth: 0, borderRadius: si === lastSub ? 4 : 0,
+        yAxisID: 'y', order: 1, stack: 'prospect',
+        datalabels: {
+          display: ctx => ctx.dataset.data[ctx.dataIndex] != null && ctx.dataset.data[ctx.dataIndex] > 0,
+          anchor: 'center', align: 'center',
+          font: { size: 14, weight: 'bold' }, color: '#fff',
+          formatter: v => v != null ? v.toLocaleString() : '',
+        },
+      });
+    });
+    // 見込合計ラベル
+    datasets.push({
+      label: '見込合計', type: 'line',
+      data: prospectTEU, showLine: false, pointRadius: 0,
+      yAxisID: 'y', order: 0,
+      datalabels: {
+        display: ctx => prospectTEU[ctx.dataIndex] != null,
+        anchor: 'end', align: 'top', offset: 2,
+        font: { size: 14, weight: 'bold' }, color: '#e65100',
+        formatter: (v, ctx) => prospectTEU[ctx.dataIndex] != null ? prospectTEU[ctx.dataIndex].toLocaleString() : '',
+      },
+    });
+  } else {
+    // 通常 (非スタック)
+    datasets = [
+      {
+        label: '実績 TEU', data: actualTEU,
+        backgroundColor: COLORS.actualFg, borderColor: COLORS.actual,
+        borderWidth: 1, borderRadius: 4, yAxisID: 'y', order: 1,
+        datalabels: {
+          display: ctx => ctx.dataset.data[ctx.dataIndex] != null,
+          anchor: 'center', align: 'center',
+          font: { size: 15, weight: 'bold' }, color: '#fff',
+          backgroundColor: ctx => ctx.chart.data.datasets[ctx.datasetIndex].backgroundColor,
+          borderRadius: 3, padding: { top: 2, bottom: 2, left: 4, right: 4 },
+          formatter: v => v != null ? v.toLocaleString() : '',
+        },
+      },
+      {
+        label: '見込 TEU', data: prospectTEU,
+        backgroundColor: COLORS.prospectFg, borderColor: COLORS.prospect,
+        borderWidth: 1, borderRadius: 4, yAxisID: 'y', order: 1,
+        datalabels: {
+          display: ctx => ctx.dataset.data[ctx.dataIndex] != null,
+          anchor: 'center', align: 'center',
+          font: { size: 15, weight: 'bold' }, color: '#fff',
+          backgroundColor: COLORS.prospectFg, borderRadius: 3,
+          padding: { top: 2, bottom: 2, left: 4, right: 4 },
+          formatter: v => v != null ? v.toLocaleString() : '',
+        },
+      },
+    ];
+  }
+
+  // CM1/TEU ライン (共通)
+  datasets.push({
+    label: 'CM1/TEU', data: cm1PerTEU, type: 'line',
+    borderColor: COLORS.line, backgroundColor: 'transparent',
+    borderWidth: 2.5, pointRadius: 4,
+    pointBackgroundColor: cm1PointColorsMon, tension: 0.3,
+    yAxisID: 'y2', order: 0,
+    datalabels: {
+      display: ctx => ctx.dataset.data[ctx.dataIndex] != null,
+      anchor: 'end', align: 'top', offset: 6,
+      font: { size: 14, weight: 'bold' }, color: '#fff',
+      backgroundColor: '#c62828', borderRadius: 3,
+      padding: { top: 2, bottom: 2, left: 5, right: 5 },
+      formatter: v => v != null ? '$' + Math.round(v).toLocaleString() : '',
+    },
   });
 
   CHART_INSTANCES[key] = new Chart(canvas, {
     type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: '実績 TEU',
-          data: actualTEU,
-          backgroundColor: COLORS.actualFg,
-          borderColor: COLORS.actual,
-          borderWidth: 1,
-          borderRadius: 4,
-          yAxisID: 'y',
-          order: 1,
-          datalabels: {
-            display: ctx => ctx.dataset.data[ctx.dataIndex] != null,
-            anchor: 'center', align: 'center',
-            font: { size: 12, weight: 'bold' },
-            color: '#fff',
-            formatter: v => v != null ? v.toLocaleString() : '',
-          },
-        },
-        {
-          label: '見込 TEU',
-          data: prospectTEU,
-          backgroundColor: COLORS.prospectFg,
-          borderColor: COLORS.prospect,
-          borderWidth: 1,
-          borderRadius: 4,
-          yAxisID: 'y',
-          order: 1,
-          datalabels: {
-            display: ctx => ctx.dataset.data[ctx.dataIndex] != null,
-            anchor: 'center', align: 'center',
-            font: { size: 12, weight: 'bold' },
-            color: '#fff',
-            formatter: v => v != null ? v.toLocaleString() : '',
-          },
-        },
-        {
-          label: 'CM1/TEU',
-          data: cm1PerTEU,
-          type: 'line',
-          borderColor: COLORS.line,
-          backgroundColor: 'transparent',
-          borderWidth: 2.5,
-          pointRadius: 4,
-          pointBackgroundColor: cm1PointColorsMon,
-          tension: 0.3,
-          yAxisID: 'y2',
-          order: 0,
-          datalabels: {
-            display: ctx => ctx.dataset.data[ctx.dataIndex] != null,
-            anchor: 'end', align: 'top', offset: 6,
-            font: { size: 11, weight: 'bold' },
-            color: '#fff',
-            backgroundColor: '#c62828',
-            borderRadius: 3,
-            padding: { top: 2, bottom: 2, left: 4, right: 4 },
-            formatter: v => v != null ? '$' + Math.round(v).toLocaleString() : '',
-          },
-        },
-      ]
-    },
+    data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 20 } },
+      layout: { padding: { top: 28 } },
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: false },
+        legend: { display: hasSubStack, position: 'top', labels: {
+          filter: item => !item.text.includes('合計'),
+          font: { size: 16 }, boxWidth: 14, padding: 8,
+        }},
         tooltip: {
           callbacks: {
             label: ctx => {
-              if (ctx.datasetIndex === 2) return `CM1/TEU: $${Math.round(ctx.parsed.y ?? 0).toLocaleString()}`;
+              if (ctx.dataset.label === 'CM1/TEU') return `CM1/TEU: $${Math.round(ctx.parsed.y ?? 0).toLocaleString()}`;
+              if (ctx.dataset.label.includes('合計')) return null;
               return `${ctx.dataset.label}: ${ctx.parsed.y?.toLocaleString() ?? '-'} TEU`;
             }
           }
         }
       },
       scales: {
-        x: { grid: { display: false } },
+        x: { grid: { display: false }, stacked: hasSubStack, ticks: { color: '#000', font: {size:12, weight:'bold'} } },
         y: {
-          type: 'linear', position: 'left',
-          title: { display: true, text: 'TEU', font: {size:11} },
+          type: 'linear', position: 'left', stacked: hasSubStack,
+          title: { display: true, text: 'TEU', font: {size:12, weight:'bold'}, color: '#000' },
           grid: { color: '#f0f0f0' },
-          ticks: { callback: v => v.toLocaleString() },
+          ticks: { callback: v => v.toLocaleString(), color: '#000', font: {size:12} },
           grace: '15%',
         },
         y2: {
-          type: 'linear', position: 'right',
-          title: { display: true, text: 'CM1/TEU ($)', font: {size:11} },
+          type: 'linear', position: 'right', stacked: false,
+          title: { display: true, text: 'CM1/TEU ($)', font: {size:12, weight:'bold'}, color: '#000' },
           grid: { drawOnChartArea: false },
-          ticks: { callback: v => '$' + v.toLocaleString() },
+          ticks: { callback: v => '$' + v.toLocaleString(), color: '#000', font: {size:12} },
           grace: '15%',
         }
       }
@@ -693,20 +915,19 @@ function renderMonthlyChart(panel, area, monthly, weeklyData) {
 }
 
 // ── 週間チャート ──────────────────────────────────────
-function renderWeeklyChart(panel, area, weekly) {
+function renderWeeklyChart(panel, area, weekly, subAreas, subAreaNames) {
   const canvas = panel.querySelector('.weekly-chart');
   const key = `${area}_weekly`;
 
   if (CHART_INSTANCES[key]) { CHART_INSTANCES[key].destroy(); }
 
-  // タイトル動的更新 (重複ym除外)
+  // タイトル動的更新
   const wTitle = panel.querySelector('.weekly-chart-title');
   if (wTitle) {
     const uniqueYms = [...new Set(weekly.map(w => w.ym))].map(ym => ({ym}));
-    wTitle.textContent = buildRangeTitle('週間推移', uniqueYms, 'ym');
+    wTitle.textContent = buildRangeTitle(t('weekly_trend'), uniqueYms, 'ym');
   }
 
-  // 月ごとに色分け
   const months = [...new Set(weekly.map(w => w.month_label))];
   const monthColors = {
     [months[0]]: COLORS.prev,
@@ -722,102 +943,158 @@ function renderWeeklyChart(panel, area, weekly) {
     return parts;
   });
 
-  // 実績 TEU: 過去・現在・将来の全週で確定済み予約を表示
   const actualTEU = weekly.map(w => w.TEU > 0 ? w.TEU : null);
-  // 見込 TEU: 今週・将来週の手入力値
   const prospectTEU = weekly.map(w => {
     if (!w.is_future && !w.is_current) return null;
     return w.prospect_TEU ?? null;
   });
-  // CM1/T ライン: 今週以降は見込み CM1/T を優先、過去は実績
   const cm1Line = weekly.map(w => {
-    if (w.is_future || w.is_current) {
-      if (w.prospect_CM1 != null) return w.prospect_CM1;
-      if (w.CM1_per_TEU > 0) return w.CM1_per_TEU;
-      return null;
-    }
+    if (w.is_future || w.is_current) return null;
     if (w.CM1_per_TEU > 0) return w.CM1_per_TEU;
     return null;
   });
-  const cm1PointColors = weekly.map(w => {
-    if ((w.is_future || w.is_current) && w.prospect_CM1 != null) return COLORS.prospect;
-    return COLORS.line;
-  });
+  const cm1PointColors = weekly.map(() => COLORS.line);
 
-  // バーの色を月ごとに
-  const barColors = weekly.map(w => {
-    const base = monthColors[w.month_label] || COLORS.actualFg;
-    return w.is_future ? COLORS.prospectFg : base;
+  const hasSubStack = subAreas && subAreaNames && subAreaNames.length > 0;
+  let datasets = [];
+
+  if (hasSubStack) {
+    // サブエリアの週次データをマップ化
+    const subWeeklyMaps = {};
+    subAreaNames.forEach(name => {
+      const map = {};
+      (subAreas[name]?.weekly || []).forEach(w => { map[w.week_key] = w; });
+      subWeeklyMaps[name] = map;
+    });
+
+    // 実績: サブエリア積み上げ (全サブにバー内表示)
+    const wLastSub = subAreaNames.length - 1;
+    subAreaNames.forEach((name, si) => {
+      datasets.push({
+        label: `${name} 実績`,
+        data: weekly.map(w => {
+          const sw = subWeeklyMaps[name][w.week_key];
+          return (sw && sw.TEU > 0) ? sw.TEU : null;
+        }),
+        backgroundColor: COLORS[`sub${si}_actual`],
+        borderWidth: 0, borderRadius: si === wLastSub ? 3 : 0,
+        yAxisID: 'y', order: 1, stack: 'actual',
+        datalabels: {
+          display: ctx => ctx.dataset.data[ctx.dataIndex] != null && ctx.dataset.data[ctx.dataIndex] > 0,
+          anchor: 'center', align: 'center',
+          font: { size: 14, weight: 'bold' }, color: '#fff',
+          formatter: v => v != null ? v.toLocaleString() : '',
+        },
+      });
+    });
+    // 実績合計ラベル
+    datasets.push({
+      label: '合計', type: 'line',
+      data: actualTEU, showLine: false, pointRadius: 0,
+      yAxisID: 'y', order: 0,
+      datalabels: {
+        display: ctx => actualTEU[ctx.dataIndex] != null,
+        anchor: 'end', align: 'top', offset: 2,
+        font: { size: 12, weight: 'bold' }, color: '#1a237e',
+        formatter: (v, ctx) => actualTEU[ctx.dataIndex] != null ? actualTEU[ctx.dataIndex].toLocaleString() : '',
+      },
+    });
+
+    // 見込み: サブエリア積み上げ
+    subAreaNames.forEach((name, si) => {
+      datasets.push({
+        label: `${name} 見込`,
+        data: weekly.map(w => {
+          if (!w.is_future && !w.is_current) return null;
+          const sw = subWeeklyMaps[name][w.week_key];
+          return sw?.prospect_TEU ?? null;
+        }),
+        backgroundColor: COLORS[`sub${si}_prospect`],
+        borderWidth: 0, borderRadius: si === wLastSub ? 3 : 0,
+        yAxisID: 'y', order: 1, stack: 'prospect',
+        datalabels: {
+          display: ctx => ctx.dataset.data[ctx.dataIndex] != null && ctx.dataset.data[ctx.dataIndex] > 0,
+          anchor: 'center', align: 'center',
+          font: { size: 14, weight: 'bold' }, color: '#fff',
+          formatter: v => v != null ? v.toLocaleString() : '',
+        },
+      });
+    });
+    // 見込合計ラベル
+    datasets.push({
+      label: '見込合計', type: 'line',
+      data: prospectTEU, showLine: false, pointRadius: 0,
+      yAxisID: 'y', order: 0,
+      datalabels: {
+        display: ctx => prospectTEU[ctx.dataIndex] != null,
+        anchor: 'end', align: 'top', offset: 2,
+        font: { size: 12, weight: 'bold' }, color: '#e65100',
+        formatter: (v, ctx) => prospectTEU[ctx.dataIndex] != null ? prospectTEU[ctx.dataIndex].toLocaleString() : '',
+      },
+    });
+  } else {
+    datasets = [
+      {
+        label: '実績 TEU', data: actualTEU,
+        backgroundColor: weekly.map(w => monthColors[w.month_label] || COLORS.actualFg),
+        borderWidth: 1, borderRadius: 3, yAxisID: 'y', order: 1,
+        datalabels: {
+          display: ctx => ctx.dataset.data[ctx.dataIndex] != null,
+          anchor: 'center', align: 'center',
+          font: { size: 13, weight: 'bold' }, color: '#fff',
+          backgroundColor: ctx => {
+            const bg = ctx.chart.data.datasets[ctx.datasetIndex].backgroundColor;
+            return Array.isArray(bg) ? bg[ctx.dataIndex] : bg;
+          },
+          borderRadius: 3, padding: { top: 2, bottom: 2, left: 4, right: 4 },
+          formatter: v => v != null ? v.toLocaleString() : '',
+        },
+      },
+      {
+        label: '見込 TEU', data: prospectTEU,
+        backgroundColor: COLORS.prospectFg, borderWidth: 1, borderRadius: 3,
+        yAxisID: 'y', order: 1,
+        datalabels: {
+          display: ctx => ctx.dataset.data[ctx.dataIndex] != null,
+          anchor: 'center', align: 'center',
+          font: { size: 13, weight: 'bold' }, color: '#fff',
+          backgroundColor: COLORS.prospectFg, borderRadius: 3,
+          padding: { top: 2, bottom: 2, left: 4, right: 4 },
+          formatter: v => v != null ? v.toLocaleString() : '',
+        },
+      },
+    ];
+  }
+
+  // CM1/TEU ライン (共通)
+  datasets.push({
+    label: 'CM1/TEU', data: cm1Line, type: 'line',
+    borderColor: COLORS.line, backgroundColor: 'transparent',
+    borderWidth: 2, pointRadius: 3,
+    pointBackgroundColor: cm1PointColors, tension: 0.2,
+    yAxisID: 'y2', order: 0,
+    datalabels: {
+      display: ctx => ctx.dataset.data[ctx.dataIndex] != null,
+      anchor: 'end', align: 'top', offset: 6,
+      font: { size: 12, weight: 'bold' }, color: '#fff',
+      backgroundColor: '#c62828', borderRadius: 3,
+      padding: { top: 2, bottom: 2, left: 4, right: 4 },
+      formatter: v => v != null ? '$' + Math.round(v).toLocaleString() : '',
+    },
   });
 
   CHART_INSTANCES[key] = new Chart(canvas, {
     type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: '実績 TEU',
-          data: actualTEU,
-          backgroundColor: weekly.map(w => monthColors[w.month_label] || COLORS.actualFg),
-          borderWidth: 1,
-          borderRadius: 3,
-          yAxisID: 'y',
-          order: 1,
-          datalabels: {
-            display: ctx => ctx.dataset.data[ctx.dataIndex] != null,
-            anchor: 'center', align: 'center',
-            font: { size: 11, weight: 'bold' },
-            color: '#fff',
-            formatter: v => v != null ? v.toLocaleString() : '',
-          },
-        },
-        {
-          label: '見込 TEU',
-          data: prospectTEU,
-          backgroundColor: COLORS.prospectFg,
-          borderWidth: 1,
-          borderRadius: 3,
-          yAxisID: 'y',
-          order: 1,
-          datalabels: {
-            display: ctx => ctx.dataset.data[ctx.dataIndex] != null,
-            anchor: 'center', align: 'center',
-            font: { size: 11, weight: 'bold' },
-            color: '#fff',
-            formatter: v => v != null ? v.toLocaleString() : '',
-          },
-        },
-        {
-          label: 'CM1/TEU',
-          data: cm1Line,
-          type: 'line',
-          borderColor: COLORS.line,
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          pointRadius: 3,
-          pointBackgroundColor: cm1PointColors,
-          tension: 0.2,
-          yAxisID: 'y2',
-          order: 0,
-          datalabels: {
-            display: ctx => ctx.dataset.data[ctx.dataIndex] != null,
-            anchor: 'end', align: 'top', offset: 6,
-            font: { size: 12, weight: 'bold' },
-            color: '#fff',
-            backgroundColor: '#c62828',
-            borderRadius: 3,
-            padding: { top: 2, bottom: 2, left: 4, right: 4 },
-            formatter: v => v != null ? '$' + Math.round(v).toLocaleString() : '',
-          },
-        }
-      ]
-    },
+    data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 18 } },
+      layout: { padding: { top: 22 } },
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: false },
+        legend: { display: hasSubStack, position: 'top', labels: {
+          filter: item => !item.text.includes('合計'),
+          font: { size: 16 }, boxWidth: 14, padding: 8,
+        }},
         tooltip: {
           callbacks: {
             title: ctx => {
@@ -825,7 +1102,8 @@ function renderWeeklyChart(panel, area, weekly) {
               return `W${w.week} (${w.week_start} 〜 ${w.week_end})`;
             },
             label: ctx => {
-              if (ctx.datasetIndex === 2) return `CM1/TEU: $${Math.round(ctx.parsed.y ?? 0).toLocaleString()}`;
+              if (ctx.dataset.label === 'CM1/TEU') return `CM1/TEU: $${Math.round(ctx.parsed.y ?? 0).toLocaleString()}`;
+              if (ctx.dataset.label.includes('合計')) return null;
               return `${ctx.dataset.label}: ${ctx.parsed.y?.toLocaleString() ?? '-'} TEU`;
             }
           }
@@ -833,21 +1111,21 @@ function renderWeeklyChart(panel, area, weekly) {
       },
       scales: {
         x: {
-          grid: { display: false },
-          ticks: { font: {size:11}, maxRotation: 0 }
+          grid: { display: false }, stacked: hasSubStack,
+          ticks: { font: {size:12}, color: '#000', maxRotation: 0 }
         },
         y: {
-          type: 'linear', position: 'left',
-          title: { display: true, text: 'TEU', font: {size:11} },
+          type: 'linear', position: 'left', stacked: hasSubStack,
+          title: { display: true, text: 'TEU', font: {size:12, weight:'bold'}, color: '#000' },
           grid: { color: '#f0f0f0' },
-          ticks: { callback: v => v.toLocaleString() },
+          ticks: { callback: v => v.toLocaleString(), color: '#000', font: {size:12} },
           grace: '15%',
         },
         y2: {
-          type: 'linear', position: 'right',
-          title: { display: true, text: 'CM1/TEU ($)', font: {size:11} },
+          type: 'linear', position: 'right', stacked: false,
+          title: { display: true, text: 'CM1/TEU ($)', font: {size:12, weight:'bold'}, color: '#000' },
           grid: { drawOnChartArea: false },
-          ticks: { callback: v => '$' + v.toLocaleString() },
+          ticks: { callback: v => '$' + v.toLocaleString(), color: '#000', font: {size:12} },
           grace: '15%',
         }
       }
@@ -872,56 +1150,94 @@ function ymToLabel(ym) {
   return ym;
 }
 
-function renderShipperTable(panel, shippers, monthly) {
+function renderShipperTable(panel, shippers, monthly, meetingDay) {
   const months = monthly || [];
   let currIdx = -1;
   for (let i = months.length - 1; i >= 0; i--) {
     if (!months[i].is_future) { currIdx = i; break; }
   }
-  const prevLabel = currIdx > 0 ? (monthAbbr(months[currIdx-1]?.label) || '前月') : '前月';
-  const currLabel = currIdx >= 0 ? (monthAbbr(months[currIdx]?.label) || '今月') : '今月';
+
+  // 会議日(水曜)の日付でパターン切替
+  const isBeforeMid = (meetingDay || 15) <= 14;
+
+  // 月ラベル取得
+  const prev2Label = currIdx > 1 ? (monthAbbr(months[currIdx-2]?.label) || '') : '';
+  const prevLabel = currIdx > 0 ? (monthAbbr(months[currIdx-1]?.label) || t('prev_month')) : t('prev_month');
+  const currLabel = currIdx >= 0 ? (monthAbbr(months[currIdx]?.label) || t('curr_month')) : t('curr_month');
   const nextLabel = (currIdx >= 0 && currIdx+1 < months.length)
-    ? (monthAbbr(months[currIdx+1]?.label) || '来月') : '来月';
+    ? (monthAbbr(months[currIdx+1]?.label) || t('next_month')) : t('next_month');
 
-  // thead を月名で更新
   const theadTr = panel.querySelector('.shipper-table thead tr');
-  theadTr.innerHTML = `
-    <th>Shipper</th>
-    <th>${prevLabel}<br>TEU</th>
-    <th>${prevLabel}<br>CM1/T</th>
-    <th>${currLabel}<br>TEU</th>
-    <th>${currLabel}<br>CM1/T</th>
-    <th>${nextLabel}<br>TEU</th>
-    <th>GAP<br>±TEU</th>
-  `;
-
   const tbody = panel.querySelector('.shipper-tbody');
   tbody.innerHTML = '';
 
+  if (isBeforeMid) {
+    // ① 14日以前: 3M Avg, 前々月TEU, 前々月CM1/T, 前月TEU, 前月CM1/T, 当月TEU, Gap(前月vs当月)
+    theadTr.innerHTML = `
+      <th>${t('shipper')}</th>
+      <th>${t('avg_3m_teu')}</th>
+      <th>${prev2Label || t('prev_month')}<br>TEU</th>
+      <th>${prev2Label || t('prev_month')}<br>CM1/T</th>
+      <th>${prevLabel}<br>TEU</th>
+      <th>${prevLabel}<br>CM1/T</th>
+      <th>${currLabel}<br>TEU</th>
+      <th>GAP<br>±TEU</th>
+    `;
+  } else {
+    // ② 15日以降: 3M Avg, 前月TEU, 前月CM1/T, 当月TEU, Gap(前月vs当月), 翌月TEU
+    theadTr.innerHTML = `
+      <th>${t('shipper')}</th>
+      <th>${t('avg_3m_teu')}</th>
+      <th>${prevLabel}<br>TEU</th>
+      <th>${prevLabel}<br>CM1/T</th>
+      <th>${currLabel}<br>TEU</th>
+      <th>GAP<br>±TEU</th>
+      <th>${nextLabel}<br>TEU</th>
+    `;
+  }
+
   if (!shippers.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;padding:20px">データなし</td></tr>';
+    const colCount = isBeforeMid ? 8 : 7;
+    tbody.innerHTML = `<tr><td colspan="${colCount}" style="text-align:center;color:#999;padding:20px">${t('data_none')}</td></tr>`;
     return;
   }
 
   shippers.forEach((s, idx) => {
     const gapCls = s.gap_teu > 0 ? 'gap-pos' : s.gap_teu < 0 ? 'gap-neg' : '';
     const gapStr = s.gap_teu > 0 ? '+' + s.gap_teu.toLocaleString() : s.gap_teu.toLocaleString();
-    tbody.insertAdjacentHTML('beforeend', `
-      <tr>
-        <td>${idx+1}. ${s.shipper}</td>
-        <td>${(s.prev?.TEU ?? 0).toLocaleString()}</td>
-        <td>$${(s.prev?.CM1_per_TEU ?? 0).toLocaleString()}</td>
-        <td><strong>${(s.curr?.TEU ?? 0).toLocaleString()}</strong></td>
-        <td>$${(s.curr?.CM1_per_TEU ?? 0).toLocaleString()}</td>
-        <td>${(s.next?.TEU ?? 0).toLocaleString()}</td>
-        <td class="${gapCls}">${gapStr}</td>
-      </tr>
-    `);
+    const avg3m = (s.avg_3m_teu ?? 0).toLocaleString();
+
+    if (isBeforeMid) {
+      tbody.insertAdjacentHTML('beforeend', `
+        <tr>
+          <td>${idx+1}. ${s.shipper}</td>
+          <td>${avg3m}</td>
+          <td>${(s.prev2?.TEU ?? 0).toLocaleString()}</td>
+          <td>$${(s.prev2?.CM1_per_TEU ?? 0).toLocaleString()}</td>
+          <td>${(s.prev?.TEU ?? 0).toLocaleString()}</td>
+          <td>$${(s.prev?.CM1_per_TEU ?? 0).toLocaleString()}</td>
+          <td><strong>${(s.curr?.TEU ?? 0).toLocaleString()}</strong></td>
+          <td class="${gapCls}">${gapStr}</td>
+        </tr>
+      `);
+    } else {
+      tbody.insertAdjacentHTML('beforeend', `
+        <tr>
+          <td>${idx+1}. ${s.shipper}</td>
+          <td>${avg3m}</td>
+          <td>${(s.prev?.TEU ?? 0).toLocaleString()}</td>
+          <td>$${(s.prev?.CM1_per_TEU ?? 0).toLocaleString()}</td>
+          <td><strong>${(s.curr?.TEU ?? 0).toLocaleString()}</strong></td>
+          <td class="${gapCls}">${gapStr}</td>
+          <td>${(s.next?.TEU ?? 0).toLocaleString()}</td>
+        </tr>
+      `);
+    }
   });
 }
 
 // ── Prospect 入力テーブル ────────────────────────────
-function renderProspectTable(panel, area, weekly) {
+function renderProspectTable(panel, area, weekly, isAutoSumArea = false) {
   const tbody = panel.querySelector('.prospect-tbody');
   tbody.innerHTML = '';
 
@@ -952,19 +1268,22 @@ function renderProspectTable(panel, area, weekly) {
     const prospectTEU = w.prospect_TEU ?? '';
     const prospectCM1 = w.prospect_CM1 ?? '';
 
-    // 選択週以降のみ入力可（それ以前は「ー」表示）
-    const canEdit  = isEditor() && !isPastWeek && !VIEWING_SNAPSHOT;
+    // 選択週以降のみ入力可（それ以前は「ー」表示）/ 自動合算エリアは常に編集不可
+    const canEdit  = isEditor() && !isPastWeek && !VIEWING_SNAPSHOT && !isAutoSumArea;
     const disabled = canEdit ? '' : 'disabled';
-    const readonly = canEdit ? '' : 'style="background:#f5f5f5"';
+    const readonly = canEdit ? '' : `style="background:${isAutoSumArea ? '#e8f5e9' : '#f5f5f5'}"`;
 
     const prospectTeuCell = isPastWeek
       ? '<td class="dash-cell">ー</td>'
       : `<td><input type="number" class="prospect-input p-teu" ${disabled} ${readonly}
            value="${prospectTEU}" placeholder="TEU"></td>`;
-    const prospectCm1Cell = isPastWeek
-      ? '<td class="dash-cell">ー</td>'
-      : `<td><input type="number" class="prospect-input p-cm1" ${disabled} ${readonly}
-           value="${prospectCM1}" placeholder="CM1/T"></td>`;
+    // CM1/T見込みは前週のみ入力可、それ以外はダッシュ
+    const isPrevWeek = selectedIdx >= 0 && idx === selectedIdx - 1;
+    const canEditCm1 = isPrevWeek && isEditor() && !VIEWING_SNAPSHOT && !isAutoSumArea;
+    const prospectCm1Cell = isPrevWeek
+      ? `<td><input type="number" class="prospect-input p-cm1" ${canEditCm1 ? '' : 'disabled'} ${canEditCm1 ? '' : 'style="background:#f5f5f5"'}
+           value="${prospectCM1}" placeholder="CM1/T"></td>`
+      : '<td class="dash-cell">ー</td>';
 
     tbody.insertAdjacentHTML('beforeend', `
       <tr class="${rowClass}" data-week-key="${w.week_key}">
@@ -981,6 +1300,151 @@ function renderProspectTable(panel, area, weekly) {
         ${prospectCm1Cell}
       </tr>
     `);
+  });
+}
+
+// ── サブエリア横並び Monthly Prospect ──────────────────
+function renderSubAreaMonthlyProspect(panel, parentArea, data) {
+  const container = panel.querySelector('.monthly-prospect-section');
+  if (!container) return;
+  const subNames = data.sub_area_names;  // e.g. ["MNL","MIP"]
+
+  // タイトル差し替え
+  const titleEl = container.querySelector('.monthly-prospect-title');
+  if (titleEl) titleEl.textContent = `Monthly Prospect (${subNames.join(' / ')})`;
+
+  // テーブル差し替え
+  const table = container.querySelector('.monthly-prospect-table');
+  if (!table) return;
+
+  // ヘッダー構築: 月 | Period | (sub1: Actual TEU, CM1/T, 見込TEU) | (sub2: ...) |
+  let headerHTML = '<tr><th rowspan="2">月</th><th rowspan="2">Period</th>';
+  subNames.forEach(name => {
+    headerHTML += `<th colspan="4" class="sub-area-header sub-area-color-${subNames.indexOf(name)}">${name}</th>`;
+  });
+  headerHTML += '</tr><tr>';
+  subNames.forEach(() => {
+    headerHTML += '<th>Actual<br>TEU</th><th>CM1/T</th><th>見込<br>TEU</th><th>見込<br>CM1/T</th>';
+  });
+  headerHTML += '</tr>';
+  table.querySelector('thead').innerHTML = headerHTML;
+
+  // ボディ構築
+  const tbody = table.querySelector('tbody');
+  tbody.innerHTML = '';
+  // 各サブエリアの monthly データ (後ろ3件)
+  const subMonthly = {};
+  subNames.forEach(name => {
+    subMonthly[name] = (data.sub_areas[name]?.monthly || []).slice(-3);
+  });
+  const baseMonthly = subMonthly[subNames[0]] || [];
+
+  baseMonthly.forEach((m, i) => {
+    const isPast = !m.is_current && !m.is_future;
+    const lastDay = new Date(m.year, m.month, 0).getDate();
+    const period = `${String(m.month).padStart(2,'0')}/01〜${String(m.month).padStart(2,'0')}/${lastDay}`;
+
+    let rowHTML = `<tr data-ym="${m.ym}" data-editable="${!isPast}">`;
+    rowHTML += `<td>${m.label}</td><td class="period-col" style="font-size:11px">${period}</td>`;
+
+    subNames.forEach(name => {
+      const sm = subMonthly[name]?.[i] || {};
+      const canEdit = isEditor() && !isPast && !VIEWING_SNAPSHOT;
+      const dis = canEdit ? '' : 'disabled';
+      const bg = canEdit ? '' : 'style="background:#f5f5f5"';
+      const teuCell = isPast
+        ? '<td class="dash-cell">ー</td>'
+        : `<td><input type="number" class="prospect-input mp-teu" data-sub-area="${name}" ${dis} ${bg}
+             value="${sm.m_prospect_teu ?? ''}" placeholder="TEU"></td>`;
+      const cm1Cell = '<td class="dash-cell">ー</td>';
+      rowHTML += `<td style="color:#666">${sm.TEU ? sm.TEU.toLocaleString() : '-'}</td>`;
+      rowHTML += `<td style="color:#666">${sm.CM1_per_TEU ? '$'+sm.CM1_per_TEU.toLocaleString() : '-'}</td>`;
+      rowHTML += teuCell + cm1Cell;
+    });
+    rowHTML += '</tr>';
+    tbody.insertAdjacentHTML('beforeend', rowHTML);
+  });
+}
+
+// ── サブエリア横並び Weekly Prospect ──────────────────
+function renderSubAreaProspectTable(panel, parentArea, data) {
+  const tbody = panel.querySelector('.prospect-tbody');
+  tbody.innerHTML = '';
+  const subNames = data.sub_area_names;  // e.g. ["MNL","MIP"]
+
+  // Weekly Prospect タイトル差し替え
+  const weeklyTitle = panel.querySelector('.weekly-prospect-title');
+  if (weeklyTitle) weeklyTitle.textContent = `Weekly Prospect (${subNames.join(' / ')})`;
+
+  // ヘッダー差し替え
+  const thead = panel.querySelector('.prospect-table thead');
+  if (thead) {
+    let headerHTML = '<tr><th rowspan="2">月</th><th rowspan="2">Week</th><th rowspan="2">Period</th>';
+    subNames.forEach(name => {
+      headerHTML += `<th colspan="4" class="sub-area-header sub-area-color-${subNames.indexOf(name)}">${name}</th>`;
+    });
+    headerHTML += '</tr><tr>';
+    subNames.forEach(() => {
+      headerHTML += '<th>Actual<br>TEU</th><th>CM1/T</th><th>見込<br>TEU</th><th>見込<br>CM1/T</th>';
+    });
+    headerHTML += '</tr>';
+    thead.innerHTML = headerHTML;
+  }
+
+  // 各サブエリアの週次データをマップ化
+  const subWeekly = {};
+  subNames.forEach(name => {
+    const map = {};
+    (data.sub_areas[name]?.weekly || []).forEach(w => { map[w.week_key] = w; });
+    subWeekly[name] = map;
+  });
+
+  // 親エリアの weekly を行のベースとする
+  const weekly = data.weekly || [];
+  const selectedKey = CURRENT_WEEK_KEY || '';
+  const selectedIdx = weekly.findIndex(w => w.week_key === selectedKey);
+  let lastMonth = null;
+
+  weekly.forEach((w, idx) => {
+    const isFirstOfMonth = w.month_label !== lastMonth;
+    lastMonth = w.month_label;
+    const monthIdx = w.ym === getRelativeMonth(-1) ? 0 : w.ym === getRelativeMonth(0) ? 1 : 2;
+    const monthBadgeClass = monthIdx === 0 ? 'prev' : monthIdx === 2 ? 'next' : '';
+    const isSelectedWeek = w.week_key === selectedKey;
+    const isPastWeek = selectedIdx >= 0 ? idx < selectedIdx : (!w.is_future && !w.is_current);
+    const isFutureWeek = selectedIdx >= 0 ? idx > selectedIdx : w.is_future;
+    const rowClass = isSelectedWeek ? 'current-row selected-week' : isFutureWeek ? 'future-row' : '';
+    const currentMark = isSelectedWeek ? '<span class="current-marker">◀今週</span>' : '';
+
+    let rowHTML = `<tr class="${rowClass}" data-week-key="${w.week_key}">`;
+    rowHTML += `<td>${isFirstOfMonth ? `<span class="month-badge ${monthBadgeClass}">${w.month_label}</span>` : ''}</td>`;
+    rowHTML += `<td class="week-badge">W${w.week}${currentMark}</td>`;
+    rowHTML += `<td class="period-col">${formatPeriod(w.week_start, w.week_end)}</td>`;
+
+    subNames.forEach(name => {
+      const sw = subWeekly[name][w.week_key] || {};
+      const canEdit = isEditor() && !isPastWeek && !VIEWING_SNAPSHOT;
+      const dis = canEdit ? '' : 'disabled';
+      const bg = canEdit ? '' : 'style="background:#f5f5f5"';
+      const prospectTEU = sw.prospect_TEU ?? '';
+      const teuCell = isPastWeek
+        ? '<td class="dash-cell">ー</td>'
+        : `<td><input type="number" class="prospect-input p-teu" data-sub-area="${name}" ${dis} ${bg}
+             value="${prospectTEU}" placeholder="TEU"></td>`;
+      // CM1/T: 前週のみ入力可
+      const isPrevWeek = selectedIdx >= 0 && idx === selectedIdx - 1;
+      const canEditCm1 = isPrevWeek && isEditor() && !VIEWING_SNAPSHOT;
+      const prospectCM1 = sw.prospect_CM1 ?? '';
+      const cm1Cell = isPrevWeek
+        ? `<td><input type="number" class="prospect-input p-cm1" data-sub-area="${name}" ${canEditCm1 ? '' : 'disabled'} ${canEditCm1 ? '' : 'style="background:#f5f5f5"'}
+             value="${prospectCM1}" placeholder="CM1/T"></td>`
+        : '<td class="dash-cell">ー</td>';
+      rowHTML += `<td style="color:#666">${sw.TEU ? sw.TEU.toLocaleString() : '-'}</td>`;
+      rowHTML += `<td style="color:#666">${sw.CM1_per_TEU ? '$'+sw.CM1_per_TEU.toLocaleString() : '-'}</td>`;
+      rowHTML += teuCell + cm1Cell;
+    });
+    rowHTML += '</tr>';
+    tbody.insertAdjacentHTML('beforeend', rowHTML);
   });
 }
 
@@ -1003,25 +1467,56 @@ async function saveAllProspects(area) {
   const panel = document.querySelector(`.area-panel[data-area="${area}"]`);
   const rows = panel.querySelectorAll('.prospect-tbody tr[data-week-key]');
 
+  // サブエリア横並びモード判定
+  const hasSubArea = !!panel.querySelector('.p-teu[data-sub-area]');
+
   const saves = [];
-  rows.forEach(tr => {
-    const teuInput = tr.querySelector('.p-teu');
-    const cm1Input = tr.querySelector('.p-cm1');
-    if (!teuInput || teuInput.disabled) return; // 過去週・閲覧者はスキップ
-    const weekKey = tr.dataset.weekKey;
-    const teu = teuInput.value;
-    const cm1 = cm1Input.value;
-    saves.push(fetch('/api/prospect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        week_key: weekKey, area,
-        meeting_week: CURRENT_WEEK_KEY || '',
-        teu: teu !== '' ? parseFloat(teu) : null,
-        cm1: cm1 !== '' ? parseFloat(cm1) : null,
-      })
-    }));
-  });
+  if (hasSubArea) {
+    // サブエリア横並び: 各inputの data-sub-area でサブエリアに振り分け保存
+    rows.forEach(tr => {
+      const weekKey = tr.dataset.weekKey;
+      const teuInputs = tr.querySelectorAll('.p-teu[data-sub-area]');
+      const cm1Inputs = tr.querySelectorAll('.p-cm1[data-sub-area]');
+      teuInputs.forEach(inp => {
+        if (inp.disabled) return;
+        const subArea = inp.dataset.subArea;
+        const teu = inp.value;
+        // 同じサブエリアのCM1を探す
+        const cm1El = Array.from(cm1Inputs).find(c => c.dataset.subArea === subArea);
+        const cm1 = cm1El ? cm1El.value : '';
+        saves.push(fetch('/api/prospect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            week_key: weekKey, area: subArea,
+            meeting_week: CURRENT_WEEK_KEY || '',
+            teu: teu !== '' ? parseFloat(teu) : null,
+            cm1: cm1 !== '' ? parseFloat(cm1) : null,
+          })
+        }));
+      });
+    });
+  } else {
+    // 通常モード
+    rows.forEach(tr => {
+      const teuInput = tr.querySelector('.p-teu');
+      const cm1Input = tr.querySelector('.p-cm1');
+      if (!teuInput || teuInput.disabled) return;
+      const weekKey = tr.dataset.weekKey;
+      const teu = teuInput.value;
+      const cm1 = cm1Input ? cm1Input.value : '';
+      saves.push(fetch('/api/prospect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          week_key: weekKey, area,
+          meeting_week: CURRENT_WEEK_KEY || '',
+          teu: teu !== '' ? parseFloat(teu) : null,
+          cm1: cm1 !== '' ? parseFloat(cm1) : null,
+        })
+      }));
+    });
+  }
 
   if (!saves.length) { showToast('保存対象の行がありません', ''); return; }
 
@@ -1031,13 +1526,20 @@ async function saveAllProspects(area) {
     showToast('見込みを保存しました ✓', 'success');
     delete DATA_CACHE[area];
     await loadSummary(area);
+    // 子エリア保存時: 親エリア(KR等)のキャッシュもリフレッシュ
+    const parentMap = { JPC_KR: 'KR', JPN_KR: 'KR', MNL: 'PH', MIP: 'PH' };
+    const parent = parentMap[area];
+    if (parent) {
+      delete DATA_CACHE[parent];
+      await loadSummary(parent);
+    }
   } catch(e) {
     showToast('保存エラー: ' + e.message, 'error');
   }
 }
 
 // ── 月間見込みテーブル (前月・当月・来月) ────────────────
-function renderMonthlyProspect(panel, area, monthly) {
+function renderMonthlyProspect(panel, area, monthly, isAutoSumArea = false) {
   const tbody = panel.querySelector('.monthly-prospect-tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
@@ -1046,9 +1548,9 @@ function renderMonthlyProspect(panel, area, monthly) {
   const targets = monthly.slice(-3);
   targets.forEach(m => {
     const isPast = !m.is_current && !m.is_future;  // 前月
-    const canEdit = isEditor() && !isPast;           // 当月・来月のみ入力可
+    const canEdit = isEditor() && !isPast && !isAutoSumArea;  // 自動合算エリアは編集不可
     const dis = canEdit ? '' : 'disabled';
-    const bg  = canEdit ? '' : 'style="background:#f5f5f5"';
+    const bg  = canEdit ? '' : `style="background:${isAutoSumArea && !isPast ? '#e8f5e9' : '#f5f5f5'}"`;
     const lastDay = new Date(m.year, m.month, 0).getDate();
     const period  = `${String(m.month).padStart(2,'0')}/01〜${String(m.month).padStart(2,'0')}/${lastDay}`;
 
@@ -1056,10 +1558,8 @@ function renderMonthlyProspect(panel, area, monthly) {
       ? '<td class="dash-cell">ー</td>'
       : `<td><input type="number" class="prospect-input mp-teu" ${dis} ${bg}
            value="${m.m_prospect_teu ?? ''}" placeholder="TEU"></td>`;
-    const prospectCm1Cell = isPast
-      ? '<td class="dash-cell">ー</td>'
-      : `<td><input type="number" class="prospect-input mp-cm1" ${dis} ${bg}
-           value="${m.m_prospect_cm1 ?? ''}" placeholder="CM1/T"></td>`;
+    // CM1/T見込みは当月以降も入力不可（ダッシュ表示）
+    const prospectCm1Cell = '<td class="dash-cell">ー</td>';
 
     tbody.insertAdjacentHTML('beforeend', `
       <tr data-ym="${m.ym}" data-editable="${!isPast}">
@@ -1076,35 +1576,112 @@ function renderMonthlyProspect(panel, area, monthly) {
 
 async function saveMonthlyProspects(area) {
   const panel = document.querySelector(`.area-panel[data-area="${area}"]`);
-  // data-editable="true" の行のみ保存
   const rows  = panel.querySelectorAll('.monthly-prospect-tbody tr[data-editable="true"]');
+  const hasSubArea = !!panel.querySelector('.mp-teu[data-sub-area]');
   const saves = [];
-  rows.forEach(tr => {
-    const ym  = tr.dataset.ym;
-    const teuEl = tr.querySelector('.mp-teu');
-    const cm1El = tr.querySelector('.mp-cm1');
-    if (!teuEl) return;
-    saves.push(fetch('/api/monthly_prospect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ym, area,
-        meeting_week: CURRENT_WEEK_KEY || '',
-        teu: teuEl.value !== '' ? parseFloat(teuEl.value) : null,
-        cm1_per_teu: cm1El?.value !== '' ? parseFloat(cm1El?.value) : null,
-      })
-    }));
-  });
+
+  if (hasSubArea) {
+    // サブエリア横並び: data-sub-area ごとに保存
+    rows.forEach(tr => {
+      const ym = tr.dataset.ym;
+      const teuInputs = tr.querySelectorAll('.mp-teu[data-sub-area]');
+      teuInputs.forEach(inp => {
+        if (inp.disabled) return;
+        const subArea = inp.dataset.subArea;
+        saves.push(fetch('/api/monthly_prospect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ym, area: subArea,
+            meeting_week: CURRENT_WEEK_KEY || '',
+            teu: inp.value !== '' ? parseFloat(inp.value) : null,
+            cm1_per_teu: null,
+          })
+        }));
+      });
+    });
+  } else {
+    // 通常モード
+    rows.forEach(tr => {
+      const ym  = tr.dataset.ym;
+      const teuEl = tr.querySelector('.mp-teu');
+      const cm1El = tr.querySelector('.mp-cm1');
+      if (!teuEl) return;
+      saves.push(fetch('/api/monthly_prospect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ym, area,
+          meeting_week: CURRENT_WEEK_KEY || '',
+          teu: teuEl.value !== '' ? parseFloat(teuEl.value) : null,
+          cm1_per_teu: cm1El?.value !== '' ? parseFloat(cm1El?.value) : null,
+        })
+      }));
+    });
+  }
   await Promise.all(saves);
 }
 
 // ── 予測入力 ─────────────────────────────────────────
+// サブエリア統合エリアのマッピング
+const SUB_AREA_MAP = { PH: ['MNL', 'MIP'] };
+
 async function fillPrediction(area) {
   const panel = document.querySelector(`.area-panel[data-area="${area}"]`);
   if (!panel) return;
   try {
     showToast('予測計算中…', '');
     const mw = CURRENT_WEEK_KEY || '';
+    const hasSubArea = !!panel.querySelector('.p-teu[data-sub-area]');
+
+    if (hasSubArea && SUB_AREA_MAP[area]) {
+      // サブエリア横並び: 各サブエリアの予測を取得して適用
+      const subNames = SUB_AREA_MAP[area];
+      const preds = {};
+      await Promise.all(subNames.map(async (sub) => {
+        const res = await fetch(`/api/predict?area=${encodeURIComponent(sub)}&meeting_week=${encodeURIComponent(mw)}`);
+        preds[sub] = await res.json();
+      }));
+
+      let filled = 0;
+      // 月間
+      const monthRows = panel.querySelectorAll('.monthly-prospect-tbody tr[data-editable="true"]');
+      monthRows.forEach(tr => {
+        const ym = tr.dataset.ym;
+        tr.querySelectorAll('.mp-teu[data-sub-area]').forEach(inp => {
+          if (inp.disabled || inp.value !== '') return;
+          const sub = inp.dataset.subArea;
+          const mp = preds[sub]?.monthly?.[ym];
+          if (mp) { inp.value = mp.teu; inp.style.color = '#7c3aed'; filled++; }
+        });
+      });
+      // 週次
+      const weekRows = panel.querySelectorAll('.prospect-tbody tr[data-week-key]');
+      weekRows.forEach(tr => {
+        const wkey = tr.dataset.weekKey;
+        tr.querySelectorAll('.p-teu[data-sub-area]').forEach(inp => {
+          if (inp.disabled || inp.value !== '') return;
+          const sub = inp.dataset.subArea;
+          const wp = preds[sub]?.weekly?.[wkey];
+          if (wp) { inp.value = wp.teu; inp.style.color = '#7c3aed'; filled++; }
+        });
+        tr.querySelectorAll('.p-cm1[data-sub-area]').forEach(inp => {
+          if (inp.disabled || inp.value !== '') return;
+          const sub = inp.dataset.subArea;
+          const wp = preds[sub]?.weekly?.[tr.dataset.weekKey];
+          if (wp) { inp.value = wp.cm1_per_teu; inp.style.color = '#7c3aed'; filled++; }
+        });
+      });
+
+      if (filled > 0) {
+        showToast(`${filled}件の予測値を入力しました (紫色) — 確認後「一括保存」してください`, 'success');
+      } else {
+        showToast('入力済みの欄があるため予測値は追加されませんでした', '');
+      }
+      return;
+    }
+
+    // 通常モード
     const res = await fetch(`/api/predict?area=${encodeURIComponent(area)}&meeting_week=${encodeURIComponent(mw)}`);
     const pred = await res.json();
 
@@ -1119,7 +1696,7 @@ async function fillPrediction(area) {
       const cm1El = tr.querySelector('.mp-cm1');
       if (teuEl && !teuEl.disabled && teuEl.value === '') {
         teuEl.value = mp.teu;
-        teuEl.style.color = '#7c3aed';  // 紫色で予測値を区別
+        teuEl.style.color = '#7c3aed';
         filled++;
       }
       if (cm1El && !cm1El.disabled && cm1El.value === '') {
@@ -1467,8 +2044,10 @@ function createBlockEl(block, area, weekKey) {
           toolbar: [
             ['bold', 'italic', 'underline', 'strike'],
             [{ 'color': [] }, { 'background': [] }],
+            [{ 'header': [1, 2, false] }],
             [{ 'size': ['small', false, 'large', 'huge'] }],
             [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            [{ 'indent': '-1'}, { 'indent': '+1' }],
             ['clean']
           ]
         },
@@ -1478,12 +2057,19 @@ function createBlockEl(block, area, weekKey) {
       if (block.content) {
         quill.root.innerHTML = block.content;
       }
-      // ② ツールバーはフォーカス時のみ表示
+      // ② ツールバー表示制御（ドロップダウン操作中は閉じない）
       quill.on('selection-change', (range) => {
         if (range) {
           editorWrap.classList.add('ql-focused');
         } else {
-          editorWrap.classList.remove('ql-focused');
+          // ツールバー内のドロップダウン操作中はフォーカス維持
+          setTimeout(() => {
+            const active = document.activeElement;
+            const toolbarEl = editorWrap.querySelector('.ql-toolbar');
+            const hasOpenPicker = editorWrap.querySelector('.ql-expanded');
+            if (toolbarEl && (toolbarEl.contains(active) || hasOpenPicker)) return;
+            editorWrap.classList.remove('ql-focused');
+          }, 200);
         }
       });
       // 自動保存 (debounce 1.5秒)
@@ -1936,18 +2522,24 @@ async function loadTemplateData(area) {
 
 // テンプレート描画関数マップ
 const TPL_RENDERERS = {
-  shipper_increase_curr: (d,p) => d.shipper_increase_curr?.items?.length > 0 ? _renderShipperTop(d.shipper_increase_curr, 'increase', '当月') : null,
-  shipper_increase_next: (d,p) => d.shipper_increase_next?.items?.length > 0 ? _renderShipperTop(d.shipper_increase_next, 'increase', '翌月') : null,
-  shipper_decrease_curr: (d,p) => d.shipper_decrease_curr?.items?.length > 0 ? _renderShipperTop(d.shipper_decrease_curr, 'decrease', '当月') : null,
-  shipper_decrease_next: (d,p) => d.shipper_decrease_next?.items?.length > 0 ? _renderShipperTop(d.shipper_decrease_next, 'decrease', '翌月') : null,
+  shipper_increase_curr: (d,p) => d.shipper_increase_curr?.items?.length > 0 ? _renderShipperTop(d.shipper_increase_curr, 'increase', t('curr_month_label'), 'shipper_increase_curr') : null,
+  shipper_increase_next: (d,p) => d.shipper_increase_next?.items?.length > 0 ? _renderShipperTop(d.shipper_increase_next, 'increase', t('next_month_label'), 'shipper_increase_next') : null,
+  shipper_decrease_curr: (d,p) => d.shipper_decrease_curr?.items?.length > 0 ? _renderShipperTop(d.shipper_decrease_curr, 'decrease', t('curr_month_label'), 'shipper_decrease_curr') : null,
+  shipper_decrease_next: (d,p) => d.shipper_decrease_next?.items?.length > 0 ? _renderShipperTop(d.shipper_decrease_next, 'decrease', t('next_month_label'), 'shipper_decrease_next') : null,
+  combo_increase_curr: (d,p) => d.combo_increase_curr?.items?.length > 0 ? _renderComboTop(d.combo_increase_curr, 'increase', t('curr_month_label'), 'combo_increase_curr') : null,
+  combo_increase_next: (d,p) => d.combo_increase_next?.items?.length > 0 ? _renderComboTop(d.combo_increase_next, 'increase', t('next_month_label'), 'combo_increase_next') : null,
+  combo_decrease_curr: (d,p) => d.combo_decrease_curr?.items?.length > 0 ? _renderComboTop(d.combo_decrease_curr, 'decrease', t('curr_month_label'), 'combo_decrease_curr') : null,
+  combo_decrease_next: (d,p) => d.combo_decrease_next?.items?.length > 0 ? _renderComboTop(d.combo_decrease_next, 'decrease', t('next_month_label'), 'combo_decrease_next') : null,
   cm1_range:          (d,p) => d.cm1_range && Object.keys(d.cm1_range).length > 0 ? _renderCM1Range(d.cm1_range) : null,
   new_customer:       (d,p) => d.new_customer ? _renderNewCustomer(d.new_customer) : null,
   regain_customer:    (d,p) => d.regain_customer ? _renderRegainCustomer(d.regain_customer) : null,
   trade_lane:         (d,p) => d.trade_lane?.data?.length > 0 ? _renderTradeLane(d.trade_lane) : null,
   cm1_waterfall:      (d,p) => d.cm1_waterfall?.prev_cm1t != null ? _renderCM1Waterfall(d.cm1_waterfall, p) : null,
-  booking_count:      (d,p) => d.booking_count ? _renderBookingCount(d.booking_count, p) : null,
+  booking_monthly:    (d,p) => d.booking_count?.monthly?.length > 0 ? _renderBookingMonthly(d.booking_count) : null,
+  booking_weekly:     (d,p) => d.booking_count?.weekly?.length > 0 ? _renderBookingWeekly(d.booking_count, p) : null,
   pol_count:          (d,p) => d.pol_count?.length > 0 ? _renderPOLCount(d.pol_count) : null,
   sales_contribution: (d,p) => d.sales_contribution && Object.keys(d.sales_contribution).length > 0 ? _renderSalesContribution(d.sales_contribution) : null,
+  koshi_shipper: (d,p) => d.koshi_shipper?.length > 0 ? _renderKoshiShipper(d.koshi_shipper) : null,
 };
 
 /**
@@ -1993,6 +2585,8 @@ function _snapTo(v) { return Math.round(v / GC_SNAP) * GC_SNAP; }
 function _renderGraphCanvas(panel, area, tplData) {
   const container = panel.querySelector('.graph-config-list');
   if (!container) return;
+  // 既存フローティングバーのクリーンアップ
+  if (container._gcAddBarCleanup) { container._gcAddBarCleanup(); container._gcAddBarCleanup = null; }
   container.innerHTML = '';
 
   const blocks = _graphConfigCache[area] || [];
@@ -2001,6 +2595,12 @@ function _renderGraphCanvas(panel, area, tplData) {
 
   // 各ブロックを描画
   blocks.forEach((block, idx) => {
+    // テキストブロック
+    if (block.id && block.id.startsWith('text_')) {
+      const wrapper = _createTextBlock(block, idx, area, panel, tplData);
+      container.appendChild(wrapper);
+      return;
+    }
     const def = TEMPLATE_DEFS.find(d => d.id === block.id);
     if (!def) return;
     const renderer = TPL_RENDERERS[block.id];
@@ -2020,44 +2620,125 @@ function _renderGraphCanvas(panel, area, tplData) {
   const pendingD = window._pendingSalesDonut; window._pendingSalesDonut = null;
   setTimeout(() => { _flushPendingCharts(container, pendingB, pendingD); }, 150);
 
-  // 「＋ グラフ追加」ボタン (absolute配置の外に固定配置)
+  // 「＋ グラフ追加」フローティングバー (画面固定)
+  // 既存のフローティングバーがあれば削除
+  const oldBar = document.querySelector('.gc-add-floating');
+  if (oldBar) oldBar.remove();
+
   const addBar = document.createElement('div');
-  addBar.className = 'gc-add-bar';
-  addBar.style.position = 'absolute';
-  addBar.style.zIndex = '10';
-  addBar.style.left = '0'; addBar.style.right = '0';
+  addBar.className = 'gc-add-bar gc-add-floating';
   addBar.innerHTML = `<button class="gc-add-btn">＋ グラフ追加</button><div class="gc-add-dropdown" style="display:none"></div>`;
-  container.appendChild(addBar);
+  document.body.appendChild(addBar);
+
+  // アイドル1秒後にカーソル付近に表示
+  let _idleTimer = null;
+  let _lastMouseX = 0, _lastMouseY = 0;
+  let _dropdownOpen = false;
+
+  const _isInsideSummaryPanel = () => {
+    const graphPanel = panel.querySelector('.graph-config-panel');
+    if (!graphPanel || graphPanel.style.display === 'none') return false;
+    const rect = graphPanel.getBoundingClientRect();
+    return _lastMouseX >= rect.left && _lastMouseX <= rect.right
+        && _lastMouseY >= rect.top  && _lastMouseY <= rect.bottom;
+  };
+
+  const _showBar = () => {
+    if (!_isInsideSummaryPanel()) return;
+    // カーソルのすぐ上 — そのままクリック可能な距離
+    addBar.style.left = _lastMouseX + 'px';
+    addBar.style.top = (_lastMouseY - 15) + 'px';
+    addBar.style.bottom = 'auto';
+    addBar.style.transform = 'translateX(-50%)';
+    addBar.classList.add('gc-add-visible');
+  };
+  const _hideBar = () => {
+    if (_dropdownOpen) return;
+    addBar.classList.remove('gc-add-visible');
+    clearTimeout(_idleTimer);
+  };
+  const _resetIdle = () => {
+    if (_dropdownOpen) return;
+    addBar.classList.remove('gc-add-visible');
+    clearTimeout(_idleTimer);
+    _idleTimer = setTimeout(_showBar, 1000);
+  };
+
+  const _onMouseMove = (ev) => {
+    _lastMouseX = ev.clientX;
+    _lastMouseY = ev.clientY;
+    // バーの上にカーソルがある場合は消さない
+    if (addBar.contains(ev.target)) return;
+    // Summaryパネル外ならバーを隠す
+    if (!_isInsideSummaryPanel()) { _hideBar(); return; }
+    _resetIdle();
+  };
+  const _onScroll = () => { _resetIdle(); };
+
+  window.addEventListener('mousemove', _onMouseMove);
+  window.addEventListener('scroll', _onScroll, true);
+
+  container._gcAddBarCleanup = () => {
+    _hideBar();
+    addBar.remove();
+    window.removeEventListener('mousemove', _onMouseMove);
+    window.removeEventListener('scroll', _onScroll, true);
+    clearTimeout(_idleTimer);
+  };
+
+  // ドロップダウンの開閉フラグ管理
+  addBar._setDropdownOpen = (v) => { _dropdownOpen = v; };
+
+  _idleTimer = setTimeout(_showBar, 1000);
 
   const btn = addBar.querySelector('.gc-add-btn');
   const dropdown = addBar.querySelector('.gc-add-dropdown');
   btn.addEventListener('click', () => {
     const usedIds = new Set(blocks.map(b => b.id));
     dropdown.innerHTML = '';
+
+    // テキストブロック追加ボタン（常に表示、複数作成可能）
+    const txtItem = document.createElement('div');
+    txtItem.className = 'gc-dd-item';
+    txtItem.textContent = '📝 ' + t('block_text');
+    txtItem.addEventListener('click', () => {
+      const textId = 'text_' + Date.now();
+      const newBlock = { id: textId, enabled: true, width: 340, height: 200, x: 0, y: 0, content: '' };
+      _findEmptySpot(blocks, newBlock, container);
+      blocks.push(newBlock);
+      _graphConfigDirty[area] = true;
+      dropdown.style.display = 'none';
+      _renderGraphCanvas(panel, area, tplData);
+    });
+    dropdown.appendChild(txtItem);
+
     const available = TEMPLATE_DEFS.filter(d => !usedIds.has(d.id));
-    if (available.length === 0) {
-      dropdown.innerHTML = '<div class="gc-dd-item disabled">すべて追加済み</div>';
-    } else {
-      available.forEach(def => {
-        const item = document.createElement('div');
-        item.className = 'gc-dd-item';
-        item.textContent = def.label;
-        item.addEventListener('click', () => {
-          // 空きスペースに新ブロックを配置
-          const newBlock = { id: def.id, enabled: true, width: 340, height: 250, x: 0, y: 0 };
-          _findEmptySpot(blocks, newBlock, container);
-          blocks.push(newBlock);
-          _graphConfigDirty[area] = true;
-          dropdown.style.display = 'none';
-          _renderGraphCanvas(panel, area, tplData);
-        });
-        dropdown.appendChild(item);
-      });
+    if (available.length === 0 && blocks.filter(b => !b.id?.startsWith('text_')).length >= TEMPLATE_DEFS.length) {
+      // テンプレートは全て追加済み（テキストは何個でも追加可能）
     }
-    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    available.forEach(def => {
+      const item = document.createElement('div');
+      item.className = 'gc-dd-item';
+      item.textContent = def.label;
+      item.addEventListener('click', () => {
+        const newBlock = { id: def.id, enabled: true, width: 340, height: 250, x: 0, y: 0 };
+        _findEmptySpot(blocks, newBlock, container);
+        blocks.push(newBlock);
+        _graphConfigDirty[area] = true;
+        dropdown.style.display = 'none';
+        _renderGraphCanvas(panel, area, tplData);
+      });
+      dropdown.appendChild(item);
+    });
+    const show = dropdown.style.display === 'none';
+    dropdown.style.display = show ? 'block' : 'none';
+    addBar._setDropdownOpen(show);
   });
   document.addEventListener('click', (e) => {
-    if (!addBar.contains(e.target)) dropdown.style.display = 'none';
+    if (!addBar.contains(e.target)) {
+      dropdown.style.display = 'none';
+      addBar._setDropdownOpen(false);
+    }
   }, { once: false });
 }
 
@@ -2079,14 +2760,17 @@ function _autoLayoutBlocks(blocks, container) {
 }
 
 /**
- * 新規ブロックの空きスペースを探す
+ * 新規ブロックを現在の表示領域内に配置
  */
 function _findEmptySpot(blocks, newBlock, container) {
-  const cw = container.clientWidth || 600;
-  let maxBottom = 0;
-  blocks.forEach(b => { maxBottom = Math.max(maxBottom, (b.y||0) + (b.height||250)); });
+  // スクロール親の現在の表示位置を取得
+  const scrollParent = container.closest('.tab-body') || container.closest('.graph-config-panel') || container.parentElement;
+  const scrollTop = scrollParent ? scrollParent.scrollTop : 0;
+  const viewH = scrollParent ? scrollParent.clientHeight : 400;
+  // 表示領域の中央付近に配置
+  const targetY = _snapTo(scrollTop + Math.max(20, (viewH - (newBlock.height || 250)) / 2));
   newBlock.x = 0;
-  newBlock.y = _snapTo(maxBottom + GC_SNAP);
+  newBlock.y = targetY;
 }
 
 /**
@@ -2095,10 +2779,7 @@ function _findEmptySpot(blocks, newBlock, container) {
 function _updateCanvasHeight(container, blocks) {
   let maxBottom = 50;
   blocks.forEach(b => { maxBottom = Math.max(maxBottom, (b.y||0) + (b.height||250)); });
-  const addBarTop = maxBottom + 10;
-  container.style.minHeight = (addBarTop + 50) + 'px';
-  const addBar = container.querySelector('.gc-add-bar');
-  if (addBar) addBar.style.top = addBarTop + 'px';
+  container.style.minHeight = (maxBottom + 60) + 'px';
 }
 
 /**
@@ -2117,38 +2798,221 @@ function _createResizableBlock(block, def, content, idx, area, panel, tplData) {
   wrapper.style.width  = (block.width || 340) + 'px';
   wrapper.style.height = (block.height || 250) + 'px';
 
-  // ヘッダー (カード内の動的タイトルを優先)
+  // ヘッダー (カード内の動的タイトルを優先、色もカード由来)
   const dynamicTitle = content.querySelector('.card-header')?.textContent?.trim() || def.label;
+  const headerColor = TPL_COLORS[block.id] || '#1a237e';
   const header = document.createElement('div');
   header.className = 'gc-block-header';
+  header.style.background = headerColor;
+  header.style.color = '#fff';
   header.innerHTML = `
-    <span class="gc-block-drag" title="ドラッグで自由配置">⠿</span>
-    <span class="gc-block-title">${escHtml(dynamicTitle)}</span>
-    <button class="gc-block-del" title="削除">✕</button>
+    <span class="gc-block-drag" title="ドラッグで自由配置" style="color:#fff">⠿</span>
+    <span class="gc-block-title" style="color:#fff">${escHtml(dynamicTitle)}</span>
+    <button class="gc-block-ai-btn" title="AIコメント生成/削除">🤖 AI</button>
+    <button class="gc-block-del" title="削除" style="color:#fff">✕</button>
   `;
   wrapper.appendChild(header);
 
   // コンテンツ
   const body = document.createElement('div');
   body.className = 'gc-block-body';
+  // コンテンツを1つのdivにラップ（右配置flex時に1ブロックとして扱う）
+  const contentWrap = document.createElement('div');
+  contentWrap.className = 'gc-content-wrap';
   const innerBody = content.querySelector('.card-body');
   if (innerBody) {
     // DOM ノードを直接移動（innerHTML コピーだと canvas 等が壊れる）
-    while (innerBody.firstChild) body.appendChild(innerBody.firstChild);
+    while (innerBody.firstChild) contentWrap.appendChild(innerBody.firstChild);
   } else {
-    body.appendChild(content);
+    contentWrap.appendChild(content);
   }
+  body.appendChild(contentWrap);
+  // ── AIコメントボックス (body内に配置 — 右配置時にflexで並ぶ) ──
+  const aiBox = document.createElement('div');
+  aiBox.className = 'gc-ai-comment-box';
+  if (block.ai_comment) {
+    aiBox.innerHTML = block.ai_comment;
+    aiBox.style.display = 'block';
+  }
+  // AIコメントリサイズハンドル（右配置時、表との境界をドラッグ）
+  const aiResizer = document.createElement('div');
+  aiResizer.className = 'gc-ai-resizer';
+  body.appendChild(aiResizer);
+  body.appendChild(aiBox);
+
+  // ネイティブ resize ハンドル（CSS resize:both）でのサイズ変更を検知
+  let _aiResizeTimer = null;
+  const _aiResizeObs = new ResizeObserver(() => {
+    clearTimeout(_aiResizeTimer);
+    _aiResizeTimer = setTimeout(() => {
+      const newW = aiBox.offsetWidth;
+      const newH = aiBox.offsetHeight;
+      if (newW > 0 && newW !== block.ai_width) {
+        block.ai_width = newW;
+        _graphConfigDirty[area] = true;
+      }
+      if (newH > 0 && newH !== block.ai_height) {
+        block.ai_height = newH;
+        _graphConfigDirty[area] = true;
+      }
+    }, 300);
+  });
+  _aiResizeObs.observe(aiBox);
+
+  aiResizer.addEventListener('mousedown', (e) => {
+    if (block.ai_pos !== 'right') return;
+    e.preventDefault(); e.stopPropagation();
+    const startX = e.clientX;
+    const startW = aiBox.offsetWidth;
+    const bodyW = body.offsetWidth;
+    aiResizer.classList.add('active');
+    const onMove = (ev) => {
+      const delta = startX - ev.clientX; // ←にドラッグで大きく
+      const newW = Math.max(80, Math.min(bodyW * 0.7, startW + delta));
+      aiBox.style.width = newW + 'px';
+    };
+    const onUp = () => {
+      aiResizer.classList.remove('active');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      block.ai_width = aiBox.offsetWidth;
+      _graphConfigDirty[area] = true;
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
   wrapper.appendChild(body);
 
-  // リサイズハンドル: 下辺(H)、右辺(W)、コーナー(W+H)
+  // 営業マン寄与度: DOM移動後にイベント初期化
+  if (content._salesInitEvents) {
+    setTimeout(() => content._salesInitEvents.call(wrapper), 100);
+  }
+
+  // AI コメント位置切替ボタン
+  const aiPosBtn = document.createElement('button');
+  aiPosBtn.className = 'gc-block-ai-pos';
+  aiPosBtn.title = 'コメント位置切替 (下/右)';
+  aiPosBtn.textContent = block.ai_pos === 'right' ? '⇨' : '⇩';
+  header.querySelector('.gc-block-ai-btn').after(aiPosBtn);
+
+  // 位置の適用
+  const applyAiPos = () => {
+    if (block.ai_pos === 'right') {
+      body.style.display = 'flex';
+      body.style.flexDirection = 'row';
+      aiBox.style.maxHeight = 'none';
+      const w = block.ai_width || 180;
+      aiBox.style.width = w + 'px';
+      aiBox.style.minWidth = '80px';
+      aiBox.style.maxWidth = '';
+      if (block.ai_height) aiBox.style.height = block.ai_height + 'px';
+      aiBox.style.borderLeft = '3px solid #7c4dff';
+      aiBox.style.borderBottom = 'none';
+      aiBox.style.flexShrink = '0';
+      aiResizer.style.display = '';
+      aiPosBtn.textContent = '⇨';
+    } else {
+      body.style.display = '';
+      body.style.flexDirection = '';
+      aiBox.style.maxHeight = '';
+      aiBox.style.minWidth = '';
+      aiBox.style.maxWidth = '';
+      aiBox.style.width = block.ai_width ? block.ai_width + 'px' : '';
+      if (block.ai_height) aiBox.style.height = block.ai_height + 'px';
+      aiBox.style.flexShrink = '';
+      aiBox.style.borderLeft = '3px solid #7c4dff';
+      aiBox.style.borderBottom = '';
+      aiResizer.style.display = 'none';
+      aiPosBtn.textContent = '⇩';
+    }
+  };
+  if (block.ai_comment) applyAiPos();
+
+  aiPosBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    block.ai_pos = block.ai_pos === 'right' ? 'bottom' : 'right';
+    applyAiPos();
+    _graphConfigDirty[area] = true;
+  });
+
+  // AI コメント生成関数
+  async function generateAiComment() {
+    aiBtn.disabled = true;
+    aiBox.innerHTML = '<div class="ai-loading"><div class="loading-spinner-small"></div> AI分析中...</div>';
+    aiBox.style.display = 'block';
+    applyAiPos();
+    try {
+      const res = await fetch('/api/ai-template-comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          template_id: block.id,
+          area: area,
+          meeting_week: CURRENT_WEEK_KEY || '',
+          lang: CURRENT_LANG || 'ja',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'AIコメントエラー');
+      aiBox.innerHTML = data.html;
+      block.ai_comment = data.html;
+      block.ai_comment_lang = CURRENT_LANG;
+      _graphConfigDirty[area] = true;
+      aiDelBtn.style.display = '';
+      showToast('AIコメント生成完了 ✓', 'success');
+    } catch (err) {
+      aiBox.innerHTML = `<p style="color:#c62828">❌ ${escHtml(err.message)}</p>`;
+    } finally {
+      aiBtn.disabled = false;
+    }
+  }
+
+  // AIボタン: 常に再生成（最新データ+現在言語で更新）
+  const aiBtn = header.querySelector('.gc-block-ai-btn');
+  aiBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    generateAiComment();
+  });
+
+  // AI削除ボタン
+  const aiDelBtn = document.createElement('button');
+  aiDelBtn.className = 'gc-block-ai-del';
+  aiDelBtn.title = 'AIコメント削除';
+  aiDelBtn.textContent = '🗑';
+  aiDelBtn.style.display = block.ai_comment ? '' : 'none';
+  aiPosBtn.after(aiDelBtn);
+  aiDelBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    aiBox.innerHTML = '';
+    aiBox.style.display = 'none';
+    block.ai_comment = null;
+    body.style.display = '';
+    body.style.flexDirection = '';
+    aiDelBtn.style.display = 'none';
+    _graphConfigDirty[area] = true;
+  });
+
+  // 言語変更を監視して自動再生成
+  wrapper._aiLangCheck = () => {
+    if (block.ai_comment && block.ai_comment_lang !== CURRENT_LANG) {
+      generateAiComment();
+    }
+  };
+
+  // リサイズハンドル: 下辺(H)、右辺(W)、左辺(L)、右下コーナー、左下コーナー
   const rH = document.createElement('div'); rH.className = 'gc-resize-h';
   const rW = document.createElement('div'); rW.className = 'gc-resize-w';
+  const rL = document.createElement('div'); rL.className = 'gc-resize-l';
   const rC = document.createElement('div'); rC.className = 'gc-resize-corner';
+  const rCL = document.createElement('div'); rCL.className = 'gc-resize-corner-l';
   wrapper.appendChild(rH);
   wrapper.appendChild(rW);
+  wrapper.appendChild(rL);
   wrapper.appendChild(rC);
+  wrapper.appendChild(rCL);
 
-  // ── リサイズ共通 ──
+  // ── リサイズ共通 (右辺/下辺) ──
   function _startResize(e, resizeW, resizeH) {
     e.preventDefault(); e.stopPropagation();
     const startX = e.clientX, startY = e.clientY;
@@ -2180,9 +3044,47 @@ function _createResizableBlock(block, def, content, idx, area, panel, tplData) {
     document.addEventListener('mouseup', onUp);
   }
 
+  // ── 左辺リサイズ (左端を動かす → x + width を調整) ──
+  function _startResizeLeft(e, resizeH) {
+    e.preventDefault(); e.stopPropagation();
+    const startX = e.clientX, startY = e.clientY;
+    const startL = parseInt(wrapper.style.left) || 0;
+    const startW = wrapper.offsetWidth;
+    const startHt = wrapper.offsetHeight;
+    wrapper.classList.add('resizing');
+
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX;
+      const nw = Math.max(GC_MIN_W, _snapTo(startW - dx));
+      const nl = _snapTo(Math.max(0, startL + (startW - nw)));
+      wrapper.style.left = nl + 'px';
+      wrapper.style.width = nw + 'px';
+      if (resizeH) {
+        const nh = Math.max(GC_MIN_H, _snapTo(startHt + ev.clientY - startY));
+        wrapper.style.height = nh + 'px';
+      }
+      _updateBlockFontSize(wrapper);
+    };
+    const onUp = () => {
+      wrapper.classList.remove('resizing');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      block.x = parseInt(wrapper.style.left) || 0;
+      block.width = wrapper.offsetWidth;
+      block.height = wrapper.offsetHeight;
+      _graphConfigDirty[area] = true;
+      _updateBlockOverflow(wrapper);
+      _updateCanvasHeight(wrapper.parentElement, _graphConfigCache[area] || []);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
   rH.addEventListener('mousedown', (e) => _startResize(e, false, true));
   rW.addEventListener('mousedown', (e) => _startResize(e, true, false));
   rC.addEventListener('mousedown', (e) => _startResize(e, true, true));
+  rL.addEventListener('mousedown', (e) => _startResizeLeft(e, false));
+  rCL.addEventListener('mousedown', (e) => _startResizeLeft(e, true));
 
   // ── 自由ドラッグ移動 ──
   header.addEventListener('mousedown', (e) => {
@@ -2319,19 +3221,11 @@ function _applyColWidths(table, widths) {
  * ブロック幅に応じてCSS変数でフォントサイズを動的調整
  * MIN_FONT 以下には縮小しない→スクロール
  */
-const GC_MIN_FONT = 12;   // 最小フォントサイズ (px)
-const GC_MAX_FONT = 14;   // 最大フォントサイズ (px)
-
 function _updateBlockFontSize(wrapper) {
-  const w = wrapper.offsetWidth;
-  // 幅200px→MIN, 幅500px以上→MAX (線形補間)
-  const range = GC_MAX_FONT - GC_MIN_FONT;
-  const base = Math.max(GC_MIN_FONT, Math.min(GC_MAX_FONT, GC_MIN_FONT + (w - 200) * range / 300));
-  const sm = Math.max(GC_MIN_FONT - 1, base - 1);
-  const lg = base + 1;
-  wrapper.style.setProperty('--gc-font', base.toFixed(1) + 'px');
-  wrapper.style.setProperty('--gc-font-sm', sm.toFixed(1) + 'px');
-  wrapper.style.setProperty('--gc-font-lg', lg.toFixed(1) + 'px');
+  // 固定フォントサイズ (縮小なし)
+  wrapper.style.setProperty('--gc-font', '14px');
+  wrapper.style.setProperty('--gc-font-sm', '13px');
+  wrapper.style.setProperty('--gc-font-lg', '15px');
 }
 
 /**
@@ -2352,6 +3246,192 @@ function _updateBlockOverflow(wrapper) {
 /**
  * プレビュー/閲覧者: 左パネル内にグラフブロックを表示
  */
+/**
+ * Summary 用テキストブロックを生成 (Quill エディタ付き)
+ */
+function _createTextBlock(block, idx, area, panel, tplData) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'gc-block gc-text-block';
+  wrapper.dataset.idx = idx;
+  wrapper.style.left   = (block.x || 0) + 'px';
+  wrapper.style.top    = (block.y || 0) + 'px';
+  wrapper.style.width  = (block.width || 340) + 'px';
+  wrapper.style.height = (block.height || 200) + 'px';
+
+  const headerColor = '#455a64';
+  const header = document.createElement('div');
+  header.className = 'gc-block-header';
+  header.style.background = headerColor;
+  header.style.color = '#fff';
+  header.innerHTML = `
+    <span class="gc-block-drag" title="ドラッグで自由配置" style="color:#fff">⠿</span>
+    <span class="gc-block-title" style="color:#fff">📝 ${t('block_text')}</span>
+    <button class="gc-block-del" title="削除" style="color:#fff">✕</button>
+  `;
+  wrapper.appendChild(header);
+
+  // Quill エディタ
+  const body = document.createElement('div');
+  body.className = 'gc-block-body gc-text-body';
+  body.style.overflow = 'visible';
+  const editorWrap = document.createElement('div');
+  editorWrap.className = 'gc-text-editor-wrap';
+  const editorDiv = document.createElement('div');
+  editorDiv.style.minHeight = '60px';
+  editorWrap.appendChild(editorDiv);
+  body.appendChild(editorWrap);
+  wrapper.appendChild(body);
+
+  // リサイズハンドル (左右両対応)
+  const rH = document.createElement('div'); rH.className = 'gc-resize-h';
+  const rW = document.createElement('div'); rW.className = 'gc-resize-w';
+  const rL = document.createElement('div'); rL.className = 'gc-resize-l';
+  const rC = document.createElement('div'); rC.className = 'gc-resize-corner';
+  const rCL = document.createElement('div'); rCL.className = 'gc-resize-corner-l';
+  wrapper.appendChild(rH); wrapper.appendChild(rW); wrapper.appendChild(rL);
+  wrapper.appendChild(rC); wrapper.appendChild(rCL);
+
+  // 右辺/下辺リサイズ
+  function _startResize(e, resizeW, resizeH) {
+    e.preventDefault(); e.stopPropagation();
+    const startX = e.clientX, startY = e.clientY;
+    const startW = wrapper.offsetWidth, startHt = wrapper.offsetHeight;
+    wrapper.classList.add('resizing');
+    const onMove = (ev) => {
+      if (resizeW) wrapper.style.width  = Math.max(GC_MIN_W, _snapTo(startW + ev.clientX - startX)) + 'px';
+      if (resizeH) wrapper.style.height = Math.max(GC_MIN_H, _snapTo(startHt + ev.clientY - startY)) + 'px';
+    };
+    const onUp = () => {
+      wrapper.classList.remove('resizing');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      block.width  = wrapper.offsetWidth;
+      block.height = wrapper.offsetHeight;
+      _graphConfigDirty[area] = true;
+      _updateCanvasHeight(wrapper.parentElement, _graphConfigCache[area] || []);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+  // 左辺リサイズ
+  function _startResizeLeft(e, resizeH) {
+    e.preventDefault(); e.stopPropagation();
+    const startX = e.clientX, startY = e.clientY;
+    const startL = parseInt(wrapper.style.left) || 0;
+    const startW = wrapper.offsetWidth, startHt = wrapper.offsetHeight;
+    wrapper.classList.add('resizing');
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX;
+      const nw = Math.max(GC_MIN_W, _snapTo(startW - dx));
+      wrapper.style.left = _snapTo(Math.max(0, startL + (startW - nw))) + 'px';
+      wrapper.style.width = nw + 'px';
+      if (resizeH) wrapper.style.height = Math.max(GC_MIN_H, _snapTo(startHt + ev.clientY - startY)) + 'px';
+    };
+    const onUp = () => {
+      wrapper.classList.remove('resizing');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      block.x = parseInt(wrapper.style.left) || 0;
+      block.width  = wrapper.offsetWidth;
+      block.height = wrapper.offsetHeight;
+      _graphConfigDirty[area] = true;
+      _updateCanvasHeight(wrapper.parentElement, _graphConfigCache[area] || []);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+  rH.addEventListener('mousedown', (e) => _startResize(e, false, true));
+  rW.addEventListener('mousedown', (e) => _startResize(e, true, false));
+  rC.addEventListener('mousedown', (e) => _startResize(e, true, true));
+  rL.addEventListener('mousedown', (e) => _startResizeLeft(e, false));
+  rCL.addEventListener('mousedown', (e) => _startResizeLeft(e, true));
+
+  // ドラッグ移動
+  header.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.gc-block-del')) return;
+    e.preventDefault();
+    const container = wrapper.parentElement;
+    const startMX = e.clientX, startMY = e.clientY;
+    const startL = parseInt(wrapper.style.left) || 0;
+    const startT = parseInt(wrapper.style.top) || 0;
+    wrapper.classList.add('gc-moving');
+    container.classList.add('gc-dragging-active');
+    const onMove = (ev) => {
+      wrapper.style.left = _snapTo(Math.max(0, startL + ev.clientX - startMX)) + 'px';
+      wrapper.style.top  = _snapTo(Math.max(0, startT + ev.clientY - startMY)) + 'px';
+    };
+    const onUp = () => {
+      wrapper.classList.remove('gc-moving');
+      container.classList.remove('gc-dragging-active');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      block.x = parseInt(wrapper.style.left) || 0;
+      block.y = parseInt(wrapper.style.top)  || 0;
+      _graphConfigDirty[area] = true;
+      _updateCanvasHeight(container, _graphConfigCache[area] || []);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  // 削除
+  header.querySelector('.gc-block-del').addEventListener('click', () => {
+    const blocks = _graphConfigCache[area];
+    blocks.splice(idx, 1);
+    _graphConfigDirty[area] = true;
+    _renderGraphCanvas(panel, area, tplData);
+  });
+
+  // Quill 初期化 (DOM 追加後に実行)
+  requestAnimationFrame(() => {
+    const quill = new Quill(editorDiv, {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          ['bold', 'italic', 'underline'],
+          [{ 'color': [] }, { 'background': [] }],
+          [{ 'header': [1, 2, false] }],
+          [{ 'size': ['small', false, 'large', 'huge'] }],
+          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+          ['clean']
+        ]
+      },
+      placeholder: t('block_text') + '...'
+    });
+    if (block.content) quill.root.innerHTML = block.content;
+
+    // ツールバー表示制御
+    quill.on('selection-change', (range) => {
+      if (range) {
+        editorWrap.classList.add('ql-focused');
+      } else {
+        setTimeout(() => {
+          const active = document.activeElement;
+          const toolbarEl = editorWrap.querySelector('.ql-toolbar');
+          const hasOpenPicker = editorWrap.querySelector('.ql-expanded');
+          if (toolbarEl && (toolbarEl.contains(active) || hasOpenPicker)) return;
+          editorWrap.classList.remove('ql-focused');
+        }, 200);
+      }
+    });
+
+    // 変更時に block.content へ保存 (dirtyフラグ)
+    let saveTimer = null;
+    quill.on('text-change', () => {
+      block.content = quill.root.innerHTML;
+      _graphConfigDirty[area] = true;
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        if (_graphConfigDirty[area]) {
+          saveGraphConfig(area);
+        }
+      }, 2000);
+    });
+  });
+
+  return wrapper;
+}
+
 function _renderGraphPreview(panel, area, tplData) {
   let previewArea = panel.querySelector('.graph-preview-area');
   if (!previewArea) {
@@ -2380,6 +3460,32 @@ function _renderGraphPreview(panel, area, tplData) {
 
   let maxBottom = 50;
   for (const block of blocks) {
+    // テキストブロック (プレビュー)
+    if (block.id && block.id.startsWith('text_')) {
+      if (!block.content) continue;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'gp-block gp-text-block';
+      wrapper.style.position = 'absolute';
+      wrapper.style.left   = (block.x || 0) + 'px';
+      wrapper.style.top    = (block.y || 0) + 'px';
+      wrapper.style.width  = (block.width || 340) + 'px';
+      wrapper.style.height = (block.height || 200) + 'px';
+      wrapper.style.overflow = 'auto';
+      wrapper.style.background = '#fff';
+      wrapper.style.borderRadius = '6px';
+      wrapper.style.border = '1px solid #e0e0e0';
+      wrapper.style.boxSizing = 'border-box';
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'gp-text-content';
+      contentDiv.style.padding = '8px 10px';
+      contentDiv.style.fontSize = '14px';
+      contentDiv.innerHTML = block.content;
+      wrapper.appendChild(contentDiv);
+      previewArea.appendChild(wrapper);
+      maxBottom = Math.max(maxBottom, (block.y || 0) + (block.height || 200));
+      continue;
+    }
+
     const def = TEMPLATE_DEFS.find(d => d.id === block.id);
     const renderer = TPL_RENDERERS[block.id];
     if (!renderer) continue;
@@ -2400,11 +3506,15 @@ function _renderGraphPreview(panel, area, tplData) {
     wrapper.style.border = '1px solid #e0e0e0';
     wrapper.style.boxSizing = 'border-box';
 
-    // タイトル (カード内の動的タイトルを優先)
+    // タイトル (カード内の動的タイトルを優先、色もテンプレート由来)
     const dynamicTitle = card.querySelector('.card-header')?.textContent?.trim() || (def ? def.label : block.id);
+    const pvColor = TPL_COLORS[block.id] || '#1a237e';
     const titleEl = document.createElement('div');
     titleEl.className = 'gp-block-title';
     titleEl.textContent = dynamicTitle;
+    titleEl.style.background = pvColor;
+    titleEl.style.color = '#fff';
+    titleEl.style.borderRadius = '6px 6px 0 0';
     wrapper.appendChild(titleEl);
 
     // card をそのまま wrapper に追加（innerHTML移動だと canvas/chart が壊れる）
@@ -2416,6 +3526,39 @@ function _renderGraphPreview(panel, area, tplData) {
     const cardHeader = card.querySelector('.card-header');
     if (cardHeader) cardHeader.style.display = 'none';
     wrapper.appendChild(card);
+
+    // 営業マン寄与度: イベント初期化
+    if (card._salesInitEvents) {
+      setTimeout(() => card._salesInitEvents.call(wrapper), 100);
+    }
+
+    // AIコメント (保存済みがあれば表示、位置・サイズも復元)
+    if (block.ai_comment) {
+      const commentBox = document.createElement('div');
+      commentBox.className = 'gc-ai-comment-box';
+      commentBox.innerHTML = block.ai_comment;
+      commentBox.style.display = 'block';
+      if (block.ai_width) commentBox.style.width = block.ai_width + 'px';
+      if (block.ai_height) commentBox.style.height = block.ai_height + 'px';
+      commentBox.style.overflow = 'auto';
+      if (block.ai_pos === 'right') {
+        // 右配置: card と commentBox を flex で並べる
+        const flexWrap = document.createElement('div');
+        flexWrap.style.display = 'flex';
+        flexWrap.style.flexDirection = 'row';
+        // card を flexWrap に移動
+        wrapper.removeChild(card);
+        card.style.flex = '1';
+        card.style.minWidth = '0';
+        flexWrap.appendChild(card);
+        commentBox.style.flexShrink = '0';
+        commentBox.style.borderLeft = '3px solid #7c4dff';
+        flexWrap.appendChild(commentBox);
+        wrapper.appendChild(flexWrap);
+      } else {
+        wrapper.appendChild(commentBox);
+      }
+    }
 
     // カラム幅を適用
     const tables = wrapper.querySelectorAll('.tpl-table');
@@ -2790,50 +3933,129 @@ function closeApplyDialog() {
 
 // ── テンプレート描画関数 ────────────────────────────────
 
-function _tplCard(title) {
+// テンプレートカード別カラー
+const TPL_COLORS = {
+  'shipper_increase_curr': '#2e7d32',  // 緑
+  'shipper_increase_next': '#388e3c',
+  'shipper_decrease_curr': '#c62828',  // 赤
+  'shipper_decrease_next': '#d32f2f',
+  'combo_increase_curr':   '#1b5e20',  // 濃緑
+  'combo_increase_next':   '#2e7d32',
+  'combo_decrease_curr':   '#b71c1c',  // 濃赤
+  'combo_decrease_next':   '#c62828',
+  'cm1_range':             '#1565c0',  // 青
+  'new_customer':          '#00838f',  // シアン
+  'regain_customer':       '#6a1b9a',  // 紫
+  'trade_lane':            '#e65100',  // オレンジ
+  'cm1_waterfall':         '#4527a0',  // 濃紫
+  'booking_monthly':       '#00695c',  // ティール
+  'booking_weekly':        '#00796b',  // ティール明
+  'pol_count':             '#37474f',  // ブルーグレー
+  'sales_contribution':    '#ad1457',  // ピンク
+  'koshi_shipper':         '#795548',  // ブラウン
+};
+
+function _tplCard(title, tplId) {
   const card = document.createElement('div');
   card.className = 'card tpl-card';
-  card.innerHTML = `<div class="card-header">${title}</div><div class="card-body"></div>`;
+  const color = (tplId && TPL_COLORS[tplId]) || '#1a237e';
+  card.innerHTML = `<div class="card-header" style="background:${color};color:#fff;border-left:4px solid ${color}">${title}</div><div class="card-body"></div>`;
   return card;
 }
 
-function _renderShipperTop(data, direction, period) {
+function _renderShipperTop(data, direction, period, tplId) {
   const isUp = direction === 'increase';
   const emoji = isUp ? '📈' : '📉';
-  const label = isUp ? '増加' : '減少';
+  const label = isUp ? t('shipper_increase') : t('shipper_decrease');
   const recentLabel = data.recent_label || period;
-  const title = `${emoji} ${label}荷主 TOP3（${recentLabel}）`;
-  const card = _tplCard(title);
+  const title = `${emoji} ${label}（${recentLabel}）`;
+  const card = _tplCard(title, tplId);
   const items = data.items || [];
 
   if (items.length === 0) {
-    card.querySelector('.card-body').innerHTML = '<p class="tpl-empty">該当なし</p>';
+    card.querySelector('.card-body').innerHTML = `<p class="tpl-empty">${t('no_data')}</p>`;
     return card;
   }
 
   let html = '<table class="tpl-table"><thead><tr>';
-  html += '<th>Shipper</th>';
-  html += '<th>3M Avg</th>';
+  html += `<th>${t('shipper')}</th>`;
+  html += `<th>${t('three_m_avg')}</th>`;
   html += `<th>${escHtml(recentLabel)}</th>`;
   html += '<th>Gap</th>';
-  html += '<th>Remark</th>';
+  html += `<th>${t('remark') || 'Remark'}</th>`;
   html += '</tr></thead><tbody>';
 
   for (const s of items) {
     const diffCls = s.diff >= 0 ? 'positive' : 'negative';
     const diffSign = s.diff >= 0 ? '+' : '';
-    // 主要因コンボ表示: "TMK-SHA : 60 ⇒ 237"
-    let comboStr = '-';
+    let remark = '';
     if (s.top_combo) {
       const c = s.top_combo;
-      comboStr = `${c.pol}-${c.dly} : ${c.avg3_teu} ⇒ ${c.recent_teu}`;
+      const cSign = c.diff >= 0 ? '+' : '';
+      remark = `${escHtml(c.pol)}→${escHtml(c.dly)} ${cSign}${c.diff}T`;
     }
     html += `<tr>`;
     html += `<td class="left">${escHtml(s.shipper)}</td>`;
     html += `<td>${s.avg3_teu.toLocaleString()}</td>`;
     html += `<td>${s.recent_teu.toLocaleString()}</td>`;
     html += `<td class="${diffCls}">${diffSign}${s.diff.toLocaleString()}</td>`;
-    html += `<td class="left small">${escHtml(comboStr)}</td>`;
+    html += `<td class="left" style="font-size:12px">${remark}</td>`;
+    html += `</tr>`;
+  }
+  html += '</tbody></table>';
+
+  card.querySelector('.card-body').innerHTML = html;
+  return card;
+}
+
+function _renderComboTop(data, direction, period, tplId) {
+  const isUp = direction === 'increase';
+  const emoji = isUp ? '📈' : '📉';
+  const label = isUp ? t('combo_increase') : t('combo_decrease');
+  const recentLabel = data.recent_label || period;
+  const title = `${emoji} ${label}（${recentLabel}）`;
+  const card = _tplCard(title, tplId);
+  const items = data.items || [];
+
+  if (items.length === 0) {
+    card.querySelector('.card-body').innerHTML = `<p class="tpl-empty">${t('no_data')}</p>`;
+    return card;
+  }
+
+  // CM1/TEU データの有無を確認
+  const hasCM1T = items.some(s => s.avg3_cm1t != null || s.recent_cm1t != null);
+
+  let html = '<table class="tpl-table"><thead><tr>';
+  html += `<th>${t('shipper')}</th>`;
+  html += '<th>POL</th>';
+  html += '<th>DLY</th>';
+  html += `<th>${t('three_m_avg')}<br>TEU</th>`;
+  html += `<th>${escHtml(recentLabel)}<br>TEU</th>`;
+  html += '<th>Gap<br>TEU</th>';
+  if (hasCM1T) {
+    html += `<th>${t('three_m_avg')}<br>CM1/T</th>`;
+    html += `<th>${escHtml(recentLabel)}<br>CM1/T</th>`;
+    html += '<th>Gap<br>CM1/T</th>';
+  }
+  html += '</tr></thead><tbody>';
+
+  for (const s of items) {
+    const diffCls = s.diff >= 0 ? 'positive' : 'negative';
+    const diffSign = s.diff >= 0 ? '+' : '';
+    html += `<tr>`;
+    html += `<td class="left">${escHtml(s.shipper)}</td>`;
+    html += `<td>${escHtml(s.pol)}</td>`;
+    html += `<td>${escHtml(s.dly)}</td>`;
+    html += `<td>${s.avg3_teu.toLocaleString()}</td>`;
+    html += `<td>${s.recent_teu.toLocaleString()}</td>`;
+    html += `<td class="${diffCls}">${diffSign}${s.diff.toLocaleString()}</td>`;
+    if (hasCM1T) {
+      const cm1tDiffCls = (s.cm1t_diff || 0) >= 0 ? 'positive' : 'negative';
+      const cm1tSign = (s.cm1t_diff || 0) >= 0 ? '+' : '';
+      html += `<td>$${(s.avg3_cm1t || 0).toLocaleString()}</td>`;
+      html += `<td>$${(s.recent_cm1t || 0).toLocaleString()}</td>`;
+      html += `<td class="${cm1tDiffCls}">${cm1tSign}$${(s.cm1t_diff || 0).toLocaleString()}</td>`;
+    }
     html += `</tr>`;
   }
   html += '</tbody></table>';
@@ -2843,35 +4065,41 @@ function _renderShipperTop(data, direction, period) {
 }
 
 function _renderNewCustomer(data) {
-  const card = _tplCard('🆕 New Customer');
-  let html = '<p class="tpl-desc">過去12ヶ月実績ゼロ → 今月/来月で復活</p>';
+  const card = _tplCard(t('new_customer'), 'new_customer');
+  let html = `<p class="tpl-desc">${t('new_cust_desc')}</p>`;
   if (data.customers?.length > 0) {
-    html += '<table class="tpl-table"><thead><tr><th>#</th><th>Shipper</th><th>TEU</th></tr></thead><tbody>';
-    data.customers.forEach((c,i) => { html += `<tr><td>${i+1}</td><td class="left">${escHtml(c.shipper)}</td><td>${c.teu.toLocaleString()}</td></tr>`; });
+    html += `<table class="tpl-table"><thead><tr><th>${t('shipper')}</th><th>${t('route')}</th><th>TEU</th></tr></thead><tbody>`;
+    data.customers.forEach((c,i) => {
+      const route = c.top_route ? `${escHtml(c.top_route.pol)}→${escHtml(c.top_route.dly)} (${c.top_route.teu}T)` : '-';
+      html += `<tr><td class="left">${escHtml(c.shipper)}</td><td style="font-size:12px">${route}</td><td>${c.teu.toLocaleString()}</td></tr>`;
+    });
     html += '</tbody></table>';
-    if (data.overflow_count > 0) html += `<p class="tpl-overflow">他 ${data.overflow_count}社 / ${data.overflow_teu.toLocaleString()} TEU</p>`;
-  } else html += '<p class="tpl-empty">該当なし</p>';
-  html += `<p class="tpl-total">合計: ${data.total_count}社</p>`;
+    if (data.overflow_count > 0) html += `<p class="tpl-overflow">${t('others')} ${data.overflow_count}${t('companies')} / ${data.overflow_teu.toLocaleString()} TEU</p>`;
+  } else html += `<p class="tpl-empty">${t('no_data')}</p>`;
+  html += `<p class="tpl-total">${t('total_count')}: ${data.total_count}${t('companies')}</p>`;
   card.querySelector('.card-body').innerHTML = html;
   return card;
 }
 
 function _renderRegainCustomer(data) {
-  const card = _tplCard('🔄 Regain Customer');
-  let html = '<p class="tpl-desc">7-12ヶ月前に実績あり → 6ヶ月休止 → 今月復活</p>';
+  const card = _tplCard(t('regain_customer'), 'regain_customer');
+  let html = `<p class="tpl-desc">${t('regain_cust_desc')}</p>`;
   if (data.customers?.length > 0) {
-    html += '<table class="tpl-table"><thead><tr><th>#</th><th>Shipper</th><th>TEU</th></tr></thead><tbody>';
-    data.customers.forEach((c,i) => { html += `<tr><td>${i+1}</td><td class="left">${escHtml(c.shipper)}</td><td>${c.teu.toLocaleString()}</td></tr>`; });
+    html += `<table class="tpl-table"><thead><tr><th>${t('shipper')}</th><th>${t('route')}</th><th>TEU</th></tr></thead><tbody>`;
+    data.customers.forEach((c,i) => {
+      const route = c.top_route ? `${escHtml(c.top_route.pol)}→${escHtml(c.top_route.dly)} (${c.top_route.teu}T)` : '-';
+      html += `<tr><td class="left">${escHtml(c.shipper)}</td><td style="font-size:12px">${route}</td><td>${c.teu.toLocaleString()}</td></tr>`;
+    });
     html += '</tbody></table>';
-    if (data.overflow_count > 0) html += `<p class="tpl-overflow">他 ${data.overflow_count}社 / ${data.overflow_teu.toLocaleString()} TEU</p>`;
-  } else html += '<p class="tpl-empty">該当なし</p>';
-  html += `<p class="tpl-total">合計: ${data.total_count}社</p>`;
+    if (data.overflow_count > 0) html += `<p class="tpl-overflow">${t('others')} ${data.overflow_count}${t('companies')} / ${data.overflow_teu.toLocaleString()} TEU</p>`;
+  } else html += `<p class="tpl-empty">${t('no_data')}</p>`;
+  html += `<p class="tpl-total">${t('total_count')}: ${data.total_count}${t('companies')}</p>`;
   card.querySelector('.card-body').innerHTML = html;
   return card;
 }
 
 function _renderPOLCount(data) {
-  const card = _tplCard('🏭 POL数 (Monthly)');
+  const card = _tplCard(t('pol_count') + ' (Monthly)', 'pol_count');
   let html = '<table class="tpl-table"><thead><tr>';
   data.forEach(d => { html += `<th>${ymToLabel(d.ym)}</th>`; });
   html += '</tr></thead><tbody><tr>';
@@ -2881,40 +4109,91 @@ function _renderPOLCount(data) {
   return card;
 }
 
-function _renderBookingCount(data, panel) {
-  const card = _tplCard('📋 Booking件数');
+function _renderBookingMonthly(data) {
+  const card = _tplCard(t('booking_monthly'), 'booking_monthly');
   const body = card.querySelector('.card-body');
-  let html = '<div class="tpl-sub-title">Monthly</div><table class="tpl-table"><thead><tr>';
-  (data.monthly||[]).forEach(d => { html += `<th>${ymToLabel(d.ym)}</th>`; });
-  html += '</tr></thead><tbody><tr>';
-  (data.monthly||[]).forEach(d => { html += `<td>${d.count.toLocaleString()}</td>`; });
-  html += '</tr></tbody></table>';
-  html += '<div class="tpl-sub-title" style="margin-top:8px">Weekly</div>';
-  html += '<div class="chart-wrap" style="height:140px"><canvas class="bkg-weekly-chart"></canvas></div>';
+  const monthly = data.monthly || [];
+  let html = '<table class="tpl-table"><thead><tr>';
+  html += '<th></th>';
+  monthly.forEach(d => { html += `<th>${ymToLabel(d.ym)}</th>`; });
+  html += '</tr></thead><tbody>';
+  // Main row
+  html += '<tr><td class="left"><strong>Main</strong></td>';
+  monthly.forEach(d => { html += `<td>${(d.main_count || 0).toLocaleString()}</td>`; });
+  html += '</tr>';
+  // Local row
+  html += '<tr><td class="left"><strong>Local</strong></td>';
+  monthly.forEach(d => { html += `<td>${(d.local_count || 0).toLocaleString()}</td>`; });
+  html += '</tr>';
+  // Total row
+  html += '<tr style="border-top:2px solid #ccc;font-weight:bold"><td class="left">Total</td>';
+  monthly.forEach(d => { html += `<td>${d.count.toLocaleString()}</td>`; });
+  html += '</tr>';
+  html += '</tbody></table>';
+  html += '<p class="tpl-desc" style="margin-top:6px;font-size:12px;color:#666">Main: TYO, YOK, NGO, OSA, UKB / Local: others</p>';
   body.innerHTML = html;
-  // Chart描画はDOM追加後に遅延実行
+  return card;
+}
+
+function _renderBookingWeekly(data, panel) {
+  const card = _tplCard(t('booking_weekly'), 'booking_weekly');
+  const body = card.querySelector('.card-body');
+  let html = '<div class="chart-wrap" style="height:180px"><canvas class="bkg-weekly-chart"></canvas></div>';
+  body.innerHTML = html;
   if (!window._pendingBookingCharts) window._pendingBookingCharts = [];
   window._pendingBookingCharts.push({ data, panel });
   return card;
 }
 
 function _renderSalesContribution(data) {
-  const card = _tplCard('👤 営業マン寄与度');
+  const card = _tplCard(t('sales_contribution'), 'sales_contribution');
   const body = card.querySelector('.card-body');
   const months = Object.keys(data).sort();
 
-  // 月タブ
-  let html = '<div class="tpl-month-tabs">';
+  const TREEMAP_COLORS = ['#3f51b5','#e91e63','#4caf50','#ff9800','#9c27b0','#00bcd4','#795548','#607d8b','#f44336','#8bc34a','#ff5722','#03a9f4'];
+
+  // 月タブ + 表示切替
+  let html = '<div class="sales-ctrl-row">';
+  html += '<div class="tpl-month-tabs">';
   months.forEach((ym,i) => { html += `<button class="tpl-tab-btn${i===months.length-1?' active':''}" data-ym="${ym}">${ymToLabel(ym)}</button>`; });
   html += '</div>';
+  html += '<div class="sales-view-toggle">';
+  html += '<button class="sales-view-btn" data-view="treemap" title="ツリーマップ">▦</button>';
+  html += '<button class="sales-view-btn active" data-view="donut" title="円グラフ">◔</button>';
+  html += '</div></div>';
 
+  // 各月のコンテンツ (ツリーマップ + 円グラフ両方用意)
   months.forEach((ym,i) => {
     const monthData = data[ym] || {};
     const items = monthData.items || (Array.isArray(monthData) ? monthData : []);
     const totalTeu = monthData.total_teu || items.reduce((s,it) => s + (it.teu||0), 0);
     html += `<div class="tpl-tab-content" data-ym="${ym}" style="${i===months.length-1?'':'display:none'}">`;
-    if (items.length > 0) {
-      html += `<div style="position:relative;width:100%;height:calc(100% - 30px)"><canvas class="sales-donut-canvas" data-ym="${ym}"></canvas></div>`;
+    if (items.length > 0 && totalTeu > 0) {
+      // ツリーマップ
+      html += `<div class="sales-view-panel" data-view="treemap" style="display:none">`;
+      html += `<div class="treemap-container">`;
+      const sorted = [...items].sort((a,b) => (b.teu||0) - (a.teu||0));
+      const rects = _squarify(sorted.map(it => it.teu || 0), 0, 0, 100, 100);
+      sorted.forEach((it, j) => {
+        const r = rects[j];
+        if (!r) return;
+        const color = TREEMAP_COLORS[j % TREEMAP_COLORS.length];
+        const pct = it.pct || (totalTeu > 0 ? Math.round(it.teu / totalTeu * 100) : 0);
+        const w = r.w, h = r.h;
+        const showLabel = w > 12 && h > 8;
+        const showTeu = w > 18 && h > 14;
+        html += `<div class="treemap-cell" style="left:${r.x}%;top:${r.y}%;width:${w}%;height:${h}%;background:${color}" title="${escHtml(it.sales)}: ${it.teu.toLocaleString()} TEU (${pct}%)">`;
+        if (showLabel) html += `<span class="treemap-label">${escHtml(it.sales)}</span>`;
+        if (showTeu) html += `<span class="treemap-value">${pct}%<br>${it.teu.toLocaleString()}T</span>`;
+        html += `</div>`;
+      });
+      html += `</div>`;
+      html += `<div class="treemap-total">合計: ${totalTeu.toLocaleString()} TEU</div>`;
+      html += `</div>`;
+      // 円グラフ
+      html += `<div class="sales-view-panel" data-view="donut">`;
+      html += `<div style="position:relative;width:100%;min-height:340px"><canvas class="sales-donut-canvas" data-ym="${ym}"></canvas></div>`;
+      html += `</div>`;
     } else {
       html += '<p class="tpl-empty">データなし</p>';
     }
@@ -2923,10 +4202,185 @@ function _renderSalesContribution(data) {
 
   body.innerHTML = html;
 
-  // タブ切替・チャート描画は DOM 追加後に _drawSalesDonutCharts で一括処理
+  // 円グラフの遅延描画キュー
   if (!window._pendingSalesDonut) window._pendingSalesDonut = [];
   window._pendingSalesDonut.push({ data, months });
 
+  // イベント委譲: card(body)がDOM移動されても動くように直接要素にリスナー登録
+  // card自体にデータを保持してDOM追加後にイベントをバインド
+  card._salesData = data;
+  card._salesMonths = months;
+  card._salesInitEvents = function() {
+    const root = this.querySelector('.gc-content-wrap') || this.querySelector('.card-body') || this;
+    // 初回: 全月のドーナツを強制再描画 (DOM移動後にサイズ確定させる)
+    setTimeout(() => {
+      root.querySelectorAll('.sales-donut-canvas').forEach(c => {
+        // 既存Chart.jsインスタンスを破棄してフラグリセット
+        const existing = Chart.getChart(c);
+        if (existing) existing.destroy();
+        c.dataset.drawn = '';
+      });
+      months.forEach(ym => _drawPendingDonutInTab(root, data, ym));
+    }, 300);
+    // 月タブ
+    root.querySelectorAll('.tpl-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        root.querySelectorAll('.tpl-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        root.querySelectorAll('.tpl-tab-content').forEach(c => c.style.display = 'none');
+        const target = root.querySelector(`.tpl-tab-content[data-ym="${btn.dataset.ym}"]`);
+        if (target) target.style.display = '';
+        _drawPendingDonutInTab(root, data, btn.dataset.ym);
+      });
+    });
+    // 表示切替ボタン
+    root.querySelectorAll('.sales-view-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        root.querySelectorAll('.sales-view-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const view = btn.dataset.view;
+        root.querySelectorAll('.sales-view-panel').forEach(p => {
+          p.style.display = p.dataset.view === view ? '' : 'none';
+        });
+        if (view === 'donut') {
+          months.forEach(ym => _drawPendingDonutInTab(root, data, ym));
+        }
+      });
+    });
+  };
+
+  return card;
+}
+
+function _drawPendingDonutInTab(body, data, ym) {
+  const tab = body.querySelector(`.tpl-tab-content[data-ym="${ym}"]`);
+  if (!tab) return;
+  const canvas = tab.querySelector('.sales-donut-canvas');
+  if (!canvas || canvas.dataset.drawn === 'true') return;
+  const monthData = data[ym] || {};
+  const items = monthData.items || (Array.isArray(monthData) ? monthData : []);
+  const totalTeu = monthData.total_teu || items.reduce((s,it) => s + (it.teu||0), 0);
+  if (items.length === 0) return;
+  // Canvas は表示状態でないと Chart.js が描画できないため、
+  // donut パネルを強制表示 → 描画 → 元に戻す
+  const panel = canvas.closest('.sales-view-panel');
+  const tabWasHidden = tab.style.display === 'none';
+  const panelWasHidden = panel && panel.style.display === 'none';
+  if (tabWasHidden) tab.style.display = '';
+  if (panelWasHidden) panel.style.display = '';
+  // 一フレーム待ってから描画(レイアウト計算を確定させる)
+  requestAnimationFrame(() => {
+    _createSalesDonut(canvas, items, totalTeu);
+    canvas.dataset.drawn = 'true';
+    if (tabWasHidden) tab.style.display = 'none';
+    // donut が現在のビューなら表示のまま、そうでなければ戻す
+    const activeView = body.querySelector('.sales-view-btn.active')?.dataset.view;
+    if (panelWasHidden && activeView !== 'donut') panel.style.display = 'none';
+  });
+}
+
+/** Squarified Treemap: 値の配列からrect配列{x,y,w,h}を%座標で返す */
+function _squarify(values, x, y, w, h) {
+  const total = values.reduce((s,v) => s + v, 0);
+  if (total === 0 || values.length === 0) return [];
+  if (values.length === 1) return [{x, y, w, h}];
+
+  const rects = [];
+  _squarifyLayout(values, total, x, y, w, h, rects);
+  return rects;
+}
+function _squarifyLayout(values, total, x, y, w, h, rects) {
+  if (values.length === 0) return;
+  if (values.length === 1) { rects.push({x, y, w, h}); return; }
+
+  const isWide = w >= h;
+  let rowSum = 0;
+  let best = Infinity;
+  let split = 1;
+
+  for (let i = 0; i < values.length; i++) {
+    rowSum += values[i];
+    const frac = rowSum / total;
+    const stripSize = isWide ? w * frac : h * frac;
+    const remaining = isWide ? h : w;
+
+    // worst aspect ratio in this row
+    let worstRatio = 0;
+    let subSum = 0;
+    for (let j = 0; j <= i; j++) {
+      subSum += values[j];
+      const cellSize = (values[j] / rowSum) * remaining;
+      const ratio = Math.max(stripSize / cellSize, cellSize / stripSize);
+      worstRatio = Math.max(worstRatio, ratio);
+    }
+    if (worstRatio <= best) {
+      best = worstRatio;
+      split = i + 1;
+    } else {
+      break;
+    }
+  }
+
+  // Layout the "split" items in the first strip
+  const rowTotal = values.slice(0, split).reduce((s,v) => s + v, 0);
+  const stripFrac = rowTotal / total;
+  let offset = 0;
+  for (let i = 0; i < split; i++) {
+    const cellFrac = values[i] / rowTotal;
+    if (isWide) {
+      const cw = w * stripFrac;
+      const ch = h * cellFrac;
+      rects.push({x: x, y: y + offset * h, w: cw, h: ch});
+      offset += cellFrac;
+    } else {
+      const cw = w * cellFrac;
+      const ch = h * stripFrac;
+      rects.push({x: x + offset * w, y: y, w: cw, h: ch});
+      offset += cellFrac;
+    }
+  }
+
+  // Recurse on remaining
+  const restValues = values.slice(split);
+  const restTotal = total - rowTotal;
+  if (isWide) {
+    _squarifyLayout(restValues, restTotal, x + w * stripFrac, y, w * (1 - stripFrac), h, rects);
+  } else {
+    _squarifyLayout(restValues, restTotal, x, y + h * stripFrac, w, h * (1 - stripFrac), rects);
+  }
+}
+
+function _renderKoshiShipper(data) {
+  const card = _tplCard(t('koshi_shipper'), 'koshi_shipper');
+  const body = card.querySelector('.card-body');
+  let html = '<table class="tpl-table"><thead><tr>';
+  html += `<th>${t('shipper')}</th>`;
+  data.forEach(m => { html += `<th>${ymToLabel(m.ym)}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  // 全荷主を集める
+  const allShippers = new Set();
+  data.forEach(m => m.items.forEach(it => allShippers.add(it.shipper)));
+
+  for (const shipper of allShippers) {
+    html += `<tr><td class="left">${escHtml(shipper)}</td>`;
+    data.forEach(m => {
+      const it = m.items.find(i => i.shipper === shipper);
+      if (it) {
+        html += `<td>${it.teu.toLocaleString()}<br><small style="color:#666">$${it.cm1_per_teu}/T</small></td>`;
+      } else {
+        html += '<td>-</td>';
+      }
+    });
+    html += '</tr>';
+  }
+
+  // Total行
+  html += '<tr style="border-top:2px solid #ccc;font-weight:bold"><td class="left">Total</td>';
+  data.forEach(m => { html += `<td>${m.total_teu.toLocaleString()}</td>`; });
+  html += '</tr></tbody></table>';
+
+  body.innerHTML = html;
   return card;
 }
 
@@ -2954,7 +4408,7 @@ function _flushPendingCharts(container, pendingB, pendingD) {
           CHART_INSTANCES[key] = new Chart(ctx, {
             type: 'bar',
             data: { labels: data.weekly.map(w=>w.week_label), datasets: [{ label:'件数', data: data.weekly.map(w=>w.count), backgroundColor:'#3f51b5' }] },
-            options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, datalabels:{display:true,anchor:'end',align:'top',font:{size:9}} }, scales:{y:{beginAtZero:true,ticks:{precision:0}}} }
+            options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, datalabels:{display:true,anchor:'end',align:'top',font:{size:11}} }, scales:{x:{ticks:{font:{size:13}}},y:{beginAtZero:true,ticks:{precision:0,font:{size:13}}}} }
           });
           canvas.dataset.drawn = 'true';
         }
@@ -2973,48 +4427,26 @@ function _flushPendingCharts(container, pendingB, pendingD) {
 }
 
 function _drawSalesDonutCharts(container, data, months) {
-  // container = .graph-config-list (DOM上に存在する要素)
-
-  // アクティブタブのチャートのみ描画、他は pending
+  // 新しい切替UI対応: canvasが見える状態(donutパネルが表示中)のときだけ描画、
+  // それ以外は切替時に _drawPendingDonutInTab で描画する
+  // ※ canvasのサイズが0の場合はスキップ（DOM移動前で正しいサイズが取得できない）
   months.forEach(ym => {
     const canvas = container.querySelector(`.sales-donut-canvas[data-ym="${ym}"]`);
-    if (!canvas) return;
+    if (!canvas || canvas.dataset.drawn === 'true') return;
+    if (canvas.offsetWidth < 50) return;  // レイアウト未確定
     const tabContent = canvas.closest('.tpl-tab-content');
-    const isVisible = !tabContent || tabContent.style.display !== 'none';
-    if (isVisible) {
+    const tabVisible = !tabContent || tabContent.style.display !== 'none';
+    const viewPanel = canvas.closest('.sales-view-panel');
+    const panelVisible = !viewPanel || viewPanel.style.display !== 'none';
+    if (tabVisible && panelVisible) {
       const monthData = data[ym] || {};
       const items = monthData.items || (Array.isArray(monthData) ? monthData : []);
       const totalTeu = monthData.total_teu || items.reduce((s,it) => s + (it.teu||0), 0);
-      if (items.length > 0) _createSalesDonut(canvas, items, totalTeu);
-    } else {
-      canvas.dataset.pending = 'true';
+      if (items.length > 0) {
+        _createSalesDonut(canvas, items, totalTeu);
+        canvas.dataset.drawn = 'true';
+      }
     }
-  });
-
-  // タブ切替: 表示/非表示 + 未描画チャートの遅延描画
-  container.querySelectorAll('.tpl-tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      // タブボタンの active 切替
-      const block = btn.closest('.gc-block-body') || btn.closest('.gc-block') || container;
-      block.querySelectorAll('.tpl-tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      // タブコンテンツの表示切替
-      block.querySelectorAll('.tpl-tab-content').forEach(c => c.style.display = 'none');
-      const target = block.querySelector(`.tpl-tab-content[data-ym="${btn.dataset.ym}"]`);
-      if (target) target.style.display = '';
-      // 未描画チャートを描画
-      setTimeout(() => {
-        const ym = btn.dataset.ym;
-        const canvas = block.querySelector(`.sales-donut-canvas[data-ym="${ym}"]`);
-        if (canvas && canvas.dataset.pending === 'true') {
-          const monthData = data[ym] || {};
-          const items = monthData.items || (Array.isArray(monthData) ? monthData : []);
-          const totalTeu = monthData.total_teu || items.reduce((s,it) => s + (it.teu||0), 0);
-          if (items.length > 0) _createSalesDonut(canvas, items, totalTeu);
-          delete canvas.dataset.pending;
-        }
-      }, 50);
-    });
   });
 }
 
@@ -3034,7 +4466,7 @@ function _createSalesDonut(canvas, items, totalTeu) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: '40%',
+      cutout: '30%',
       layout: { padding: 4 },
       plugins: {
         legend: { display: false },
@@ -3049,17 +4481,32 @@ function _createSalesDonut(canvas, items, totalTeu) {
         datalabels: {
           display: true,
           color: '#fff',
-          font: { size: 10, weight: '700' },
-          textShadowBlur: 3,
-          textShadowColor: 'rgba(0,0,0,0.4)',
+          font: ctx => {
+            const w = ctx.chart.width || 300;
+            const sz = Math.max(11, Math.min(12, Math.round(w / 30)));
+            return { size: sz, weight: '700' };
+          },
           textAlign: 'center',
+          backgroundColor: ctx => {
+            const bg = ctx.chart.data.datasets[0].backgroundColor;
+            return bg[ctx.dataIndex];
+          },
+          borderRadius: 3,
+          padding: { top: 2, bottom: 2, left: 4, right: 4 },
           formatter: (value, ctx) => {
             const it = items[ctx.dataIndex];
-            if (!it || it.pct < 6) return null;
-            return it.sales + '\n' + it.pct + '%';
+            if (!it) return null;
+            const w = ctx.chart.width || 300;
+            // 小さい枠では割合が小さいラベルを非表示
+            const minPct = w < 280 ? 10 : w < 350 ? 7 : 5;
+            if (it.pct < minPct) return null;
+            // 小さい枠ではTEUを省略
+            if (w < 280) return it.sales + '\n' + it.pct + '%';
+            return it.sales + '\n' + it.pct + '% (' + it.teu.toLocaleString() + 'TEU)';
           },
           anchor: 'center',
-          align: 'center',
+          align: 'end',
+          offset: 2,
           clamp: true,
         },
       },
@@ -3074,12 +4521,15 @@ function _createSalesDonut(canvas, items, totalTeu) {
           c2d.save();
           c2d.textAlign = 'center';
           c2d.textBaseline = 'middle';
+          const cw = chart.width || 300;
+          const labelSz = Math.max(9, Math.round(cw / 35));
+          const valueSz = Math.max(12, Math.round(cw / 25));
           c2d.fillStyle = '#666';
-          c2d.font = '10px sans-serif';
-          c2d.fillText('合計', cx, cy - 10);
+          c2d.font = `${labelSz}px sans-serif`;
+          c2d.fillText('合計', cx, cy - valueSz * 0.7);
           c2d.fillStyle = '#222';
-          c2d.font = 'bold 14px sans-serif';
-          c2d.fillText(totalTeu.toLocaleString() + ' TEU', cx, cy + 6);
+          c2d.font = `bold ${valueSz}px sans-serif`;
+          c2d.fillText(totalTeu.toLocaleString() + ' TEU', cx, cy + labelSz * 0.6);
           c2d.restore();
         }
       },
@@ -3088,10 +4538,10 @@ function _createSalesDonut(canvas, items, totalTeu) {
 }
 
 function _renderCM1Range(data) {
-  const card = _tplCard('💰 CM1レンジ分析');
+  const card = _tplCard(t('cm1_range'), 'cm1_range');
   const months = Object.keys(data).sort();
   const segs = [{key:'high',e:'🟢',l:'High'},{key:'mid',e:'🟡',l:'Mid'},{key:'low',e:'🔴',l:'Low'}];
-  let html = '<div class="tpl-desc">CM1/TEU を上位25%（High）・中間（Mid）・下位25%（Low）に分類</div>';
+  let html = `<div class="tpl-desc">${t('cm1_range_desc')}</div>`;
   html += '<table class="tpl-table"><thead><tr><th>月</th><th>Seg</th><th>TEU</th><th>%</th><th>社数</th><th>CM1/T</th></tr></thead><tbody>';
   for (const ym of months) {
     const d = data[ym]; const info = d.q75!=null?`≥$${d.q75}/<$${d.q25}`:'';
@@ -3108,20 +4558,31 @@ function _renderCM1Range(data) {
 }
 
 function _renderTradeLane(data) {
-  const card = _tplCard(`🗺️ Trade Lane (${data.group_by})`);
+  const card = _tplCard(`${t('trade_lane')} (${data.group_by})`, 'trade_lane');
   const months = data.months||[];
   let html = '<div class="heatmap-scroll"><table class="tpl-table heatmap-table"><thead><tr><th>'+data.group_by+'</th>';
   months.forEach(ym => { html += `<th>${ymToLabel(ym)}</th>`; });
   html += '</tr></thead><tbody>';
-  let maxTeu = 0;
-  for (const row of data.data||[]) for (const ym of months) { const v=row.months?.[ym]?.teu||0; if(v>maxTeu) maxTeu=v; }
   for (const row of data.data||[]) {
+    // 行内の min/max TEU を算出（各国ごとの相対比較）
+    let rowMin = Infinity, rowMax = 0;
+    for (const ym of months) {
+      const v = row.months?.[ym]?.teu || 0;
+      if (v > rowMax) rowMax = v;
+      if (v < rowMin) rowMin = v;
+    }
+    const rowRange = rowMax - rowMin;
     html += `<tr><td class="left"><strong>${escHtml(row.lane)}</strong></td>`;
     for (const ym of months) {
       const cell = row.months?.[ym]||{teu:0,cm1_per_teu:0};
-      const i = maxTeu>0?cell.teu/maxTeu:0;
-      const bg = `rgb(${Math.round(220-i*190)},${Math.round(230-i*150)},${Math.round(255-i*50)})`;
-      html += `<td style="background:${bg};color:${i>0.6?'#fff':'#333'};text-align:center" title="CM1/T:$${cell.cm1_per_teu}"><div class="hm-teu">${cell.teu.toLocaleString()}</div><div class="hm-cm1">$${cell.cm1_per_teu}</div></td>`;
+      const i = rowRange > 0 ? (cell.teu - rowMin) / rowRange : 0;
+      // 白(低)→ネイビー(高)
+      const r = Math.round(245 - i * 219);
+      const g = Math.round(245 - i * 209);
+      const b = Math.round(250 - i * 122);
+      const bg = `rgb(${r},${g},${b})`;
+      const txtCol = i > 0.45 ? '#fff' : '#333';
+      html += `<td style="background:${bg};color:${txtCol};text-align:center" title="CM1/T:$${cell.cm1_per_teu}"><div class="hm-teu">${cell.teu.toLocaleString()}</div><div class="hm-cm1">$${cell.cm1_per_teu}</div></td>`;
     }
     html += '</tr>';
   }
@@ -3131,7 +4592,7 @@ function _renderTradeLane(data) {
 }
 
 function _renderCM1Waterfall(data, panel) {
-  const card = _tplCard('📊 CM1/TEU 前月比要因分解');
+  const card = _tplCard(t('cm1_waterfall'), 'cm1_waterfall');
   const body = card.querySelector('.card-body');
   const chg = data.total_change>=0?'+':'';
   const cls = data.total_change>=0?'positive':'negative';
@@ -3600,4 +5061,105 @@ function _drawBSAChart(canvas, rawD, area) {
       }
     }],
   });
+}
+
+
+// ── Data Download Modal ─────────────────────────────
+function openDownloadModal() {
+  // メニューを閉じる
+  const m = document.getElementById('user-menu');
+  if (m) m.style.display = 'none';
+
+  // デフォルト日付: 現在選択中の週の前後2ヶ月
+  const now = new Date();
+  let refDate = now;
+  // 週セレクターから参照日を取得
+  const sel = document.getElementById('week-selector');
+  if (sel && sel.value) {
+    // week_key "2026-W16" → 年と週から大まかな日付を推定
+    const m2 = sel.value.match(/(\d{4})-W(\d+)/);
+    if (m2) {
+      const yr = parseInt(m2[1]);
+      const wk = parseInt(m2[2]);
+      refDate = new Date(yr, 0, 1 + (wk - 1) * 7);
+    }
+  }
+
+  const from = new Date(refDate);
+  from.setMonth(from.getMonth() - 2);
+  from.setDate(1);
+  const to = new Date(refDate);
+  to.setMonth(to.getMonth() + 2 + 1);
+  to.setDate(0); // 末日
+
+  document.getElementById('dl-date-from').value = from.toISOString().slice(0, 10);
+  document.getElementById('dl-date-to').value = to.toISOString().slice(0, 10);
+
+  // Area チェックボックス生成
+  const container = document.getElementById('dl-area-checks');
+  container.innerHTML = '';
+  const areas = AREAS.filter(a => a !== 'ALL');
+  areas.forEach(a => {
+    const lbl = document.createElement('label');
+    lbl.innerHTML = `<input type="checkbox" class="dl-area-cb" value="${a}" checked> ${a}`;
+    container.appendChild(lbl);
+  });
+  document.getElementById('dl-area-all').checked = true;
+  document.getElementById('dl-status').textContent = '';
+  document.getElementById('dl-btn').disabled = false;
+
+  document.getElementById('download-modal').style.display = 'flex';
+}
+
+function closeDownloadModal() {
+  document.getElementById('download-modal').style.display = 'none';
+}
+
+function toggleDlAreaAll(allCb) {
+  document.querySelectorAll('.dl-area-cb').forEach(cb => { cb.checked = allCb.checked; });
+}
+
+async function executeDownload() {
+  const from = document.getElementById('dl-date-from').value;
+  const to = document.getElementById('dl-date-to').value;
+  if (!from || !to) { alert('期間を指定してください'); return; }
+
+  const allChecked = document.getElementById('dl-area-all').checked;
+  let areas = [];
+  if (!allChecked) {
+    document.querySelectorAll('.dl-area-cb:checked').forEach(cb => areas.push(cb.value));
+    if (!areas.length) { alert('エリアを1つ以上選択してください'); return; }
+  }
+
+  const btn = document.getElementById('dl-btn');
+  const status = document.getElementById('dl-status');
+  btn.disabled = true;
+  status.textContent = 'Generating...';
+
+  try {
+    const params = new URLSearchParams({ from, to });
+    if (!allChecked) params.set('areas', areas.join(','));
+    const res = await fetch(`/api/download-data?${params}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    // Blob → ダウンロード
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const fnMatch = cd.match(/filename="?([^"]+)"?/);
+    const filename = fnMatch ? fnMatch[1] : `meeting_data_${from}_${to}.xlsx`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+    status.textContent = '✅ Downloaded!';
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
 }

@@ -95,6 +95,8 @@ class GmailClient:
             "Body": (body or "")[:65535],
             "message_id": headers.get("Message-ID") or msg["id"],
             "thread_id": msg.get("threadId", ""),
+            "in_reply_to": headers.get("In-Reply-To", "") or "",
+            "gmail_internal_id": msg["id"],
         }
 
     # ------------------------------------------------------------------

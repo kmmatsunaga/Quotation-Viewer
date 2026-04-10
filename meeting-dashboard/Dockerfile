@@ -14,4 +14,4 @@ RUN mkdir -p data/uploads
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
 
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 120 app:app
+CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 300 app:app

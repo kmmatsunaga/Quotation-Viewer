@@ -876,7 +876,7 @@ function renderMonthlyChart(panel, area, monthly, weeklyData, subAreas, subAreaN
     data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 28 } },
+      layout: { padding: { top: 50 } },
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: hasSubStack, position: 'top', labels: {
@@ -1088,7 +1088,7 @@ function renderWeeklyChart(panel, area, weekly, subAreas, subAreaNames) {
     data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 22 } },
+      layout: { padding: { top: 50 } },
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: hasSubStack, position: 'top', labels: {

@@ -1342,12 +1342,18 @@ def _build_prediction(area: str, today: date,
             days_until = max(0, day_start - elapsed_days)
             week_remaining_rates[wpos] = max(0, days_until / days_in_ref_month) ** 2 * 0.15
 
-    # ── 週間実績取得 (週ベース補正用) ────────────────────
+    # ── ダッシュボード実績 (TEU) を月間フロアにも使用 ────────────
     try:
         actual_df = get_bq_df()
         actual_df_area = _filter_area(actual_df, area) if area != "ALL" else actual_df
     except Exception:
         actual_df_area = pd.DataFrame()
+
+    # ダッシュボード上の当月実績TEU (TEU_lpaより大きい場合がある)
+    dash_actual_monthly = {}
+    if not actual_df_area.empty and "ym" in actual_df_area.columns:
+        dash_monthly = actual_df_area.groupby("ym")["TEU"].sum()
+        dash_actual_monthly = {k: float(v) for k, v in dash_monthly.items()}
 
     # ── 月間予測 ────────────────────────────────────────
     predict_months = _cal_months(ref.year, ref.month, 0, 1)
@@ -1374,6 +1380,10 @@ def _build_prediction(area: str, today: date,
         pred_cm1_raw = slope * (base_offset + i) + intercept
         if pred_cm1_raw < 0:
             pred_cm1_raw = intercept
+        # ダッシュボード実績でも絶対下限を保証
+        dash_actual = dash_actual_monthly.get(ym_str, 0)
+        pred_teu_raw = max(pred_teu_raw, dash_actual)
+
         monthly_pred[ym_str] = {
             "teu": round(pred_teu_raw),
             "cm1_per_teu": round(pred_cm1_raw),
@@ -1501,8 +1511,9 @@ def _build_prediction(area: str, today: date,
                     actual_plus = ba["actual_teu"] * (1 + effective_rate)
                     pred_teu = int(max(actual_plus, ba["base_teu"]) + 0.5)
                 else:
-                    # 過去/当週: 実績と基本予測の大きい方
-                    pred_teu = max(ba["actual_teu"], ba["base_teu"])
+                    # 当週: 実績×1.05 (今週中にまだBookingは入る) vs 基本予測の大きい方
+                    actual_plus_curr = int(ba["actual_teu"] * 1.05 + 0.5)
+                    pred_teu = max(actual_plus_curr, ba["base_teu"])
             elif future_shares_sum > 0 and actual_sum > 0:
                 # 実績ゼロの将来週: 残りTEUをシェア比率で再配分
                 future_share = ba["share"] / future_shares_sum
@@ -1529,7 +1540,18 @@ def _build_prediction(area: str, today: date,
             smoothed[j] = int((teu_vals[j - 1] + teu_vals[j] * 2 + teu_vals[j + 1]) / 4 + 0.5)
         for j, wk in enumerate(sorted_wks):
             # 平滑化後も実績を下回らないようクランプ
-            actual_floor = weekly_actuals.get(wk, 0)
+            # 将来週は実績×1.1、過去/当週は実績そのものが下限
+            actual_val = weekly_actuals.get(wk, 0)
+            w_info = next((w for w in weeks_3m if w["week_key"] == wk), None)
+            if w_info and actual_val > 0:
+                ws = w_info.get("week_start")
+                ws_date = date.fromisoformat(ws) if ws else None
+                if ws_date and ws_date > ref:
+                    actual_floor = int(actual_val * 1.1 + 0.5)
+                else:
+                    actual_floor = actual_val
+            else:
+                actual_floor = actual_val
             weekly_pred[wk]["teu"] = max(smoothed[j], actual_floor)
 
     # ── 週間 CM1/TEU を線形補間 (月をまたいで滑らかに変化) ──

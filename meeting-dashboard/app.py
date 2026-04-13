@@ -1760,8 +1760,9 @@ def build_template_data(area: str, df: pd.DataFrame, today: date,
         avg3_range = f"{avg3_labels[0]} - {avg3_labels[-1]}" if avg3_labels else ""
 
         # ── (A) Shipper 単位 Top3 ──
-        def _top_pol_dly(shipper_name, target_ym):
-            """荷主ごとに、3M平均vs対象月で最も差が大きいPOL-DLYコンボを返す"""
+        def _top_pol_dly(shipper_name, target_ym, direction="increase"):
+            """荷主ごとに、3M平均vs対象月で最も増加/減少したPOL-DLYコンボを返す
+            direction: "increase" → 最大増加航路, "decrease" → 最大減少航路"""
             try:
                 sub_r = df_area[(df_area["Booking_Shipper"] == shipper_name) & (df_area["bq_ym"] == target_ym)]
                 sub_a = df_detail_avg3[df_detail_avg3["Booking_Shipper"] == shipper_name]
@@ -1771,7 +1772,18 @@ def build_template_data(area: str, df: pd.DataFrame, today: date,
                 if len(all_idx) == 0:
                     return None
                 diff_s = recent_combo.reindex(all_idx, fill_value=0) - avg3_combo_s.reindex(all_idx, fill_value=0)
-                best_idx = diff_s.abs().idxmax()
+                if direction == "increase":
+                    filtered = diff_s[diff_s > 0]
+                    if filtered.empty:
+                        best_idx = diff_s.abs().idxmax()  # フォールバック
+                    else:
+                        best_idx = filtered.idxmax()
+                else:
+                    filtered = diff_s[diff_s < 0]
+                    if filtered.empty:
+                        best_idx = diff_s.abs().idxmax()
+                    else:
+                        best_idx = filtered.idxmin()
                 pol, dly = best_idx
                 return {"pol": pol, "dly": dly,
                         "avg3_teu": round(float(avg3_combo_s.get(best_idx, 0))),
@@ -1792,17 +1804,17 @@ def build_template_data(area: str, df: pd.DataFrame, today: date,
             top_dec = merged.nsmallest(3, "diff")
             top_dec = top_dec[top_dec["diff"] < 0]
 
-            def _rows(top_df):
+            def _rows(top_df, direction="increase"):
                 return [{"shipper": s,
                          "avg3_teu": round(float(r["avg3_teu"])),
                          "recent_teu": round(float(r["recent_teu"])),
                          "diff": round(float(r["diff"])),
-                         "top_combo": _top_pol_dly(s, target_ym)}
+                         "top_combo": _top_pol_dly(s, target_ym, direction)}
                         for s, r in top_df.iterrows()]
 
             meta = {"base_months": yms_avg3, "target_month": target_ym,
                     "recent_label": _ym_label(target_ym), "avg3_range": avg3_range}
-            return {"items": _rows(top_inc), **meta}, {"items": _rows(top_dec), **meta}
+            return {"items": _rows(top_inc, "increase"), **meta}, {"items": _rows(top_dec, "decrease"), **meta}
 
         # ── (B) Shipper × POL × DLY 組み合わせ Top3 ──
         def _build_combo_block(target_ym):
@@ -2046,41 +2058,71 @@ def build_template_data(area: str, df: pd.DataFrame, today: date,
 
     # ──────────────────────────────────────────────────
     # 古紙荷主リスト
+    # 会議≤14日: 過去3か月TEU + 3M平均 + 当月実績 + Gap
+    # 会議≥15日: 過去3か月TEU + 3M平均 + 翌月実績 + Gap
     # ──────────────────────────────────────────────────
-    KOSHI_SHIPPER_CODES = {"SEGJ04", "NIPJ01"}
+    KOSHI_SHIPPER_CODES = {
+        "SEGJ04", "NIPJ01", "LNAJ01", "SCJJ14", "SAMP04",
+        "KPPJ01", "KYUJ11", "TCIJ00", "NTRJ03",
+    }
     try:
-        months_6_koshi = _cal_months(ref.year, ref.month, 5, 0)
-        yms_6_koshi = [f"{y}-{m:02d}" for y, m in months_6_koshi]
+        # 会議日の14/15判定
+        meeting_tue_day = (ref + timedelta(days=2)).day
+        if meeting_tue_day <= 14:
+            # 過去3か月 = ref月-3, ref月-2, ref月-1  / 対象月 = ref月(当月)
+            koshi_past_months = _cal_months(ref.year, ref.month, 3, 0)[:-1]  # 過去3か月
+            target_y, target_m = ref.year, ref.month  # 当月
+        else:
+            # 過去3か月 = ref月-2, ref月-1, ref月  / 対象月 = ref月+1(翌月)
+            koshi_past_months = _cal_months(ref.year, ref.month, 2, 0)       # 過去3か月(当月含む)
+            tgt = _cal_months(ref.year, ref.month, 0, 1)
+            target_y, target_m = tgt[-1]  # 翌月
+
+        koshi_past_yms = [f"{y}-{m:02d}" for y, m in koshi_past_months]
+        target_ym = f"{target_y}-{target_m:02d}"
+        all_koshi_yms = koshi_past_yms + [target_ym]
+
         df_koshi = df_area[
             (df_area["BKG_Shipper_code"].isin(KOSHI_SHIPPER_CODES)) &
-            (df_area["bq_ym"].isin(yms_6_koshi))
+            (df_area["bq_ym"].isin(all_koshi_yms))
         ]
-        koshi_monthly = []
-        for ym in yms_6_koshi:
-            sub = df_koshi[df_koshi["bq_ym"] == ym]
-            shippers = sub.groupby("Booking_Shipper").agg(
-                TEU=("TEU", "sum"), CM1=("CM1", "sum"),
-                TEU_with_cm1=("TEU_with_cm1", "sum")
-            ).reset_index()
-            items = []
-            for _, r in shippers.iterrows():
-                teu = round(float(r["TEU"]))
-                cm1 = round(float(r["CM1"]))
-                teu_wcm1 = float(r["TEU_with_cm1"])
-                items.append({
-                    "shipper": r["Booking_Shipper"],
-                    "teu": teu,
-                    "cm1_per_teu": round(cm1 / teu_wcm1) if teu_wcm1 > 0 else 0,
-                })
-            koshi_monthly.append({
-                "ym": ym,
-                "total_teu": round(float(sub["TEU"].sum())),
-                "items": sorted(items, key=lambda x: -x["teu"]),
+
+        # 荷主ごとに集計
+        all_shippers = df_koshi.groupby("Booking_Shipper")
+        koshi_items = []
+        for shipper_name, grp in all_shippers:
+            past_months_data = []
+            past_total = 0
+            for ym in koshi_past_yms:
+                sub = grp[grp["bq_ym"] == ym]
+                teu = round(float(sub["TEU"].sum()))
+                past_months_data.append({"ym": ym, "teu": teu})
+                past_total += teu
+            avg_3m = round(past_total / 3) if len(koshi_past_yms) == 3 else 0
+            # 対象月の実績
+            target_sub = grp[grp["bq_ym"] == target_ym]
+            target_teu = round(float(target_sub["TEU"].sum()))
+            gap = target_teu - avg_3m
+            koshi_items.append({
+                "shipper": shipper_name,
+                "past_months": past_months_data,
+                "avg_3m": avg_3m,
+                "target_teu": target_teu,
+                "gap": gap,
             })
-        result["koshi_shipper"] = koshi_monthly
+
+        # Gap降順でソート
+        koshi_items.sort(key=lambda x: x["gap"], reverse=True)
+
+        result["koshi_shipper"] = {
+            "past_yms": koshi_past_yms,
+            "target_ym": target_ym,
+            "is_before_15": meeting_tue_day <= 14,
+            "items": koshi_items,
+        }
     except Exception as e:
         print(f"Template koshi_shipper error: {e}")
-        result["koshi_shipper"] = []
+        result["koshi_shipper"] = {}
 
     # ──────────────────────────────────────────────────
     # ⑦ CM1レンジ分析 (Profitability Segmentation)
@@ -3452,6 +3494,12 @@ def api_ai_template_comment():
             ).agg(TEU=("TEU", "sum")).reset_index().sort_values("TEU", ascending=False)
             context_data["_sales_shipper_top3"] = sales_shipper.groupby("POL_Sales").head(3).to_dict(orient="records")
 
+            # 荷主→主担当営業マン マッピング (TEU最大の営業を主担当とする)
+            shipper_primary = sales_shipper.sort_values("TEU", ascending=False).drop_duplicates(
+                subset=["Booking_Shipper"], keep="first"
+            )[["Booking_Shipper", "POL_Sales", "TEU"]].head(20)
+            context_data["_shipper_primary_sales"] = shipper_primary.to_dict(orient="records")
+
         # (F) POL (積地) 別 内訳 — TEU + CM1/TEU
         pol_2m = df_2m.groupby(["bq_ym", "POL"]).agg(
             TEU=("TEU", "sum"), CM1=("CM1", "sum"),
@@ -3547,12 +3595,23 @@ def api_ai_template_comment():
 
         # Sales Contribution用: 営業マン別の荷主構成変化
         if template_id == "sales_contribution" and prev_ym:
+            # 荷主→主担当マッピング (TEU最大の営業を主担当とする, 全期間)
+            _all_sales_shipper = df_area.groupby(
+                ["POL_Sales", "Booking_Shipper"]
+            ).agg(TEU=("TEU", "sum")).reset_index().sort_values("TEU", ascending=False)
+            _primary_map = _all_sales_shipper.drop_duplicates(
+                subset=["Booking_Shipper"], keep="first"
+            ).set_index("Booking_Shipper")["POL_Sales"].to_dict()
+
             # 営業マン別シェア (前月 vs 当月)
             for ym in [prev_ym, curr_ym_ctx]:
                 sub = df_area[df_area["bq_ym"] == ym]
                 ss = sub.groupby(["POL_Sales", "Booking_Shipper"]).agg(
                     TEU=("TEU", "sum")
                 ).reset_index().sort_values("TEU", ascending=False)
+                # 主担当フラグ追加: この営業マンがTEU最大の担当者か
+                ss["is_primary"] = ss.apply(
+                    lambda r: _primary_map.get(r["Booking_Shipper"]) == r["POL_Sales"], axis=1)
                 context_data[f"_sales_detail_{ym}"] = ss.groupby("POL_Sales").head(3).to_dict(orient="records")
 
         # New/Regain Customer用: 荷主の航路詳細
@@ -3601,11 +3660,10 @@ def api_ai_template_comment():
 
         # Koshi (古紙) 荷主用: 航路別詳細
         if template_id == "koshi_shipper":
-            koshi_list = block_data or []
+            koshi_data = block_data or {}
             all_koshi = set()
-            for m in koshi_list:
-                for it in m.get("items", []):
-                    all_koshi.add(it.get("shipper", ""))
+            for it in koshi_data.get("items", []):
+                all_koshi.add(it.get("shipper", ""))
             if all_koshi:
                 kr = df_2m[df_2m["Booking_Shipper"].isin(all_koshi)].groupby(
                     ["bq_ym", "Booking_Shipper", "POL", "DLY"]
@@ -3655,13 +3713,26 @@ def api_ai_template_comment():
 - Bad: CM1/TEU下位(Low)の荷主名とTEU、CM1/TEU単価を記載
 - _cm1_segment_movers があれば、セグメント移動した荷主を必ず記載（例: SHIPPER_X: Mid→High）
 - Q75/Q25の閾値変化も記載（例: Q75: $500→$450）"""
-        elif template_id in ("shipper_increase_curr", "shipper_increase_next",
-                             "shipper_decrease_curr", "shipper_decrease_next"):
+        elif template_id in ("shipper_increase_curr", "shipper_increase_next"):
             template_specific = """
-## 荷主増減 固有ルール
-- 各荷主の主要航路（POL→DLY）とTEU変化を具体的に記載 (_shipper_route_top20 を参照)
-- 増加/減少の最大要因となっている航路を特定して記載
-- 担当営業マンが _sales_shipper_top3 から特定できれば記載"""
+## 増加荷主 固有ルール
+- 【Bad】セクションは不要。出力しないこと。
+- 表に既に記載されているTop3荷主の主要因航路（Remark列）の繰り返しは不要
+- 担当営業マン名の記載は不要
+- 【Good】として、以下の別視点で分析:
+  - 新規案件の有無: 過去3か月に実績ゼロだった荷主 or 航路（POL→DLY）が今月出現しているか (_shipper_top15_2months, _shipper_route_top20 参照)
+  - 増加荷主の社数と全体に占めるインパクト
+  - CM1/TEU単価の傾向 (_dly_breakdown_top10 参照): 増加案件が高単価か低単価か"""
+        elif template_id in ("shipper_decrease_curr", "shipper_decrease_next"):
+            template_specific = """
+## 減少荷主 固有ルール
+- 【Good】セクションは不要。出力しないこと。
+- 表に既に記載されているTop3荷主の主要因航路（Remark列）の繰り返しは不要
+- 担当営業マン名の記載は不要
+- 【Bad】として、以下の別視点で分析:
+  - 喪失案件の有無: 過去3か月に実績があったのに今月ゼロになった荷主 or 航路（POL→DLY） (_shipper_top15_2months, _shipper_route_top20 参照)
+  - 減少荷主の社数と全体に占めるインパクト
+  - CM1/TEU単価の傾向: 減少した案件が高単価だったか低単価だったか (_dly_breakdown_top10 参照)"""
         elif template_id.startswith("combo_"):
             template_specific = """
 ## 荷主×航路 固有ルール
@@ -3679,7 +3750,11 @@ def api_ai_template_comment():
 ## Sales Contribution 固有ルール
 - シェア変動の大きい営業マンを記載（例: TAOKADA 20%→22%）
 - _sales_detail から各営業マンの主要荷主名を記載
-- _sales_top10 から CM1/TEU変化も確認"""
+- _sales_top10 から CM1/TEU変化も確認
+- 重要: _sales_detail の各荷主には is_primary フラグあり。is_primary=False の荷主はその営業マンの「主担当荷主」ではない（別の営業マンが主担当）。
+  - 営業マンの実績説明で is_primary=False の荷主を「担当荷主」として記載してはいけない
+  - is_primary=True の荷主のみを「担当荷主」として記載すること
+- _shipper_primary_sales が荷主→主担当営業マンの正式マッピング。これに従うこと"""
         elif template_id == "cm1_waterfall":
             template_specific = """
 ## CM1 Waterfall 固有ルール
@@ -3689,6 +3764,7 @@ def api_ai_template_comment():
         elif template_id == "koshi_shipper":
             template_specific = """
 ## 古紙荷主 固有ルール
+- 過去3か月平均TEU vs 対象月のGapに注目し、増減の大きい荷主を重点コメント
 - _koshi_routes から各荷主の主要航路（POL→DLY）とTEU変化を記載
 - CM1/TEU変化も航路別に記載"""
         elif template_id in ("new_customer", "regain_customer"):

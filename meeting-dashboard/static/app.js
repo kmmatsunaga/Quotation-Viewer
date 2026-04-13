@@ -22,8 +22,8 @@ const I18N = {
   'top5_shipper':       { ja: 'Top5 Shippers (Last 6 Months Total)', en: 'Top5 Shippers (Last 6 Months Total)', kr: 'Top5 화주 (최근 6개월 합계순)' },
 
   // ── 凡例 ──
-  'actual_teu':         { ja: '■ Actual TEU', en: '■ Actual TEU', kr: '■ 실적TEU' },
-  'prospect_teu':       { ja: '■ Prospect TEU', en: '■ Prospect TEU', kr: '■ 예상TEU' },
+  'actual_teu':         { ja: '■ Booking', en: '■ Booking', kr: '■ Booking' },
+  'prospect_teu':       { ja: '■ Prospect', en: '■ Prospect', kr: '■ Prospect' },
   'cm1_teu':            { ja: '— CM1/TEU', en: '— CM1/TEU', kr: '— CM1/TEU' },
 
   // ── テーブルヘッダー ──
@@ -566,9 +566,9 @@ function ensurePanel(area) {
 }
 
 // ── データ読み込み ────────────────────────────────────
-async function loadSummary(area) {
+async function loadSummary(area, {skipMeetingWeek = false} = {}) {
   try {
-    const mw = CURRENT_WEEK_KEY ? `&meeting_week=${encodeURIComponent(CURRENT_WEEK_KEY)}` : '';
+    const mw = (!skipMeetingWeek && CURRENT_WEEK_KEY) ? `&meeting_week=${encodeURIComponent(CURRENT_WEEK_KEY)}` : '';
     const res = await fetch(`/api/summary?area=${encodeURIComponent(area)}${mw}`);
     const data = await res.json();
     DATA_CACHE[area] = data;
@@ -832,7 +832,7 @@ function renderMonthlyChart(panel, area, monthly, weeklyData, subAreas, subAreaN
     // 通常 (非スタック)
     datasets = [
       {
-        label: '実績 TEU', data: actualTEU,
+        label: 'Booking', data: actualTEU,
         backgroundColor: COLORS.actualFg, borderColor: COLORS.actual,
         borderWidth: 1, borderRadius: 4, yAxisID: 'y', order: 1,
         datalabels: {
@@ -845,7 +845,7 @@ function renderMonthlyChart(panel, area, monthly, weeklyData, subAreas, subAreaN
         },
       },
       {
-        label: '見込 TEU', data: prospectTEU,
+        label: 'Prospect', data: prospectTEU,
         backgroundColor: COLORS.prospectFg, borderColor: COLORS.prospect,
         borderWidth: 1, borderRadius: 4, yAxisID: 'y', order: 1,
         datalabels: {
@@ -1051,7 +1051,7 @@ function renderWeeklyChart(panel, area, weekly, subAreas, subAreaNames) {
   } else {
     datasets = [
       {
-        label: '実績 TEU', data: actualTEU,
+        label: 'Booking', data: actualTEU,
         backgroundColor: weekly.map(w => monthColors[w.month_label] || COLORS.actualFg),
         borderWidth: 1, borderRadius: 3, yAxisID: 'y', order: 1,
         datalabels: {
@@ -1067,7 +1067,7 @@ function renderWeeklyChart(panel, area, weekly, subAreas, subAreaNames) {
         },
       },
       {
-        label: '見込 TEU', data: prospectTEU,
+        label: 'Prospect', data: prospectTEU,
         backgroundColor: COLORS.prospectFg, borderWidth: 1, borderRadius: 3,
         yAxisID: 'y', order: 1,
         datalabels: {
@@ -1431,9 +1431,9 @@ function renderSubAreaProspectTable(panel, parentArea, data) {
   if (weeklyTitle) weeklyTitle.textContent = `Weekly Prospect (${subNames.join(' / ')})`;
 
   // ヘッダー差し替え
+  const wShowSumCol = parentArea !== 'PH';
   const thead = panel.querySelector('.prospect-table thead');
   if (thead) {
-    const wShowSumCol = parentArea !== 'PH';
     let headerHTML = '<tr><th rowspan="2">月</th><th rowspan="2">Week</th><th rowspan="2">Period</th>';
     subNames.forEach(name => {
       headerHTML += `<th colspan="4" class="sub-area-header sub-area-color-${subNames.indexOf(name)}">${name}</th>`;
@@ -2318,12 +2318,21 @@ async function onWeekChange(weekKey) {
   // 全パネルの No Data 状態をクリア（週が変わったため）
   document.querySelectorAll('.area-panel').forEach(p => clearNoData(p));
 
-  if (hasSnapshot) {
+  if (isThisWeek) {
+    // 今週に戻る場合: ライブデータ再読み込み (初回ロードと同じ状態に戻す)
+    VIEWING_SNAPSHOT = false;
+    NO_DATA_MODE = false;
+    CURRENT_WEEK_KEY = null;  // meeting_weekフィルタなしでAPI呼び出し（初回ロードと同条件）
+    DATA_CACHE = {};
+    SNAPSHOT_CACHE = {};
+    await loadSummary(CURRENT_AREA);
+    CURRENT_WEEK_KEY = weekKey;  // 復元
+  } else if (hasSnapshot) {
     // アーカイブあり: 保存済みデータで全体を再描画
     SNAPSHOT_CACHE = {};
     await loadArchive(CURRENT_AREA, weekKey);
   } else {
-    // スナップショットなし: No Data 表示（今週含む）
+    // 過去週でスナップショットなし: No Data 表示
     ensurePanel(CURRENT_AREA);
     renderNoData(CURRENT_AREA);
   }
@@ -2604,7 +2613,7 @@ const TPL_RENDERERS = {
   booking_weekly:     (d,p) => d.booking_count?.weekly?.length > 0 ? _renderBookingWeekly(d.booking_count, p) : null,
   pol_count:          (d,p) => d.pol_count?.length > 0 ? _renderPOLCount(d.pol_count) : null,
   sales_contribution: (d,p) => d.sales_contribution && Object.keys(d.sales_contribution).length > 0 ? _renderSalesContribution(d.sales_contribution) : null,
-  koshi_shipper: (d,p) => d.koshi_shipper?.length > 0 ? _renderKoshiShipper(d.koshi_shipper) : null,
+  koshi_shipper: (d,p) => d.koshi_shipper?.items?.length > 0 ? _renderKoshiShipper(d.koshi_shipper) : null,
 };
 
 /**
@@ -2620,7 +2629,13 @@ async function _loadAndRenderGraphBlocks(panel, area) {
       try {
         const cfgRes = await fetch(`/api/template-config?week_key=${encodeURIComponent(weekKey)}&area=${encodeURIComponent(area)}`);
         const cfgData = await cfgRes.json();
-        _graphConfigCache[area] = cfgData.blocks || [];
+        const blocks = cfgData.blocks || [];
+        // デフォルトテンプレートやfixed style からの流用時、AIコメントを除去
+        // (別エリアで生成されたコメントが混入するのを防ぐ)
+        if (!cfgData.exists) {
+          blocks.forEach(b => { b.ai_comment = null; b.ai_comment_lang = null; b.ai_comment_area = null; });
+        }
+        _graphConfigCache[area] = blocks;
         _graphConfigLoaded[area] = true;
       } catch(e) { _graphConfigCache[area] = []; }
     }
@@ -2628,6 +2643,15 @@ async function _loadAndRenderGraphBlocks(panel, area) {
     if (!TEMPLATE_CACHE[area]) await loadTemplateData(area);
     const tplData = TEMPLATE_CACHE[area];
     if (!tplData) return;
+
+    // ブロックのAIコメントが別エリアで生成されたものなら除去
+    (_graphConfigCache[area] || []).forEach(block => {
+      if (block.ai_comment && block.ai_comment_area && block.ai_comment_area !== area) {
+        block.ai_comment = null;
+        block.ai_comment_lang = null;
+        block.ai_comment_area = null;
+      }
+    });
 
     // グラフ設定パネル描画 (編集者のみ)
     if (isEditor() && _graphConfigLoaded[area]) {
@@ -3023,6 +3047,7 @@ function _createResizableBlock(block, def, content, idx, area, panel, tplData) {
       aiBox.innerHTML = data.html;
       block.ai_comment = data.html;
       block.ai_comment_lang = CURRENT_LANG;
+      block.ai_comment_area = area;
       _graphConfigDirty[area] = true;
       aiDelBtn.style.display = '';
       showToast('AIコメント生成完了 ✓', 'success');
@@ -3652,7 +3677,12 @@ async function loadGraphConfig(panel, area) {
   try {
     const res = await fetch(`/api/template-config?week_key=${encodeURIComponent(weekKey)}&area=${encodeURIComponent(area)}`);
     const data = await res.json();
-    _graphConfigCache[area] = data.blocks || [];
+    const blocks = data.blocks || [];
+    // デフォルトテンプレートやfixed style からの流用時、AIコメントを除去
+    if (!data.exists) {
+      blocks.forEach(b => { b.ai_comment = null; b.ai_comment_lang = null; b.ai_comment_area = null; });
+    }
+    _graphConfigCache[area] = blocks;
     _graphConfigLoaded[area] = true;
     _graphConfigDirty[area] = false;
     // キャンバスを即座に描画
@@ -4064,7 +4094,7 @@ function _renderShipperTop(data, direction, period, tplId) {
     html += `<td>${s.avg3_teu.toLocaleString()}</td>`;
     html += `<td>${s.recent_teu.toLocaleString()}</td>`;
     html += `<td class="${diffCls}">${diffSign}${s.diff.toLocaleString()}</td>`;
-    html += `<td class="left" style="font-size:12px">${remark}</td>`;
+    html += `<td class="left" style="font-size:13px;font-weight:bold">${remark}</td>`;
     html += `</tr>`;
   }
   html += '</tbody></table>';
@@ -4418,31 +4448,45 @@ function _squarifyLayout(values, total, x, y, w, h, rects) {
 function _renderKoshiShipper(data) {
   const card = _tplCard(t('koshi_shipper'), 'koshi_shipper');
   const body = card.querySelector('.card-body');
-  let html = '<table class="tpl-table"><thead><tr>';
+  const { past_yms, target_ym, is_before_15, items } = data;
+  const targetLabel = is_before_15 ? '当月' : '翌月';
+
+  let html = '<table class="tpl-table" style="font-size:13px"><thead><tr>';
   html += `<th>${t('shipper')}</th>`;
-  data.forEach(m => { html += `<th>${ymToLabel(m.ym)}</th>`; });
+  past_yms.forEach(ym => { html += `<th>${ymToLabel(ym)}</th>`; });
+  html += `<th>${t('three_m_avg')}</th>`;
+  html += `<th>${targetLabel}<br>${ymToLabel(target_ym)}</th>`;
+  html += '<th>Gap</th>';
   html += '</tr></thead><tbody>';
 
-  // 全荷主を集める
-  const allShippers = new Set();
-  data.forEach(m => m.items.forEach(it => allShippers.add(it.shipper)));
+  // Total行用の集計
+  const totals = { past: past_yms.map(() => 0), avg: 0, target: 0, gap: 0 };
 
-  for (const shipper of allShippers) {
-    html += `<tr><td class="left">${escHtml(shipper)}</td>`;
-    data.forEach(m => {
-      const it = m.items.find(i => i.shipper === shipper);
-      if (it) {
-        html += `<td>${it.teu.toLocaleString()}<br><small style="color:#666">$${it.cm1_per_teu}/T</small></td>`;
-      } else {
-        html += '<td>-</td>';
-      }
+  items.forEach(it => {
+    html += `<tr><td class="left">${escHtml(it.shipper)}</td>`;
+    it.past_months.forEach((pm, i) => {
+      html += `<td>${pm.teu ? pm.teu.toLocaleString() : '-'}</td>`;
+      totals.past[i] += pm.teu;
     });
+    html += `<td style="font-weight:bold">${it.avg_3m.toLocaleString()}</td>`;
+    html += `<td>${it.target_teu ? it.target_teu.toLocaleString() : '-'}</td>`;
+    const gapColor = it.gap > 0 ? '#1976d2' : it.gap < 0 ? '#d32f2f' : '#333';
+    const gapSign = it.gap > 0 ? '+' : '';
+    html += `<td style="font-weight:bold;color:${gapColor}">${gapSign}${it.gap.toLocaleString()}</td>`;
     html += '</tr>';
-  }
+    totals.avg += it.avg_3m;
+    totals.target += it.target_teu;
+    totals.gap += it.gap;
+  });
 
   // Total行
   html += '<tr style="border-top:2px solid #ccc;font-weight:bold"><td class="left">Total</td>';
-  data.forEach(m => { html += `<td>${m.total_teu.toLocaleString()}</td>`; });
+  totals.past.forEach(v => { html += `<td>${v.toLocaleString()}</td>`; });
+  html += `<td>${totals.avg.toLocaleString()}</td>`;
+  html += `<td>${totals.target.toLocaleString()}</td>`;
+  const tGapColor = totals.gap > 0 ? '#1976d2' : totals.gap < 0 ? '#d32f2f' : '#333';
+  const tGapSign = totals.gap > 0 ? '+' : '';
+  html += `<td style="color:${tGapColor}">${tGapSign}${totals.gap.toLocaleString()}</td>`;
   html += '</tr></tbody></table>';
 
   body.innerHTML = html;

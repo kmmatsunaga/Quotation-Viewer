@@ -837,9 +837,9 @@ def build_summary_for_area(area: str, df: pd.DataFrame, today: date,
         return empty
 
     # ── 月次集計 (BQ YearMonth列ベース: TEU/CM1合計) ──────
-    # 会議日(水曜)基準で月間推移の範囲を切替 (常に6か月表示)
-    meeting_wed_day = (ref + timedelta(days=3)).day
-    if meeting_wed_day <= 14:
+    # 会議日(火曜)基準で月間推移の範囲を切替 (常に6か月表示)
+    meeting_tue_day = (ref + timedelta(days=2)).day
+    if meeting_tue_day <= 14:
         # ≤14日: 過去5か月+当月 (来月なし)
         months_list = _cal_months(ref.year, ref.month, 5, 0)
     else:
@@ -948,8 +948,8 @@ def build_summary_for_area(area: str, df: pd.DataFrame, today: date,
         return {"TEU": round(teu), "CM1_per_TEU": round(cm1 / teu_wcm1) if teu_wcm1 > 0 else 0}
 
     # 3M平均TEU: 会議日ルールに基づく3か月を使用
-    meeting_wed_date_top5 = ref + timedelta(days=3)
-    if meeting_wed_date_top5.day <= 14:
+    meeting_tue_date_top5 = ref + timedelta(days=2)
+    if meeting_tue_date_top5.day <= 14:
         # 当月を含まない過去3か月 (例: W14=4/7 → 1,2,3月)
         months_3m_avg = _cal_months(ref.year, ref.month, 3, 0)[:-1]
     else:
@@ -980,8 +980,8 @@ def build_summary_for_area(area: str, df: pd.DataFrame, today: date,
     df_curr = df_area[df_area["bq_ym"] == curr_ym]
     shipper_count = int(df_curr["Booking_Shipper"].nunique())
 
-    # 会議日（水曜日）の日付を算出
-    meeting_wed_date = ref + timedelta(days=3)
+    # 会議日（火曜日）の日付を算出
+    meeting_tue_date = ref + timedelta(days=2)
 
     return {
         "monthly": monthly,
@@ -989,7 +989,7 @@ def build_summary_for_area(area: str, df: pd.DataFrame, today: date,
         "top_shippers": top_shippers,
         "shipper_count": shipper_count,
         "prospects": {k.split("|")[0]: v for k, v in prospects_db.items() if k.endswith(f"|{area}")},
-        "meeting_day": meeting_wed_date.day,
+        "meeting_day": meeting_tue_date.day,
     }
 
 
@@ -3908,7 +3908,7 @@ try:
     _scheduler.add_job(
         auto_archive_current_week,
         trigger="cron",
-        day_of_week="thu",
+        day_of_week="wed",  # 会議(火曜)の翌日にアーカイブ
         hour=10,
         minute=0,
         id="auto_archive_weekly",

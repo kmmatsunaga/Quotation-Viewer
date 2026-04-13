@@ -160,6 +160,29 @@ if (window.ChartDataLabels) {
 // Chart.js グローバル文字色を黒に
 Chart.defaults.color = '#000';
 
+// ── 固定位置ラベル プラグイン (チャート上部に合計値を描画) ──
+const fixedTopLabelsPlugin = {
+  id: 'fixedTopLabels',
+  afterDraw(chart, args, opts) {
+    if (!opts || !opts.labels) return;
+    const { ctx, chartArea, scales } = chart;
+    // チャート枠の内側上端に描画 (凡例の下、バーの上)
+    const yPos = chartArea.top + (opts.insideOffset ?? 2);
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.font = `bold ${opts.fontSize || 14}px sans-serif`;
+    ctx.fillStyle = opts.color || '#333';
+    opts.labels.forEach((label, i) => {
+      if (!label) return;
+      const x = scales.x.getPixelForValue(i);
+      ctx.fillText(label, x, yPos);
+    });
+    ctx.restore();
+  }
+};
+Chart.register(fixedTopLabelsPlugin);
+
 const COLORS = {
   actual:   '#1a6fc4',
   actualFg: 'rgba(26,111,196,0.8)',
@@ -768,19 +791,6 @@ function renderMonthlyChart(panel, area, monthly, weeklyData, subAreas, subAreaN
         },
       });
     });
-    // 実績合計ラベル (最上段に乗せるline型ダミー、Y軸に影響しない)
-    datasets.push({
-      label: '合計', type: 'line',
-      data: actualTEU, showLine: false, pointRadius: 0,
-      yAxisID: 'y', order: 0,
-      datalabels: {
-        display: ctx => actualTEU[ctx.dataIndex] != null,
-        anchor: 'end', align: 'top', offset: 2,
-        font: { size: 14, weight: 'bold' }, color: '#1a237e',
-        formatter: (v, ctx) => actualTEU[ctx.dataIndex] != null ? actualTEU[ctx.dataIndex].toLocaleString() : '',
-      },
-    });
-
     // 見込み: サブエリアごとのスタック
     subAreaNames.forEach((name, si) => {
       const subWeeklyProspect = {};
@@ -810,17 +820,13 @@ function renderMonthlyChart(panel, area, monthly, weeklyData, subAreas, subAreaN
         },
       });
     });
-    // 見込合計ラベル
-    datasets.push({
-      label: '見込合計', type: 'line',
-      data: prospectTEU, showLine: false, pointRadius: 0,
-      yAxisID: 'y', order: 0,
-      datalabels: {
-        display: ctx => prospectTEU[ctx.dataIndex] != null,
-        anchor: 'end', align: 'top', offset: 2,
-        font: { size: 14, weight: 'bold' }, color: '#e65100',
-        formatter: (v, ctx) => prospectTEU[ctx.dataIndex] != null ? prospectTEU[ctx.dataIndex].toLocaleString() : '',
-      },
+    // 合計ラベルデータ (fixedTopLabelsプラグインで描画)
+    var monFixedLabels = monthly.map((m, i) => {
+      const a = actualTEU[i], p = prospectTEU[i];
+      if (a && p) return `${a.toLocaleString()}/${p.toLocaleString()}`;
+      if (a) return a.toLocaleString();
+      if (p) return p.toLocaleString();
+      return null;
     });
   } else {
     // 通常 (非スタック)
@@ -863,7 +869,7 @@ function renderMonthlyChart(panel, area, monthly, weeklyData, subAreas, subAreaN
     yAxisID: 'y2', order: 0,
     datalabels: {
       display: ctx => ctx.dataset.data[ctx.dataIndex] != null,
-      anchor: 'end', align: 'top', offset: 6,
+      anchor: 'start', align: 'bottom', offset: 4, clamp: true,
       font: { size: 14, weight: 'bold' }, color: '#fff',
       backgroundColor: '#c62828', borderRadius: 3,
       padding: { top: 2, bottom: 2, left: 5, right: 5 },
@@ -874,15 +880,37 @@ function renderMonthlyChart(panel, area, monthly, weeklyData, subAreas, subAreaN
   CHART_INSTANCES[key] = new Chart(canvas, {
     type: 'bar',
     data: { labels, datasets },
+    plugins: [{
+      id: 'centerPastBars',
+      afterUpdate(chart) {
+        const dss = chart.data.datasets;
+        const n = chart.data.labels.length;
+        for (let i = 0; i < n; i++) {
+          const hasProspect = dss.some(ds =>
+            ds.stack === 'prospect' && ds.data[i] != null && ds.data[i] > 0
+          );
+          if (hasProspect) continue;
+          const catCenter = chart.scales.x.getPixelForValue(i);
+          dss.forEach((ds, di) => {
+            if (ds.type === 'line' || ds.stack !== 'actual') return;
+            const bar = chart.getDatasetMeta(di).data[i];
+            if (!bar) return;
+            bar.x = catCenter;
+            bar.width = bar.width * 2;
+          });
+        }
+      }
+    }],
     options: {
       responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 50 } },
+      layout: { padding: { top: 5 } },
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: hasSubStack, position: 'top', labels: {
           filter: item => !item.text.includes('合計'),
           font: { size: 16 }, boxWidth: 14, padding: 8,
         }},
+        fixedTopLabels: hasSubStack ? { labels: monFixedLabels, fontSize: 14, color: '#333' } : false,
         tooltip: {
           callbacks: {
             label: ctx => {
@@ -900,7 +928,7 @@ function renderMonthlyChart(panel, area, monthly, weeklyData, subAreas, subAreaN
           title: { display: true, text: 'TEU', font: {size:12, weight:'bold'}, color: '#000' },
           grid: { color: '#f0f0f0' },
           ticks: { callback: v => v.toLocaleString(), color: '#000', font: {size:12} },
-          grace: '15%',
+          grace: hasSubStack ? '25%' : '15%',
         },
         y2: {
           type: 'linear', position: 'right', stacked: false,
@@ -908,6 +936,11 @@ function renderMonthlyChart(panel, area, monthly, weeklyData, subAreas, subAreaN
           grid: { drawOnChartArea: false },
           ticks: { callback: v => '$' + v.toLocaleString(), color: '#000', font: {size:12} },
           grace: '15%',
+          afterDataLimits: (scale) => {
+            // CM1/TEU ラインをチャート上部 25-30% に押し上げ
+            const range = scale.max - scale.min;
+            if (range > 0) scale.min = scale.min - range * 2.5;
+          },
         }
       }
     }
@@ -987,19 +1020,6 @@ function renderWeeklyChart(panel, area, weekly, subAreas, subAreaNames) {
         },
       });
     });
-    // 実績合計ラベル
-    datasets.push({
-      label: '合計', type: 'line',
-      data: actualTEU, showLine: false, pointRadius: 0,
-      yAxisID: 'y', order: 0,
-      datalabels: {
-        display: ctx => actualTEU[ctx.dataIndex] != null,
-        anchor: 'end', align: 'top', offset: 2,
-        font: { size: 12, weight: 'bold' }, color: '#1a237e',
-        formatter: (v, ctx) => actualTEU[ctx.dataIndex] != null ? actualTEU[ctx.dataIndex].toLocaleString() : '',
-      },
-    });
-
     // 見込み: サブエリア積み上げ
     subAreaNames.forEach((name, si) => {
       datasets.push({
@@ -1020,17 +1040,13 @@ function renderWeeklyChart(panel, area, weekly, subAreas, subAreaNames) {
         },
       });
     });
-    // 見込合計ラベル
-    datasets.push({
-      label: '見込合計', type: 'line',
-      data: prospectTEU, showLine: false, pointRadius: 0,
-      yAxisID: 'y', order: 0,
-      datalabels: {
-        display: ctx => prospectTEU[ctx.dataIndex] != null,
-        anchor: 'end', align: 'top', offset: 2,
-        font: { size: 12, weight: 'bold' }, color: '#e65100',
-        formatter: (v, ctx) => prospectTEU[ctx.dataIndex] != null ? prospectTEU[ctx.dataIndex].toLocaleString() : '',
-      },
+    // 合計ラベルデータ (fixedTopLabelsプラグインで描画)
+    var wkFixedLabels = weekly.map((w, i) => {
+      const a = actualTEU[i], p = prospectTEU[i];
+      if (a && p) return `${a.toLocaleString()}/${p.toLocaleString()}`;
+      if (a) return a.toLocaleString();
+      if (p) return p.toLocaleString();
+      return null;
     });
   } else {
     datasets = [
@@ -1075,8 +1091,8 @@ function renderWeeklyChart(panel, area, weekly, subAreas, subAreaNames) {
     yAxisID: 'y2', order: 0,
     datalabels: {
       display: ctx => ctx.dataset.data[ctx.dataIndex] != null,
-      anchor: 'end', align: 'top', offset: 6,
-      font: { size: 12, weight: 'bold' }, color: '#fff',
+      anchor: 'start', align: 'bottom', offset: 4, clamp: true,
+      font: { size: 14, weight: 'bold' }, color: '#fff',
       backgroundColor: '#c62828', borderRadius: 3,
       padding: { top: 2, bottom: 2, left: 4, right: 4 },
       formatter: v => v != null ? '$' + Math.round(v).toLocaleString() : '',
@@ -1086,15 +1102,37 @@ function renderWeeklyChart(panel, area, weekly, subAreas, subAreaNames) {
   CHART_INSTANCES[key] = new Chart(canvas, {
     type: 'bar',
     data: { labels, datasets },
+    plugins: [{
+      id: 'centerPastBars',
+      afterUpdate(chart) {
+        const dss = chart.data.datasets;
+        const n = chart.data.labels.length;
+        for (let i = 0; i < n; i++) {
+          const hasProspect = dss.some(ds =>
+            ds.stack === 'prospect' && ds.data[i] != null && ds.data[i] > 0
+          );
+          if (hasProspect) continue;
+          const catCenter = chart.scales.x.getPixelForValue(i);
+          dss.forEach((ds, di) => {
+            if (ds.type === 'line' || ds.stack !== 'actual') return;
+            const bar = chart.getDatasetMeta(di).data[i];
+            if (!bar) return;
+            bar.x = catCenter;
+            bar.width = bar.width * 2;
+          });
+        }
+      }
+    }],
     options: {
       responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 50 } },
+      layout: { padding: { top: 5 } },
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: hasSubStack, position: 'top', labels: {
           filter: item => !item.text.includes('合計'),
           font: { size: 16 }, boxWidth: 14, padding: 8,
         }},
+        fixedTopLabels: hasSubStack ? { labels: wkFixedLabels, fontSize: 14, color: '#333' } : false,
         tooltip: {
           callbacks: {
             title: ctx => {
@@ -1119,7 +1157,7 @@ function renderWeeklyChart(panel, area, weekly, subAreas, subAreaNames) {
           title: { display: true, text: 'TEU', font: {size:12, weight:'bold'}, color: '#000' },
           grid: { color: '#f0f0f0' },
           ticks: { callback: v => v.toLocaleString(), color: '#000', font: {size:12} },
-          grace: '15%',
+          grace: hasSubStack ? '25%' : '15%',
         },
         y2: {
           type: 'linear', position: 'right', stacked: false,
@@ -1127,6 +1165,10 @@ function renderWeeklyChart(panel, area, weekly, subAreas, subAreaNames) {
           grid: { drawOnChartArea: false },
           ticks: { callback: v => '$' + v.toLocaleString(), color: '#000', font: {size:12} },
           grace: '15%',
+          afterDataLimits: (scale) => {
+            const range = scale.max - scale.min;
+            if (range > 0) scale.min = scale.min - range * 2.5;
+          },
         }
       }
     }
@@ -1157,7 +1199,7 @@ function renderShipperTable(panel, shippers, monthly, meetingDay) {
     if (!months[i].is_future) { currIdx = i; break; }
   }
 
-  // 会議日(水曜)の日付でパターン切替
+  // 会議日(火曜)の日付でパターン切替
   const isBeforeMid = (meetingDay || 15) <= 14;
 
   // 月ラベル取得
@@ -1322,10 +1364,12 @@ function renderSubAreaMonthlyProspect(panel, parentArea, data) {
   subNames.forEach(name => {
     headerHTML += `<th colspan="4" class="sub-area-header sub-area-color-${subNames.indexOf(name)}">${name}</th>`;
   });
+  headerHTML += `<th colspan="2" style="background:#546e7a;color:#fff">${parentArea} 合計</th>`;
   headerHTML += '</tr><tr>';
   subNames.forEach(() => {
     headerHTML += '<th>Actual<br>TEU</th><th>CM1/T</th><th>見込<br>TEU</th><th>見込<br>CM1/T</th>';
   });
+  headerHTML += '<th>見込<br>TEU</th><th>見込<br>CM1/T</th>';
   headerHTML += '</tr>';
   table.querySelector('thead').innerHTML = headerHTML;
 
@@ -1347,6 +1391,9 @@ function renderSubAreaMonthlyProspect(panel, parentArea, data) {
     let rowHTML = `<tr data-ym="${m.ym}" data-editable="${!isPast}">`;
     rowHTML += `<td>${m.label}</td><td class="period-col" style="font-size:11px">${period}</td>`;
 
+    let sumProspectTEU = 0;
+    let sumProspectCM1 = 0;
+    let hasProspect = false;
     subNames.forEach(name => {
       const sm = subMonthly[name]?.[i] || {};
       const canEdit = isEditor() && !isPast && !VIEWING_SNAPSHOT;
@@ -1360,7 +1407,11 @@ function renderSubAreaMonthlyProspect(panel, parentArea, data) {
       rowHTML += `<td style="color:#666">${sm.TEU ? sm.TEU.toLocaleString() : '-'}</td>`;
       rowHTML += `<td style="color:#666">${sm.CM1_per_TEU ? '$'+sm.CM1_per_TEU.toLocaleString() : '-'}</td>`;
       rowHTML += teuCell + cm1Cell;
+      if (sm.m_prospect_teu != null) { sumProspectTEU += sm.m_prospect_teu; hasProspect = true; }
     });
+    // 合計列 (読み取り専用)
+    rowHTML += `<td style="font-weight:bold;color:#333;background:#eceff1">${isPast ? 'ー' : (hasProspect ? sumProspectTEU.toLocaleString() : '-')}</td>`;
+    rowHTML += `<td style="color:#666;background:#eceff1">ー</td>`;
     rowHTML += '</tr>';
     tbody.insertAdjacentHTML('beforeend', rowHTML);
   });
@@ -1383,10 +1434,12 @@ function renderSubAreaProspectTable(panel, parentArea, data) {
     subNames.forEach(name => {
       headerHTML += `<th colspan="4" class="sub-area-header sub-area-color-${subNames.indexOf(name)}">${name}</th>`;
     });
+    headerHTML += `<th colspan="2" style="background:#546e7a;color:#fff">${parentArea} 合計</th>`;
     headerHTML += '</tr><tr>';
     subNames.forEach(() => {
       headerHTML += '<th>Actual<br>TEU</th><th>CM1/T</th><th>見込<br>TEU</th><th>見込<br>CM1/T</th>';
     });
+    headerHTML += '<th>見込<br>TEU</th><th>見込<br>CM1/T</th>';
     headerHTML += '</tr>';
     thead.innerHTML = headerHTML;
   }
@@ -1421,6 +1474,8 @@ function renderSubAreaProspectTable(panel, parentArea, data) {
     rowHTML += `<td class="week-badge">W${w.week}${currentMark}</td>`;
     rowHTML += `<td class="period-col">${formatPeriod(w.week_start, w.week_end)}</td>`;
 
+    let wSumProspect = 0;
+    let wHasProspect = false;
     subNames.forEach(name => {
       const sw = subWeekly[name][w.week_key] || {};
       const canEdit = isEditor() && !isPastWeek && !VIEWING_SNAPSHOT;
@@ -1442,7 +1497,11 @@ function renderSubAreaProspectTable(panel, parentArea, data) {
       rowHTML += `<td style="color:#666">${sw.TEU ? sw.TEU.toLocaleString() : '-'}</td>`;
       rowHTML += `<td style="color:#666">${sw.CM1_per_TEU ? '$'+sw.CM1_per_TEU.toLocaleString() : '-'}</td>`;
       rowHTML += teuCell + cm1Cell;
+      if (sw.prospect_TEU != null) { wSumProspect += sw.prospect_TEU; wHasProspect = true; }
     });
+    // 合計列 (読み取り専用)
+    rowHTML += `<td style="font-weight:bold;color:#333;background:#eceff1">${isPastWeek ? 'ー' : (wHasProspect ? wSumProspect.toLocaleString() : '-')}</td>`;
+    rowHTML += `<td style="color:#666;background:#eceff1">ー</td>`;
     rowHTML += '</tr>';
     tbody.insertAdjacentHTML('beforeend', rowHTML);
   });

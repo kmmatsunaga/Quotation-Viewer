@@ -347,8 +347,8 @@ def get_3month_weeks(center_date: date) -> list:
 
 
 def get_2month_weeks(center_date: date) -> list:
-    meeting_wed = center_date + timedelta(days=3)
-    if meeting_wed.day <= 14:
+    meeting_tue = center_date + timedelta(days=2)
+    if meeting_tue.day <= 14:
         months = get_months_range(center_date, past_months=1, future_months=0)
     else:
         months = get_months_range(center_date, past_months=0, future_months=1)

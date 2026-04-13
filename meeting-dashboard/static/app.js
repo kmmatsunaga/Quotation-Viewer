@@ -1360,16 +1360,17 @@ function renderSubAreaMonthlyProspect(panel, parentArea, data) {
   if (!table) return;
 
   // ヘッダー構築: 月 | Period | (sub1: Actual TEU, CM1/T, 見込TEU) | (sub2: ...) |
+  const showSumCol = parentArea !== 'PH'; // PHはMNL+MIP入力のみ、合計列不要
   let headerHTML = '<tr><th rowspan="2">月</th><th rowspan="2">Period</th>';
   subNames.forEach(name => {
     headerHTML += `<th colspan="4" class="sub-area-header sub-area-color-${subNames.indexOf(name)}">${name}</th>`;
   });
-  headerHTML += `<th colspan="2" style="background:#546e7a;color:#fff">${parentArea} 合計</th>`;
+  if (showSumCol) headerHTML += `<th colspan="2" style="background:#546e7a;color:#fff">${parentArea} 合計</th>`;
   headerHTML += '</tr><tr>';
   subNames.forEach(() => {
     headerHTML += '<th>Actual<br>TEU</th><th>CM1/T</th><th>見込<br>TEU</th><th>見込<br>CM1/T</th>';
   });
-  headerHTML += '<th>見込<br>TEU</th><th>見込<br>CM1/T</th>';
+  if (showSumCol) headerHTML += '<th>見込<br>TEU</th><th>見込<br>CM1/T</th>';
   headerHTML += '</tr>';
   table.querySelector('thead').innerHTML = headerHTML;
 
@@ -1409,9 +1410,11 @@ function renderSubAreaMonthlyProspect(panel, parentArea, data) {
       rowHTML += teuCell + cm1Cell;
       if (sm.m_prospect_teu != null) { sumProspectTEU += sm.m_prospect_teu; hasProspect = true; }
     });
-    // 合計列 (読み取り専用)
-    rowHTML += `<td style="font-weight:bold;color:#333;background:#eceff1">${isPast ? 'ー' : (hasProspect ? sumProspectTEU.toLocaleString() : '-')}</td>`;
-    rowHTML += `<td style="color:#666;background:#eceff1">ー</td>`;
+    // 合計列 (読み取り専用) - PHは非表示
+    if (showSumCol) {
+      rowHTML += `<td style="font-weight:bold;color:#333;background:#eceff1">${isPast ? 'ー' : (hasProspect ? sumProspectTEU.toLocaleString() : '-')}</td>`;
+      rowHTML += `<td style="color:#666;background:#eceff1">ー</td>`;
+    }
     rowHTML += '</tr>';
     tbody.insertAdjacentHTML('beforeend', rowHTML);
   });
@@ -1430,16 +1433,17 @@ function renderSubAreaProspectTable(panel, parentArea, data) {
   // ヘッダー差し替え
   const thead = panel.querySelector('.prospect-table thead');
   if (thead) {
+    const wShowSumCol = parentArea !== 'PH';
     let headerHTML = '<tr><th rowspan="2">月</th><th rowspan="2">Week</th><th rowspan="2">Period</th>';
     subNames.forEach(name => {
       headerHTML += `<th colspan="4" class="sub-area-header sub-area-color-${subNames.indexOf(name)}">${name}</th>`;
     });
-    headerHTML += `<th colspan="2" style="background:#546e7a;color:#fff">${parentArea} 合計</th>`;
+    if (wShowSumCol) headerHTML += `<th colspan="2" style="background:#546e7a;color:#fff">${parentArea} 合計</th>`;
     headerHTML += '</tr><tr>';
     subNames.forEach(() => {
       headerHTML += '<th>Actual<br>TEU</th><th>CM1/T</th><th>見込<br>TEU</th><th>見込<br>CM1/T</th>';
     });
-    headerHTML += '<th>見込<br>TEU</th><th>見込<br>CM1/T</th>';
+    if (wShowSumCol) headerHTML += '<th>見込<br>TEU</th><th>見込<br>CM1/T</th>';
     headerHTML += '</tr>';
     thead.innerHTML = headerHTML;
   }
@@ -1499,9 +1503,11 @@ function renderSubAreaProspectTable(panel, parentArea, data) {
       rowHTML += teuCell + cm1Cell;
       if (sw.prospect_TEU != null) { wSumProspect += sw.prospect_TEU; wHasProspect = true; }
     });
-    // 合計列 (読み取り専用)
-    rowHTML += `<td style="font-weight:bold;color:#333;background:#eceff1">${isPastWeek ? 'ー' : (wHasProspect ? wSumProspect.toLocaleString() : '-')}</td>`;
-    rowHTML += `<td style="color:#666;background:#eceff1">ー</td>`;
+    // 合計列 (読み取り専用) - PHは非表示
+    if (wShowSumCol) {
+      rowHTML += `<td style="font-weight:bold;color:#333;background:#eceff1">${isPastWeek ? 'ー' : (wHasProspect ? wSumProspect.toLocaleString() : '-')}</td>`;
+      rowHTML += `<td style="color:#666;background:#eceff1">ー</td>`;
+    }
     rowHTML += '</tr>';
     tbody.insertAdjacentHTML('beforeend', rowHTML);
   });

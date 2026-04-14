@@ -1,11 +1,19 @@
 const BASE_URL = "/api";
 
 export async function fetcher<T>(url: string): Promise<T> {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`API error: ${res.status} ${res.statusText}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000); // 15秒タイムアウト
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) {
+      throw new Error(`API error: ${res.status} ${res.statusText}`);
+    }
+    return res.json();
+  } catch (e) {
+    clearTimeout(timeout);
+    throw e;
   }
-  return res.json();
 }
 
 function buildUrl(path: string, params?: Record<string, string>): string {

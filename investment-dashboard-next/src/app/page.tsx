@@ -29,35 +29,58 @@ const timeframes = [
 export default function MarketOverview() {
   const [selectedTimeframe, setSelectedTimeframe] = useState("1d");
 
-  const { data: indices } = useSWR<IndexData[]>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rawIndices } = useSWR<any[]>(
     fetchIndicesUrl(),
     fetcher,
     { refreshInterval: 30000 }
   );
+  // APIレスポンスを統一形式に変換
+  const indices: IndexData[] | undefined = rawIndices?.map((d) => ({
+    name: d.name ?? "",
+    value: d.price ?? d.value ?? 0,
+    change: d.change_pct ?? d.change ?? 0,
+    change_pct: d.change_pct ?? d.change ?? 0,
+    chart_data: Array.isArray(d.chart)
+      ? d.chart.map((c: { close?: number }) => c.close ?? 0)
+      : d.chart_data ?? [],
+  }));
 
-  const { data: marketNews } = useSWR<NewsItem[]>(
-    fetchMarketNewsUrl(),
-    fetcher,
-    { refreshInterval: 60000 }
-  );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rawMarketNews } = useSWR<any[]>(fetchMarketNewsUrl(), fetcher, { refreshInterval: 60000 });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rawPortfolioNews } = useSWR<any[]>(fetchPortfolioNewsUrl(), fetcher, { refreshInterval: 60000 });
+  // APIレスポンスを統一形式に変換
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapNews = (d: any): NewsItem => ({
+    title: d.title ?? "",
+    url: d.link ?? d.url ?? "#",
+    publisher: d.publisher ?? "",
+    published_at: d.published ?? d.published_at ?? "",
+    thumbnail: d.thumbnail ?? undefined,
+  });
+  const marketNews = rawMarketNews?.map(mapNews);
+  const portfolioNews = rawPortfolioNews?.map(mapNews);
 
-  const { data: portfolioNews } = useSWR<NewsItem[]>(
-    fetchPortfolioNewsUrl(),
-    fetcher,
-    { refreshInterval: 60000 }
-  );
-
-  const { data: jpStocks } = useSWR<StockData[]>(
-    fetchJPStocksUrl(),
-    fetcher,
-    { refreshInterval: 30000 }
-  );
-
-  const { data: usStocks } = useSWR<StockData[]>(
-    fetchUSStocksUrl(),
-    fetcher,
-    { refreshInterval: 30000 }
-  );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rawJP } = useSWR<any[]>(fetchJPStocksUrl(), fetcher, { refreshInterval: 30000 });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rawUS } = useSWR<any[]>(fetchUSStocksUrl(), fetcher, { refreshInterval: 30000 });
+  // APIレスポンスを統一形式に変換
+  const jpStocks: StockData[] | undefined = rawJP?.map((d) => ({
+    code: (d.ticker ?? d.code ?? "").replace(".T", ""),
+    name: d.name_jp ?? d.name ?? "",
+    price: d.price ?? 0,
+    change: d.change ?? 0,
+    change_pct: d.change_pct ?? 0,
+  }));
+  const usStocks: StockData[] | undefined = rawUS?.map((d) => ({
+    code: d.ticker ?? d.code ?? "",
+    name: d.name_jp ?? d.name ?? "",
+    price: d.price ?? 0,
+    change: d.change ?? 0,
+    change_pct: d.change_pct ?? 0,
+  }));
 
   // Demo data when API is not available
   const demoIndices: IndexData[] = [

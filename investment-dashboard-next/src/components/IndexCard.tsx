@@ -8,7 +8,9 @@ interface IndexCardProps {
 }
 
 export function IndexCard({ name, value, change, chartData }: IndexCardProps) {
-  const isUp = change >= 0;
+  const safeValue = value ?? 0;
+  const safeChange = change ?? 0;
+  const isUp = safeChange >= 0;
   const color = isUp ? "var(--color-up)" : "var(--color-down)";
   const arrow = isUp ? "+" : "";
 
@@ -32,11 +34,11 @@ export function IndexCard({ name, value, change, chartData }: IndexCardProps) {
           }}
         >
           {arrow}
-          {change.toFixed(2)}%
+          {safeChange.toFixed(2)}%
         </span>
       </div>
       <div className="text-lg md:text-xl font-bold mb-2" style={{ color }}>
-        {value.toLocaleString("ja-JP", {
+        {safeValue.toLocaleString("ja-JP", {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         })}

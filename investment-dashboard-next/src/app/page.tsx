@@ -3,6 +3,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { IndexCard } from "@/components/IndexCard";
+import { IndexDetailChart } from "@/components/IndexDetailChart";
 import { NewsCard } from "@/components/NewsCard";
 import { StockRow } from "@/components/StockRow";
 import {
@@ -13,6 +14,7 @@ import {
   fetchJPStocksUrl,
   fetchUSStocksUrl,
   type IndexData,
+  type IndexCandle,
   type NewsItem,
   type StockData,
 } from "@/lib/api";
@@ -28,6 +30,7 @@ const timeframes = [
 
 export default function MarketOverview() {
   const [selectedTimeframe, setSelectedTimeframe] = useState("1d");
+  const [selectedIndexName, setSelectedIndexName] = useState<string | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: rawIndices } = useSWR<any[]>(
@@ -36,15 +39,37 @@ export default function MarketOverview() {
     { refreshInterval: 30000 }
   );
   // APIレスポンスを統一形式に変換
-  const indices: IndexData[] | undefined = rawIndices?.map((d) => ({
-    name: d.name ?? "",
-    value: d.price ?? d.value ?? 0,
-    change: d.change_pct ?? d.change ?? 0,
-    change_pct: d.change_pct ?? d.change ?? 0,
-    chart_data: Array.isArray(d.chart)
-      ? d.chart.map((c: { close?: number }) => c.close ?? 0)
-      : d.chart_data ?? [],
-  }));
+  const indices: IndexData[] | undefined = rawIndices?.map((d) => {
+    const candles: IndexCandle[] = Array.isArray(d.chart)
+      ? d.chart
+          .filter((c: { close?: number | null }) => c.close != null)
+          .map((c: {
+            time: string;
+            open?: number;
+            high?: number;
+            low?: number;
+            close: number;
+            volume?: number;
+          }) => ({
+            time: c.time,
+            open: c.open ?? c.close,
+            high: c.high ?? c.close,
+            low: c.low ?? c.close,
+            close: c.close,
+            volume: c.volume,
+          }))
+      : [];
+    return {
+      name: d.name ?? "",
+      value: d.price ?? d.value ?? 0,
+      change: d.change_pct ?? d.change ?? 0,
+      change_pct: d.change_pct ?? d.change ?? 0,
+      chart_data: candles.length
+        ? candles.map((c) => c.close)
+        : d.chart_data ?? [],
+      candles,
+    };
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: rawMarketNews } = useSWR<any[]>(fetchMarketNewsUrl(), fetcher, { refreshInterval: 60000 });
@@ -83,11 +108,20 @@ export default function MarketOverview() {
   }));
 
   // Demo data when API is not available
+  const makeDemoCandles = (bars: number[], base: number): IndexCandle[] => {
+    const now = Date.now();
+    const max = Math.max(...bars, 1);
+    return bars.map((v, i) => {
+      const close = base * (0.98 + (v / max) * 0.04);
+      const t = new Date(now - (bars.length - i) * 5 * 60 * 1000).toISOString();
+      return { time: t, open: close, high: close, low: close, close };
+    });
+  };
   const demoIndices: IndexData[] = [
-    { name: "日経平均", value: 38457.89, change: 1.24, change_pct: 1.24, chart_data: [60, 65, 62, 70, 68, 75, 72, 78, 80, 85] },
-    { name: "TOPIX", value: 2678.34, change: 0.89, change_pct: 0.89, chart_data: [50, 52, 55, 53, 58, 60, 57, 62, 64, 66] },
-    { name: "S&P 500", value: 5234.18, change: -0.45, change_pct: -0.45, chart_data: [80, 78, 75, 77, 73, 70, 72, 68, 65, 67] },
-    { name: "NASDAQ", value: 16432.67, change: -0.72, change_pct: -0.72, chart_data: [90, 88, 85, 82, 84, 80, 78, 75, 73, 70] },
+    { name: "日経平均", value: 38457.89, change: 1.24, change_pct: 1.24, chart_data: [60, 65, 62, 70, 68, 75, 72, 78, 80, 85], candles: makeDemoCandles([60, 65, 62, 70, 68, 75, 72, 78, 80, 85], 38457.89) },
+    { name: "TOPIX", value: 2678.34, change: 0.89, change_pct: 0.89, chart_data: [50, 52, 55, 53, 58, 60, 57, 62, 64, 66], candles: makeDemoCandles([50, 52, 55, 53, 58, 60, 57, 62, 64, 66], 2678.34) },
+    { name: "S&P 500", value: 5234.18, change: -0.45, change_pct: -0.45, chart_data: [80, 78, 75, 77, 73, 70, 72, 68, 65, 67], candles: makeDemoCandles([80, 78, 75, 77, 73, 70, 72, 68, 65, 67], 5234.18) },
+    { name: "NASDAQ", value: 16432.67, change: -0.72, change_pct: -0.72, chart_data: [90, 88, 85, 82, 84, 80, 78, 75, 73, 70], candles: makeDemoCandles([90, 88, 85, 82, 84, 80, 78, 75, 73, 70], 16432.67) },
   ];
 
   const demoNews: NewsItem[] = [
@@ -118,6 +152,13 @@ export default function MarketOverview() {
   const displayJPStocks = jpStocks ?? demoJPStocks;
   const displayUSStocks = usStocks ?? demoUSStocks;
 
+  // 選択中の指数（未選択なら先頭）
+  const selectedIndex =
+    displayIndices.find((idx) => idx.name === selectedIndexName) ??
+    displayIndices[0];
+  const selectedTimeframeLabel =
+    timeframes.find((tf) => tf.key === selectedTimeframe)?.label;
+
   return (
     <div className="space-y-6">
       {/* Timeframe selector */}
@@ -137,11 +178,22 @@ export default function MarketOverview() {
         ))}
       </div>
 
-      {/* Index cards - 2x2 grid */}
+      {/* Index cards - 2x2 grid + 選択した指数の詳細チャート */}
       <section>
         <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-3">
           主要指数
         </h2>
+        {selectedIndex && (
+          <div className="mb-3">
+            <IndexDetailChart
+              name={selectedIndex.name}
+              value={selectedIndex.value}
+              changePct={selectedIndex.change_pct}
+              candles={selectedIndex.candles}
+              timeframeLabel={selectedTimeframeLabel}
+            />
+          </div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {displayIndices.map((idx) => (
             <IndexCard
@@ -150,6 +202,8 @@ export default function MarketOverview() {
               value={idx.value}
               change={idx.change_pct}
               chartData={idx.chart_data}
+              selected={selectedIndex?.name === idx.name}
+              onClick={() => setSelectedIndexName(idx.name)}
             />
           ))}
         </div>

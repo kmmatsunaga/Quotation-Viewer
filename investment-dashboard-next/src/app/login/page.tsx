@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export default function LoginPage() {
-  const { user, loading, signInWithGoogle } = useAuth();
+  const { user, loading, error, signInWithGoogle } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -34,6 +34,13 @@ export default function LoginPage() {
             ポートフォリオを一元管理
           </p>
         </div>
+
+        {/* エラー表示 */}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-sm text-red-400">
+            {error}
+          </div>
+        )}
 
         {/* ログインボタン */}
         <div className="space-y-4">

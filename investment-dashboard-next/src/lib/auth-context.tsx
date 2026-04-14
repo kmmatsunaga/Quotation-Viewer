@@ -9,9 +9,15 @@ import {
 } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
 
+// 許可するユーザー（メールアドレス）
+const ALLOWED_USERS = [
+  "make.some.noise6984@gmail.com",
+];
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  error: string | null;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -19,6 +25,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  error: null,
   signInWithGoogle: async () => {},
   signOut: async () => {},
 });
@@ -26,25 +33,45 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser && !ALLOWED_USERS.includes(firebaseUser.email ?? "")) {
+        // 許可されていないユーザー → ログアウト
+        firebaseSignOut(auth);
+        setUser(null);
+        setError("このアカウントはアクセスが許可されていません");
+      } else {
+        setUser(firebaseUser);
+        setError(null);
+      }
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
   const signInWithGoogle = async () => {
-    await signInWithPopup(auth, googleProvider);
+    setError(null);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      if (!ALLOWED_USERS.includes(result.user.email ?? "")) {
+        await firebaseSignOut(auth);
+        setUser(null);
+        setError("このアカウントはアクセスが許可されていません");
+      }
+    } catch {
+      setError("ログインに失敗しました");
+    }
   };
 
   const signOut = async () => {
     await firebaseSignOut(auth);
+    setError(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, loading, error, signInWithGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -3,6 +3,7 @@ __pycache__/
 *.pyo
 *.db
 .env
-.streamlit/
+# .streamlit/ — config.toml はデプロイに必要なので除外しない
+.streamlit/secrets.toml
 *.sqlite3
 portfolio.db

@@ -38,6 +38,11 @@ def init_db():
             market TEXT NOT NULL DEFAULT 'TSE',
             added_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS user_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS price_alerts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ticker TEXT NOT NULL,
@@ -135,6 +140,28 @@ def get_watchlist() -> pd.DataFrame:
     df = pd.read_sql_query("SELECT * FROM watchlist ORDER BY market, ticker", conn)
     conn.close()
     return df
+
+
+# ---- User Settings (ユーザー設定) ----
+
+def get_setting(key: str, default: str = "") -> str:
+    """ユーザー設定を取得する。"""
+    conn = _get_conn()
+    row = conn.execute("SELECT value FROM user_settings WHERE key=?", (key,)).fetchone()
+    conn.close()
+    return row[0] if row else default
+
+
+def set_setting(key: str, value: str):
+    """ユーザー設定を保存する。"""
+    now = datetime.now().isoformat()
+    conn = _get_conn()
+    conn.execute(
+        "INSERT OR REPLACE INTO user_settings (key, value, updated_at) VALUES (?, ?, ?)",
+        (key, value, now),
+    )
+    conn.commit()
+    conn.close()
 
 
 # ---- Price Alerts (価格アラート) ----

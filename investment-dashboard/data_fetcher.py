@@ -6,6 +6,8 @@
 - 立花証券 e支店 API: 東証リアルタイム（要口座開設）
 """
 import io
+import re
+import unicodedata
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -83,6 +85,99 @@ def fetch_multiple_prices(tickers: list[str]) -> pd.DataFrame:
                 "currency": "",
             })
     return pd.DataFrame(rows)
+
+
+# ============================================================
+# ニュース取得
+# ============================================================
+
+_JP_RE = re.compile(r'[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf]')
+
+def _is_japanese(text: str) -> bool:
+    """テキストに日本語文字が含まれていれば True。"""
+    return bool(_JP_RE.search(text))
+
+
+def _parse_news_item(item: dict) -> dict:
+    """yfinance のニュースアイテムを統一形式に変換する。"""
+    content = item.get("content", {})
+    thumbnail_url = ""
+    thumbnail = content.get("thumbnail")
+    if thumbnail and isinstance(thumbnail, dict):
+        resolutions = thumbnail.get("resolutions", [])
+        if resolutions:
+            thumbnail_url = resolutions[0].get("url", "")
+    pub_time = content.get("pubDate", "")
+    return {
+        "title": content.get("title", "No title"),
+        "publisher": content.get("provider", {}).get("displayName", ""),
+        "link": content.get("canonicalUrl", {}).get("url", ""),
+        "published": pub_time,
+        "thumbnail": thumbnail_url,
+    }
+
+
+def fetch_ticker_news(ticker: str, max_items: int = 5,
+                       japanese_only: bool = False) -> list[dict]:
+    """yfinance でティッカーのニュースを取得する。
+
+    Args:
+        japanese_only: True の場合、日本語タイトルのニュースのみ返す
+    """
+    try:
+        stock = yf.Ticker(ticker)
+        news = stock.news or []
+        results = []
+        for item in news:
+            parsed = _parse_news_item(item)
+            if japanese_only and not _is_japanese(parsed["title"]):
+                continue
+            results.append(parsed)
+            if len(results) >= max_items:
+                break
+        return results
+    except Exception:
+        return []
+
+
+def fetch_market_news() -> list[dict]:
+    """マーケット全般のニュースを取得する（日本語ニュース優先）。"""
+    seen_titles = set()
+    all_news = []
+
+    # まず日本語ニュースを優先取得
+    for ticker in ["^N225", "^GSPC", "^IXIC"]:
+        for item in fetch_ticker_news(ticker, max_items=8, japanese_only=True):
+            if item["title"] not in seen_titles:
+                seen_titles.add(item["title"])
+                all_news.append(item)
+
+    # 日本語ニュースが少なければ英語ニュースも追加
+    if len(all_news) < 3:
+        for ticker in ["^N225", "^GSPC", "^IXIC"]:
+            for item in fetch_ticker_news(ticker, max_items=5):
+                if item["title"] not in seen_titles:
+                    seen_titles.add(item["title"])
+                    all_news.append(item)
+
+    return all_news[:8]
+
+
+def fetch_index_chart_data(ticker: str, interval: str = "1d",
+                           period: str = "1mo") -> pd.DataFrame:
+    """指数のバーチャート用OHLCVデータを取得する。
+
+    interval: "1m","5m","15m","1d","1wk","1mo"
+    """
+    stock = yf.Ticker(ticker)
+    try:
+        df = stock.history(period=period, interval=interval)
+        if df.empty:
+            return pd.DataFrame()
+        df.index = df.index.tz_localize(None)
+        return df
+    except Exception:
+        return pd.DataFrame()
 
 
 # ============================================================

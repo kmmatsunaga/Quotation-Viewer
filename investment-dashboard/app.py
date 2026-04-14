@@ -7,20 +7,25 @@ import os
 sys.path.insert(0, os.path.dirname(__file__))
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime
 
-from config import DEFAULT_WATCHLIST_JP, DEFAULT_WATCHLIST_US, TECHNICAL
+import json
+from config import (DEFAULT_WATCHLIST_JP, DEFAULT_WATCHLIST_US, TECHNICAL,
+                    AVAILABLE_INDICES, DEFAULT_TOP_INDICES, TICKER_NAME_JP)
 from data_fetcher import (
     fetch_stock_history, fetch_stock_info, fetch_multiple_prices, fetch_jnx_night,
+    fetch_ticker_news, fetch_market_news, fetch_index_chart_data,
 )
 from portfolio_db import (
     add_holding, update_holding, delete_holding, get_all_holdings,
     get_holding_by_id,
     add_to_watchlist, remove_from_watchlist, get_watchlist,
     add_alert, get_all_alerts, delete_alert, toggle_alert_active,
+    get_setting, set_setting,
 )
 from analysis import add_technical_indicators, calculate_score, screen_stocks
 from notifier import check_and_notify_alerts, send_line_push
@@ -28,193 +33,288 @@ from notifier import check_and_notify_alerts, send_line_push
 # ============================================================
 # ページ設定
 # ============================================================
-st.set_page_config(page_title="投資ダッシュボード", page_icon="$", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="投資ダッシュボード", page_icon="$", layout="wide", initial_sidebar_state="collapsed")
+
+
+def jp_name(ticker: str, fallback: str = "") -> str:
+    """ティッカーの日本語名を返す。マッピングになければ fallback を返す。"""
+    return TICKER_NAME_JP.get(ticker, fallback or ticker)
 
 # ============================================================
 # 楽天証券風CSS
 # ============================================================
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap');
+
     /* === ベース === */
-    .stApp { background-color: #f5f5f5; }
-
-    /* === ヘッダーバー（楽天風: 白背景 + 赤アクセント） === */
-    .top-bar {
-        background: #ffffff; border-bottom: 3px solid #bf0000;
-        padding: 10px 20px; margin: -20px -20px 16px -20px;
-        display: flex; align-items: center; gap: 16px;
+    .stApp { background-color: #0f1117; font-family: 'Noto Sans JP', sans-serif; color: rgba(255,255,255,0.85); }
+    .stMainBlockContainer { padding-top: 0 !important; }
+    /* 全体テキスト色の強制上書き */
+    .stApp p, .stApp span, .stApp label, .stApp div { color: rgba(255,255,255,0.85); }
+    .stApp [data-testid="stMarkdownContainer"] p { color: rgba(255,255,255,0.85); }
+    .stApp .stTextInput label, .stApp .stNumberInput label,
+    .stApp .stDateInput label, .stApp .stSelectbox label,
+    .stApp .stMultiSelect label, .stApp .stRadio label {
+        color: rgba(255,255,255,0.85) !important;
     }
-    .top-bar .logo { font-size: 20px; font-weight: 800; color: #bf0000; }
-    .top-bar .nav-item { font-size: 13px; color: #333; padding: 6px 12px; cursor: pointer; border-radius: 4px; }
-    .top-bar .nav-item:hover { background: #f0f0f0; }
 
-    /* === 資産サマリー（楽天風: 白カード + 赤/緑損益） === */
+    /* === 指数ティッカーバー（Bloomberg風: ダーク横帯） === */
+    .ticker-strip {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-bottom: 2px solid #bf0000;
+        padding: 0; margin: -1rem -1rem 20px -1rem;
+        display: flex; overflow-x: auto; white-space: nowrap;
+    }
+    .ticker-strip::-webkit-scrollbar { height: 0; }
+    .ts-item {
+        flex-shrink: 0; padding: 14px 20px;
+        border-right: 1px solid rgba(255,255,255,0.08);
+        text-align: center; min-width: 130px;
+    }
+    .ts-item:last-child { border-right: none; }
+    .ts-item .ts-name {
+        font-size: 10px; color: rgba(255,255,255,0.5); font-weight: 600;
+        letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px;
+    }
+    .ts-item .ts-price {
+        font-size: 18px; font-weight: 800; color: #fff;
+        font-variant-numeric: tabular-nums;
+    }
+    .ts-item .ts-change {
+        font-size: 11px; font-weight: 700; margin-top: 2px;
+        font-variant-numeric: tabular-nums;
+    }
+    .ts-item .ts-change.up { color: #ff5252; }
+    .ts-item .ts-change.down { color: #448aff; }
+
+    /* === 資産サマリー === */
     .asset-summary {
-        background: #ffffff; border: 1px solid #ddd; border-radius: 4px;
-        padding: 20px; margin-bottom: 16px;
+        background: linear-gradient(135deg, #1e1e2f 0%, #252547 100%);
+        border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+        padding: 24px; margin-bottom: 20px;
     }
     .asset-summary .summary-title {
-        font-size: 13px; color: #666; border-bottom: 2px solid #bf0000;
-        padding-bottom: 6px; margin-bottom: 12px; font-weight: 600;
+        font-size: 12px; color: rgba(255,255,255,0.5); font-weight: 600;
+        letter-spacing: 1px; text-transform: uppercase;
+        padding-bottom: 12px; margin-bottom: 16px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
     }
     .asset-row { display: flex; gap: 24px; flex-wrap: wrap; }
     .asset-item { flex: 1; min-width: 150px; }
-    .asset-item .a-label { font-size: 11px; color: #888; margin-bottom: 2px; }
-    .asset-item .a-value { font-size: 22px; font-weight: 700; color: #333; }
-    .asset-item .a-value.plus { color: #d32f2f; }
-    .asset-item .a-value.minus { color: #1565c0; }
-    .asset-item .a-sub { font-size: 12px; color: #888; }
+    .asset-item .a-label { font-size: 11px; color: rgba(255,255,255,0.45); margin-bottom: 4px; }
+    .asset-item .a-value { font-size: 24px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+    .asset-item .a-value.plus { color: #ff5252; }
+    .asset-item .a-value.minus { color: #448aff; }
+    .asset-item .a-sub { font-size: 12px; color: rgba(255,255,255,0.4); }
 
-    /* === 指数バー（楽天風: 横並びコンパクト） === */
-    .index-bar {
-        background: #ffffff; border: 1px solid #ddd; border-radius: 4px;
-        padding: 10px 16px; margin-bottom: 16px;
-        display: flex; gap: 24px; flex-wrap: wrap; align-items: center;
+    /* === 銘柄カード（マーケット概況） === */
+    .market-card {
+        background: #1a1a2e; border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 12px; margin-bottom: 20px; overflow: hidden;
     }
-    .index-item { display: flex; align-items: baseline; gap: 8px; }
-    .index-item .i-name { font-size: 11px; color: #666; font-weight: 600; }
-    .index-item .i-price { font-size: 14px; font-weight: 700; color: #333; }
-    .index-item .i-change { font-size: 11px; font-weight: 600; }
-    .index-item .i-change.up { color: #d32f2f; }
-    .index-item .i-change.down { color: #1565c0; }
+    .market-card .mc-title {
+        font-size: 12px; color: rgba(255,255,255,0.6); font-weight: 700;
+        letter-spacing: 1px; text-transform: uppercase;
+        padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);
+        background: rgba(191,0,0,0.08);
+    }
+    .mc-row {
+        display: flex; align-items: center;
+        padding: 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.04);
+        transition: background 0.15s;
+    }
+    .mc-row:last-child { border-bottom: none; }
+    .mc-row:hover { background: rgba(255,255,255,0.03); }
+    .mc-row .mc-code {
+        width: 65px; font-size: 12px; color: #64b5f6; font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+    .mc-row .mc-name {
+        flex: 1; font-size: 12px; color: rgba(255,255,255,0.7);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        padding-right: 12px;
+    }
+    .mc-row .mc-price {
+        width: 100px; text-align: right; font-size: 14px;
+        font-weight: 700; color: #fff; font-variant-numeric: tabular-nums;
+    }
+    .mc-row .mc-change {
+        width: 75px; text-align: right; font-size: 12px; font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+    .mc-row .mc-change.up { color: #ff5252; }
+    .mc-row .mc-change.down { color: #448aff; }
 
-    /* === 保有銘柄テーブル（楽天風） === */
+    /* === 保有銘柄テーブル === */
     .holdings-table {
-        background: #ffffff; border: 1px solid #ddd; border-radius: 4px;
-        margin-bottom: 16px; overflow-x: auto;
+        background: #1a1a2e; border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 12px; margin-bottom: 20px; overflow-x: auto;
     }
     .holdings-table .table-title {
-        font-size: 13px; color: #333; font-weight: 600;
-        padding: 10px 16px; border-bottom: 2px solid #bf0000;
-        background: #fafafa;
+        font-size: 12px; color: rgba(255,255,255,0.6); font-weight: 700;
+        letter-spacing: 1px; text-transform: uppercase;
+        padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);
+        background: rgba(191,0,0,0.08);
     }
     .ht-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .ht-table thead th {
-        background: #f7f7f7; color: #666; font-weight: 600; font-size: 11px;
-        padding: 8px 12px; text-align: right; border-bottom: 1px solid #ddd;
-        white-space: nowrap;
+        background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.45);
+        font-weight: 600; font-size: 11px;
+        padding: 10px 14px; text-align: right;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        white-space: nowrap; letter-spacing: 0.5px;
     }
     .ht-table thead th:first-child { text-align: left; }
     .ht-table thead th:nth-child(2) { text-align: left; }
     .ht-table tbody td {
-        padding: 10px 12px; text-align: right; border-bottom: 1px solid #eee;
-        color: #333;
+        padding: 12px 14px; text-align: right;
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+        color: rgba(255,255,255,0.85); font-variant-numeric: tabular-nums;
     }
-    .ht-table tbody td:first-child { text-align: left; color: #1565c0; font-weight: 600; }
-    .ht-table tbody td:nth-child(2) { text-align: left; }
-    .ht-table tbody tr:hover { background: #f0f7ff; }
-    .ht-table .plus { color: #d32f2f; }
-    .ht-table .minus { color: #1565c0; }
+    .ht-table tbody td:first-child { text-align: left; color: #64b5f6; font-weight: 700; }
+    .ht-table tbody td:nth-child(2) { text-align: left; color: rgba(255,255,255,0.7); }
+    .ht-table tbody tr:hover { background: rgba(255,255,255,0.03); }
+    .ht-table .plus { color: #ff5252; }
+    .ht-table .minus { color: #448aff; }
     .ht-table tfoot td {
-        padding: 10px 12px; text-align: right; border-top: 2px solid #ddd;
-        font-weight: 700; background: #fafafa; color: #333;
+        padding: 12px 14px; text-align: right;
+        border-top: 2px solid rgba(255,255,255,0.1);
+        font-weight: 800; background: rgba(255,255,255,0.02); color: #fff;
     }
-
-    /* === 銘柄カード（マーケット概況） === */
-    .market-card {
-        background: #ffffff; border: 1px solid #ddd; border-radius: 4px;
-        margin-bottom: 16px;
-    }
-    .market-card .mc-title {
-        font-size: 13px; color: #333; font-weight: 600;
-        padding: 10px 16px; border-bottom: 2px solid #bf0000;
-        background: #fafafa;
-    }
-    .mc-row {
-        display: flex; align-items: center;
-        padding: 8px 16px; border-bottom: 1px solid #f0f0f0;
-    }
-    .mc-row:last-child { border-bottom: none; }
-    .mc-row:hover { background: #f0f7ff; }
-    .mc-row .mc-code { width: 70px; font-size: 12px; color: #1565c0; font-weight: 600; }
-    .mc-row .mc-name { flex: 1; font-size: 12px; color: #333; }
-    .mc-row .mc-price { width: 100px; text-align: right; font-size: 13px; font-weight: 600; color: #333; }
-    .mc-row .mc-change { width: 70px; text-align: right; font-size: 12px; font-weight: 600; }
-    .mc-row .mc-change.up { color: #d32f2f; }
-    .mc-row .mc-change.down { color: #1565c0; }
 
     /* === スコアバッジ === */
-    .score-badge { display: inline-block; padding: 3px 12px; border-radius: 4px; font-weight: 700; font-size: 13px; }
-    .score-high { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
-    .score-mid { background: #fff8e1; color: #f57f17; border: 1px solid #ffe082; }
-    .score-low { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+    .score-badge {
+        display: inline-block; padding: 4px 14px; border-radius: 20px;
+        font-weight: 700; font-size: 13px;
+    }
+    .score-high { background: rgba(76,175,80,0.15); color: #66bb6a; border: 1px solid rgba(76,175,80,0.3); }
+    .score-mid { background: rgba(255,152,0,0.15); color: #ffa726; border: 1px solid rgba(255,152,0,0.3); }
+    .score-low { background: rgba(244,67,54,0.15); color: #ef5350; border: 1px solid rgba(244,67,54,0.3); }
 
     /* === おすすめカード === */
     .rec-row {
-        display: flex; align-items: center; gap: 12px;
-        padding: 10px 16px; border-bottom: 1px solid #f0f0f0;
+        display: flex; align-items: center; gap: 14px;
+        padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.04);
+        transition: background 0.15s;
     }
-    .rec-row:hover { background: #f0f7ff; }
+    .rec-row:hover { background: rgba(255,255,255,0.03); }
     .rec-score-circle {
-        width: 44px; height: 44px; border-radius: 50%;
+        width: 48px; height: 48px; border-radius: 50%;
         display: flex; align-items: center; justify-content: center;
-        font-weight: 800; font-size: 15px; flex-shrink: 0;
+        font-weight: 800; font-size: 16px; flex-shrink: 0;
     }
-    .rec-score-circle.high { background: #e8f5e9; color: #2e7d32; }
-    .rec-score-circle.mid { background: #fff8e1; color: #f57f17; }
-    .rec-score-circle.low { background: #ffebee; color: #c62828; }
+    .rec-score-circle.high { background: rgba(76,175,80,0.15); color: #66bb6a; border: 2px solid rgba(76,175,80,0.3); }
+    .rec-score-circle.mid { background: rgba(255,152,0,0.15); color: #ffa726; border: 2px solid rgba(255,152,0,0.3); }
+    .rec-score-circle.low { background: rgba(244,67,54,0.15); color: #ef5350; border: 2px solid rgba(244,67,54,0.3); }
     .rec-info { flex: 1; }
-    .rec-info .rec-name { font-size: 13px; font-weight: 600; color: #333; }
-    .rec-info .rec-ticker { font-size: 11px; color: #1565c0; }
-    .rec-label { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 4px; }
-    .rec-label.buy { background: #e8f5e9; color: #2e7d32; }
-    .rec-label.hold { background: #fff8e1; color: #f57f17; }
-    .rec-label.sell { background: #ffebee; color: #c62828; }
+    .rec-info .rec-name { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.9); }
+    .rec-info .rec-ticker { font-size: 11px; color: #64b5f6; font-weight: 600; }
+    .rec-label { font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; }
+    .rec-label.buy { background: rgba(76,175,80,0.15); color: #66bb6a; }
+    .rec-label.hold { background: rgba(255,152,0,0.15); color: #ffa726; }
+    .rec-label.sell { background: rgba(244,67,54,0.15); color: #ef5350; }
 
     /* === セクションヘッダー === */
     .section-hdr {
-        font-size: 13px; font-weight: 600; color: #333;
-        border-bottom: 2px solid #bf0000; padding-bottom: 6px;
-        margin: 16px 0 10px;
+        font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.5);
+        letter-spacing: 1px; text-transform: uppercase;
+        border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;
+        margin: 20px 0 12px;
     }
 
-    /* === サイドバー（楽天風: 白背景） === */
-    section[data-testid="stSidebar"] { background: #ffffff; border-right: 1px solid #ddd; }
-    section[data-testid="stSidebar"] * { color: #333 !important; }
-    section[data-testid="stSidebar"] h1 { color: #bf0000 !important; font-size: 18px !important; }
-    section[data-testid="stSidebar"] button {
-        background: #bf0000 !important; color: #ffffff !important;
-        border: none !important; border-radius: 4px !important;
+    /* === サイドバー非表示（デスクトップでも横ナビを使う） === */
+    section[data-testid="stSidebar"] { display: none !important; }
+    [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+
+    /* === 横ナビ (デスクトップ用) === */
+    .top-nav {
+        display: flex; align-items: center;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-bottom: 2px solid #bf0000;
+        padding: 0 16px; margin: -1rem -1rem 16px -1rem;
+        overflow-x: auto; white-space: nowrap;
     }
-    section[data-testid="stSidebar"] button:hover { background: #a00000 !important; }
+    .top-nav::-webkit-scrollbar { height: 0; }
+    .top-nav .tn-brand {
+        font-size: 16px; font-weight: 800; margin-right: 24px; padding: 14px 0;
+        flex-shrink: 0;
+        background: linear-gradient(90deg, #ff5252, #bf0000);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        letter-spacing: 0.5px;
+    }
+    .top-nav a.tn-item {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 12px 16px; text-decoration: none;
+        font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.45);
+        border-bottom: 2px solid transparent; transition: all 0.15s;
+        flex-shrink: 0;
+    }
+    .top-nav a.tn-item:hover { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.03); }
+    .top-nav a.tn-item.active {
+        color: #ff5252; border-bottom-color: #ff5252;
+    }
+    .top-nav .tn-icon { font-size: 15px; }
+    .top-nav .tn-spacer { flex: 1; }
+    .top-nav .tn-time {
+        font-size: 10px; color: rgba(255,255,255,0.3); flex-shrink: 0;
+        padding: 0 8px; font-variant-numeric: tabular-nums;
+    }
+    .top-nav .tn-refresh {
+        padding: 6px 14px; font-size: 11px; font-weight: 700;
+        background: linear-gradient(135deg, #bf0000, #ff1744);
+        color: #fff; border: none; border-radius: 6px; cursor: pointer;
+        flex-shrink: 0; margin-left: 8px;
+        box-shadow: 0 2px 8px rgba(191,0,0,0.3);
+        transition: all 0.15s;
+    }
+    .top-nav .tn-refresh:hover {
+        background: linear-gradient(135deg, #d50000, #ff1744);
+        box-shadow: 0 4px 12px rgba(191,0,0,0.4);
+    }
 
     /* フォーム内ボタン */
     .stFormSubmitButton button {
-        background: #bf0000 !important; color: #ffffff !important; border: none !important;
+        background: linear-gradient(135deg, #bf0000, #ff1744) !important;
+        color: #ffffff !important; border: none !important;
+        border-radius: 8px !important; font-weight: 600 !important;
     }
-    .stFormSubmitButton button:hover { background: #a00000 !important; }
+    .stFormSubmitButton button:hover {
+        background: linear-gradient(135deg, #d50000, #ff1744) !important;
+    }
 
     /* === メモカード === */
     .memo-card {
-        background: #fffde7; border: 1px solid #fff59d; border-radius: 4px;
-        padding: 12px 16px; margin: 8px 0; font-size: 13px;
+        background: rgba(255,253,231,0.06); border: 1px solid rgba(255,245,157,0.15);
+        border-radius: 8px; padding: 14px 18px; margin: 8px 0; font-size: 13px;
     }
-    .memo-card .memo-ticker { font-weight: 700; color: #1565c0; font-size: 12px; }
-    .memo-card .memo-text { color: #333; margin-top: 4px; line-height: 1.5; }
-    .memo-card .memo-date { color: #999; font-size: 10px; margin-top: 4px; }
+    .memo-card .memo-ticker { font-weight: 700; color: #64b5f6; font-size: 12px; }
+    .memo-card .memo-text { color: rgba(255,255,255,0.8); margin-top: 6px; line-height: 1.6; }
+    .memo-card .memo-date { color: rgba(255,255,255,0.3); font-size: 10px; margin-top: 6px; }
 
-    /* === アラートテーブル === */
+    /* === アラート === */
     .alert-row {
-        display: flex; align-items: center; gap: 12px;
-        padding: 10px 16px; border-bottom: 1px solid #f0f0f0;
+        display: flex; align-items: center; gap: 14px;
+        padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.04);
+        transition: background 0.15s;
     }
-    .alert-row:hover { background: #f0f7ff; }
-    .alert-icon { font-size: 20px; flex-shrink: 0; }
+    .alert-row:hover { background: rgba(255,255,255,0.03); }
+    .alert-icon { font-size: 22px; flex-shrink: 0; }
     .alert-info { flex: 1; }
-    .alert-info .alert-name { font-size: 13px; font-weight: 600; color: #333; }
-    .alert-info .alert-cond { font-size: 11px; color: #666; }
-    .alert-status { font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600; }
-    .alert-status.active { background: #e8f5e9; color: #2e7d32; }
-    .alert-status.triggered { background: #fff8e1; color: #f57f17; }
-    .alert-status.inactive { background: #f5f5f5; color: #999; }
+    .alert-info .alert-name { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.9); }
+    .alert-info .alert-cond { font-size: 11px; color: rgba(255,255,255,0.45); }
+    .alert-status { font-size: 11px; padding: 4px 12px; border-radius: 20px; font-weight: 700; }
+    .alert-status.active { background: rgba(76,175,80,0.15); color: #66bb6a; }
+    .alert-status.triggered { background: rgba(255,152,0,0.15); color: #ffa726; }
+    .alert-status.inactive { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.3); }
 
     /* === LINE設定 === */
     .line-status {
-        background: #ffffff; border: 1px solid #ddd; border-radius: 4px;
-        padding: 12px 16px; margin-bottom: 16px;
+        background: #1a1a2e; border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 12px; padding: 14px 20px; margin-bottom: 20px;
     }
-    .line-status .line-ok { color: #2e7d32; font-weight: 600; }
-    .line-status .line-ng { color: #c62828; font-weight: 600; }
+    .line-status .line-ok { color: #66bb6a; font-weight: 700; }
+    .line-status .line-ng { color: #ef5350; font-weight: 700; }
 
     /* === お気に入りギャラリー (Notion風) === */
     .fav-gallery {
@@ -223,83 +323,288 @@ st.markdown("""
         gap: 16px; margin-top: 12px;
     }
     .fav-card {
-        background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px;
-        overflow: hidden; transition: box-shadow 0.2s, transform 0.15s;
+        background: #1a1a2e; border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 12px; overflow: hidden;
+        transition: box-shadow 0.2s, transform 0.15s, border-color 0.2s;
         cursor: default;
     }
     .fav-card:hover {
-        box-shadow: 0 4px 16px rgba(0,0,0,0.10);
-        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        transform: translateY(-3px);
+        border-color: rgba(191,0,0,0.3);
     }
     .fav-card .fav-chart-area {
-        width: 100%; height: 140px; background: #fafafa;
-        border-bottom: 1px solid #f0f0f0; position: relative; overflow: hidden;
+        width: 100%; height: 140px; background: rgba(255,255,255,0.02);
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+        position: relative; overflow: hidden;
     }
     .fav-card .fav-chart-area svg { width: 100%; height: 100%; }
-    .fav-card .fav-body { padding: 12px 14px; }
+    .fav-card .fav-body { padding: 14px 16px; }
     .fav-card .fav-ticker {
-        font-size: 11px; color: #1565c0; font-weight: 700;
+        font-size: 11px; color: #64b5f6; font-weight: 700;
         letter-spacing: 0.5px;
     }
     .fav-card .fav-name {
-        font-size: 14px; font-weight: 600; color: #222;
-        margin: 2px 0 8px; line-height: 1.3;
+        font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.9);
+        margin: 3px 0 10px; line-height: 1.3;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .fav-card .fav-row {
         display: flex; justify-content: space-between; align-items: baseline;
     }
     .fav-card .fav-price {
-        font-size: 20px; font-weight: 700; color: #333;
+        font-size: 22px; font-weight: 800; color: #fff;
+        font-variant-numeric: tabular-nums;
     }
     .fav-card .fav-change {
-        font-size: 13px; font-weight: 700; padding: 2px 8px;
-        border-radius: 4px;
+        font-size: 13px; font-weight: 700; padding: 3px 10px;
+        border-radius: 6px;
     }
-    .fav-card .fav-change.up { background: #fce4ec; color: #c62828; }
-    .fav-card .fav-change.down { background: #e3f2fd; color: #1565c0; }
+    .fav-card .fav-change.up { background: rgba(255,82,82,0.15); color: #ff5252; }
+    .fav-card .fav-change.down { background: rgba(68,138,255,0.15); color: #448aff; }
     .fav-card .fav-meta {
-        margin-top: 8px; display: flex; gap: 12px; font-size: 11px; color: #999;
+        margin-top: 10px; display: flex; gap: 12px;
+        font-size: 11px; color: rgba(255,255,255,0.35);
     }
     .fav-card .fav-score-bar {
-        margin-top: 8px; height: 4px; border-radius: 2px;
-        background: #eee; overflow: hidden;
+        margin-top: 10px; height: 3px; border-radius: 2px;
+        background: rgba(255,255,255,0.06); overflow: hidden;
     }
     .fav-card .fav-score-fill {
         height: 100%; border-radius: 2px; transition: width 0.3s;
     }
     .fav-empty {
-        text-align: center; padding: 60px 20px; color: #999;
-        background: #fff; border: 2px dashed #ddd; border-radius: 8px;
+        text-align: center; padding: 60px 20px;
+        color: rgba(255,255,255,0.4);
+        background: #1a1a2e; border: 2px dashed rgba(255,255,255,0.1);
+        border-radius: 12px;
     }
     .fav-empty .fav-empty-icon { font-size: 40px; margin-bottom: 12px; }
     .fav-empty .fav-empty-text { font-size: 14px; }
+
+    /* === iSPEED風 インデックスカード === */
+    .idx-grid {
+        display: grid; grid-template-columns: repeat(2, 1fr);
+        gap: 12px; margin-bottom: 20px;
+    }
+    .idx-card {
+        background: linear-gradient(135deg, #1e1e2f 0%, #252547 100%);
+        border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;
+        padding: 16px; position: relative; overflow: hidden;
+        transition: border-color 0.2s;
+    }
+    .idx-card:hover { border-color: rgba(191,0,0,0.3); }
+    .idx-card .idx-label {
+        font-size: 10px; color: rgba(255,255,255,0.4); font-weight: 700;
+        letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;
+    }
+    .idx-card .idx-val {
+        font-size: 26px; font-weight: 800; color: #fff;
+        font-variant-numeric: tabular-nums; line-height: 1.1;
+    }
+    .idx-card .idx-chg {
+        font-size: 13px; font-weight: 700; margin-top: 4px;
+        font-variant-numeric: tabular-nums;
+    }
+    .idx-card .idx-chg.up { color: #ff5252; }
+    .idx-card .idx-chg.down { color: #448aff; }
+    .idx-card .idx-chart-wrap {
+        margin-top: 10px; height: 80px; border-radius: 6px;
+        overflow: hidden; background: rgba(255,255,255,0.02);
+    }
+    .idx-card .idx-chart-wrap svg { width: 100%; height: 100%; }
+
+    /* === ニュースカード === */
+    .news-section {
+        background: #1a1a2e; border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 12px; overflow: hidden; margin-bottom: 20px;
+    }
+    .news-section .news-title {
+        font-size: 12px; color: rgba(255,255,255,0.6); font-weight: 700;
+        letter-spacing: 1px; text-transform: uppercase;
+        padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);
+        background: rgba(191,0,0,0.08);
+    }
+    .news-item {
+        display: flex; gap: 12px; padding: 12px 20px;
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+        transition: background 0.15s; text-decoration: none;
+    }
+    .news-item:last-child { border-bottom: none; }
+    .news-item:hover { background: rgba(255,255,255,0.03); }
+    .news-item .news-thumb {
+        width: 64px; height: 48px; border-radius: 6px;
+        object-fit: cover; flex-shrink: 0; background: rgba(255,255,255,0.05);
+    }
+    .news-item .news-body { flex: 1; min-width: 0; }
+    .news-item .news-headline {
+        font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.85);
+        line-height: 1.4; display: -webkit-box;
+        -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .news-item .news-meta {
+        font-size: 10px; color: rgba(255,255,255,0.35); margin-top: 4px;
+    }
+    .news-empty {
+        padding: 20px; text-align: center; color: rgba(255,255,255,0.3);
+        font-size: 13px;
+    }
+
+    /* === ボトムナビ (スマホ用) === */
+    .bottom-nav {
+        display: none; /* デスクトップでは非表示 */
+    }
+
+    /* === タイムフレームラジオ（横並び・コンパクト） === */
+    div[data-testid="stMainBlockContainer"] div[role="radiogroup"] {
+        flex-wrap: nowrap !important; overflow-x: auto;
+        gap: 4px !important; padding-bottom: 4px;
+    }
+    div[data-testid="stMainBlockContainer"] div[role="radiogroup"] label {
+        padding: 4px 12px !important; font-size: 12px !important;
+        white-space: nowrap !important; min-width: auto !important;
+        color: rgba(255,255,255,0.85) !important;
+    }
+    div[data-testid="stMainBlockContainer"] div[role="radiogroup"] label p,
+    div[data-testid="stMainBlockContainer"] div[role="radiogroup"] label span {
+        color: rgba(255,255,255,0.85) !important;
+    }
+    /* Streamlitラジオボタン・セレクトボックス全般のテキスト色 */
+    .stRadio label, .stRadio label p,
+    .stSelectbox label, .stMultiSelect label,
+    [data-testid="stWidgetLabel"] p,
+    [data-testid="stWidgetLabel"] label {
+        color: rgba(255,255,255,0.85) !important;
+    }
+    /* expanderのテキスト色 */
+    [data-testid="stExpander"] summary span,
+    [data-testid="stExpander"] summary p {
+        color: rgba(255,255,255,0.85) !important;
+    }
+
+    /* === Streamlitデフォルト上書き === */
+    .stApp header { background: transparent !important; }
+    [data-testid="stHeader"] { display: none !important; }
+    .stDeployButton { display: none !important; }
+    [data-testid="stToolbar"] { display: none !important; }
+
+    /* ============================================ */
+    /* === スマホ対応 (レスポンシブ)              === */
+    /* ============================================ */
+    @media (max-width: 768px) {
+        /* スマホ: 横ナビ非表示 → ボトムナビで代替 */
+        .top-nav { display: none !important; }
+        .stMainBlockContainer { padding: 0 8px 80px 8px !important; }
+        .stApp { padding-bottom: 0 !important; }
+
+        /* components.html の iframe 自体を非表示 */
+        iframe[height="0"] { display: none !important; }
+
+        /* 指数バー: 横スクロール + 小さめ */
+        .ticker-strip { margin: -1rem -8px 12px -8px; }
+        .ts-item { padding: 10px 14px; min-width: 110px; }
+        .ts-item .ts-price { font-size: 15px; }
+        .ts-item .ts-name { font-size: 9px; }
+
+        /* インデックスカード: 2列維持だが小さく */
+        .idx-grid { gap: 8px; }
+        .idx-card { padding: 12px; }
+        .idx-card .idx-val { font-size: 20px; }
+        .idx-card .idx-chg { font-size: 11px; }
+        .idx-card .idx-chart-wrap { height: 60px; }
+
+        /* マーケットカード */
+        .mc-row { padding: 8px 12px; }
+        .mc-row .mc-name { font-size: 11px; }
+        .mc-row .mc-price { font-size: 13px; width: 85px; }
+        .mc-row .mc-change { width: 60px; font-size: 11px; }
+
+        /* ニュース */
+        .news-item { padding: 10px 14px; }
+        .news-item .news-thumb { width: 50px; height: 38px; }
+        .news-item .news-headline { font-size: 12px; }
+
+        /* お気に入り: 1列 */
+        .fav-gallery { grid-template-columns: 1fr; gap: 12px; }
+        .fav-card .fav-price { font-size: 18px; }
+
+        /* 資産サマリー */
+        .asset-summary { padding: 16px; }
+        .asset-row { gap: 16px; }
+        .asset-item .a-value { font-size: 18px; }
+
+        /* テーブル */
+        .ht-table { font-size: 11px; }
+        .ht-table thead th { padding: 8px 8px; font-size: 10px; }
+        .ht-table tbody td { padding: 8px 8px; }
+
+        /* おすすめ */
+        .rec-row { padding: 10px 12px; gap: 10px; }
+        .rec-score-circle { width: 40px; height: 40px; font-size: 14px; }
+
+        /* アラート */
+        .alert-row { padding: 10px 12px; }
+    }
+
+    @media (max-width: 480px) {
+        .ticker-strip { margin: -1rem -4px 8px -4px; }
+        .ts-item { padding: 8px 10px; min-width: 95px; }
+        .ts-item .ts-price { font-size: 13px; }
+        .ts-item .ts-change { font-size: 10px; }
+
+        .idx-card .idx-val { font-size: 17px; }
+        .idx-card .idx-chart-wrap { height: 50px; }
+
+        .fav-card .fav-chart-area { height: 110px; }
+        .fav-card .fav-body { padding: 10px 12px; }
+
+        .mc-row .mc-code { width: 50px; font-size: 11px; }
+        .mc-row .mc-name { display: none; }
+        .mc-row .mc-price { flex: 1; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
 
 # ============================================================
-# サイドバー
+# ナビゲーション（デスクトップ: サイドバー / スマホ: ボトムナビ）
 # ============================================================
-st.sidebar.title("投資ダッシュボード")
+PAGE_LIST = ["マーケット概況", "お気に入り", "銘柄分析", "ポートフォリオ",
+             "価格アラート", "おすすめ銘柄", "JNX 夜間取引"]
+PAGE_KEYS = ["market", "fav", "analysis", "portfolio", "alert", "rec", "jnx"]
+PAGE_ICONS = ["&#x1F4CA;", "&#x2B50;", "&#x1F4C8;", "&#x1F4BC;", "&#x1F514;", "&#x1F3AF;", "&#x1F319;"]
+
+# query params でページを管理
+qp = st.query_params
+current_page_key = qp.get("p", "market")
+if current_page_key not in PAGE_KEYS:
+    current_page_key = "market"
+current_page_idx = PAGE_KEYS.index(current_page_key)
+page = PAGE_LIST[current_page_idx]
+
+# デスクトップ横ナビ（HTML/CSS ベース、リンクで遷移）
 now = datetime.now()
-st.sidebar.caption(f"最終更新: {now.strftime('%Y-%m-%d %H:%M')}")
+nav_items = ""
+for k, lb, ic in zip(PAGE_KEYS, PAGE_LIST, PAGE_ICONS):
+    active = "active" if k == current_page_key else ""
+    nav_items += f'<a class="tn-item {active}" href="/?p={k}"><span class="tn-icon">{ic}</span>{lb}</a>'
 
-page = st.sidebar.radio(
-    "ページ",
-    ["マーケット概況", "お気に入り", "銘柄分析", "ポートフォリオ", "価格アラート", "おすすめ銘柄", "JNX 夜間取引"],
-    index=0,
-)
+st.markdown(f"""
+<div class="top-nav">
+    <span class="tn-brand">投資ダッシュボード</span>
+    {nav_items}
+    <span class="tn-spacer"></span>
+    <span class="tn-time">{now.strftime('%Y-%m-%d %H:%M')}</span>
+    <a href="/?p={current_page_key}&_refresh=1" class="tn-refresh">&#x1F504; 更新</a>
+</div>
+""", unsafe_allow_html=True)
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("**データソース**")
-st.sidebar.caption("yfinance (東証 / NYSE / NASDAQ)")
-st.sidebar.caption("JNX 公開CSV (夜間PTS)")
-st.sidebar.caption("立花証券API (準備中)")
-
-if st.sidebar.button("データ更新", use_container_width=True):
+# データ更新ボタン（query param で処理）
+if qp.get("_refresh") == "1":
+    st.query_params.pop("_refresh", None)
     st.cache_data.clear()
     st.rerun()
+
 
 
 # ============================================================
@@ -337,6 +642,49 @@ def cached_index_prices() -> dict:
             result[name] = {"price": 0, "change": 0}
     return result
 
+@st.cache_data(ttl=300)
+def cached_single_index(ticker: str) -> dict:
+    """単一指数の現在値・前日比を取得。"""
+    try:
+        info = fetch_stock_info(ticker)
+        price = info.get("current_price") or info.get("previous_close") or 0
+        prev = info.get("previous_close") or 0
+        change = ((price - prev) / prev * 100) if prev else 0
+        return {"price": price, "change": change, "name": info.get("name", ticker)}
+    except Exception:
+        return {"price": 0, "change": 0, "name": ticker}
+
+@st.cache_data(ttl=300)
+def cached_index_chart(ticker: str, interval: str, period: str) -> list[float]:
+    """インデックスの終値リストを取得（バーチャート用）。"""
+    df = fetch_index_chart_data(ticker, interval, period)
+    if df.empty:
+        return []
+    return df["Close"].dropna().tolist()
+
+@st.cache_data(ttl=600)
+def cached_market_news() -> list[dict]:
+    return fetch_market_news()
+
+@st.cache_data(ttl=600)
+def cached_portfolio_news(tickers: tuple) -> list[dict]:
+    all_news = []
+    seen = set()
+    # まず日本語ニュースを優先
+    for t in tickers[:5]:
+        for item in fetch_ticker_news(t, max_items=5, japanese_only=True):
+            if item["title"] not in seen:
+                seen.add(item["title"])
+                all_news.append(item)
+    # 日本語が少なければ全言語で補完
+    if len(all_news) < 3:
+        for t in tickers[:5]:
+            for item in fetch_ticker_news(t, max_items=3):
+                if item["title"] not in seen:
+                    seen.add(item["title"])
+                    all_news.append(item)
+    return all_news[:10]
+
 
 # ============================================================
 # ヘルパー: 指数バー（横並び）
@@ -351,12 +699,12 @@ def _render_index_bar():
         cls = "up" if change >= 0 else "down"
         arrow = "+" if change >= 0 else ""
         items_html += f"""
-        <div class="index-item">
-            <span class="i-name">{name}</span>
-            <span class="i-price">{val}</span>
-            <span class="i-change {cls}">{arrow}{change:.2f}%</span>
+        <div class="ts-item">
+            <div class="ts-name">{name}</div>
+            <div class="ts-price">{val}</div>
+            <div class="ts-change {cls}">{arrow}{change:.2f}%</div>
         </div>"""
-    st.markdown(f'<div class="index-bar">{items_html}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="ticker-strip">{items_html}</div>', unsafe_allow_html=True)
 
 
 # ============================================================
@@ -403,21 +751,171 @@ def draw_candlestick_chart(df: pd.DataFrame, ticker: str, show_indicators: bool 
         fig.add_hline(y=TECHNICAL["rsi_oversold"], line_dash="dash", line_color="#4caf50", line_width=0.8, row=3, col=1)
         fig.add_hline(y=TECHNICAL["rsi_overbought"], line_dash="dash", line_color="#d32f2f", line_width=0.8, row=3, col=1)
 
-    fig.update_layout(height=600, xaxis_rangeslider_visible=False, template="plotly_white",
-        paper_bgcolor="#ffffff", plot_bgcolor="#ffffff", showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
+    fig.update_layout(height=600, xaxis_rangeslider_visible=False, template="plotly_dark",
+        paper_bgcolor="#1a1a2e", plot_bgcolor="#1a1a2e", showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
+                    font=dict(size=10, color="rgba(255,255,255,0.6)")),
         margin=dict(l=50, r=20, t=40, b=20))
-    fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"])], gridcolor="#f0f0f0")
-    fig.update_yaxes(gridcolor="#f0f0f0")
+    fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"])], gridcolor="rgba(255,255,255,0.05)")
+    fig.update_yaxes(gridcolor="rgba(255,255,255,0.05)")
     st.plotly_chart(fig, use_container_width=True)
 
 
 # ============================================================
 # ページ: マーケット概況
 # ============================================================
+def _make_bar_svg(prices: list[float], width: int = 280, height: int = 80) -> str:
+    """終値リストからSVGバーチャートを生成する（iSPEED風）。"""
+    if not prices or len(prices) < 2:
+        return ""
+    n = len(prices)
+    mn, mx = min(prices), max(prices)
+    rng = mx - mn if mx != mn else 1
+    bar_w = max(1, (width - 4) / n - 1)
+    gap = 1
+
+    bars = ""
+    for i, p in enumerate(prices):
+        x = 2 + i * (bar_w + gap)
+        bar_h = max(2, (p - mn) / rng * (height - 8))
+        y = height - 4 - bar_h
+        is_up = p >= prices[i - 1] if i > 0 else True
+        color = "#ff5252" if is_up else "#448aff"
+        bars += f'<rect x="{x:.1f}" y="{y:.1f}" width="{bar_w:.1f}" height="{bar_h:.1f}" fill="{color}" rx="1"/>'
+
+    return f'<svg viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg">{bars}</svg>'
+
+
 def page_market_overview():
-    with st.spinner("指数を取得中..."):
-        _render_index_bar()
+    # --- ユーザー選択の4指数を取得 ---
+    saved = get_setting("top_indices", json.dumps(DEFAULT_TOP_INDICES))
+    try:
+        top_indices = json.loads(saved)
+    except Exception:
+        top_indices = DEFAULT_TOP_INDICES
+
+    # 時間足選択（session_stateで管理）
+    if "idx_tf" not in st.session_state:
+        st.session_state["idx_tf"] = "日足"
+
+    # タイムフレーム設定（interval -> period マッピング）
+    TF_MAP = {
+        "1分": ("1m", "1d"),
+        "5分": ("5m", "5d"),
+        "15分": ("15m", "5d"),
+        "日足": ("1d", "3mo"),
+        "週足": ("1wk", "1y"),
+        "月足": ("1mo", "5y"),
+    }
+
+    # --- カスタマイズ設定 ---
+    with st.expander("表示する指数をカスタマイズ", expanded=False):
+        all_keys = list(AVAILABLE_INDICES.keys())
+        all_names = [AVAILABLE_INDICES[k] for k in all_keys]
+        current_selection = [AVAILABLE_INDICES.get(t, t) for t in top_indices]
+        selected = st.multiselect("4つ選択してください", all_names,
+                                  default=current_selection, max_selections=4)
+        if len(selected) == 4:
+            new_tickers = [all_keys[all_names.index(s)] for s in selected]
+            if new_tickers != top_indices:
+                set_setting("top_indices", json.dumps(new_tickers))
+                st.cache_data.clear()
+                st.rerun()
+
+    # --- タイムフレーム切替 ---
+    current_tf = st.session_state["idx_tf"]
+    selected_tf = st.radio("時間足", list(TF_MAP.keys()),
+                           index=list(TF_MAP.keys()).index(current_tf),
+                           horizontal=True, label_visibility="collapsed")
+    if selected_tf != current_tf:
+        st.session_state["idx_tf"] = selected_tf
+        st.rerun()
+
+    interval, period = TF_MAP.get(selected_tf, ("1d", "3mo"))
+
+    # --- 4指数カード ---
+    with st.spinner("指数データを取得中..."):
+        cards_html = '<div class="idx-grid">'
+        for ticker in top_indices[:4]:
+            name = AVAILABLE_INDICES.get(ticker, ticker)
+            data = cached_single_index(ticker)
+            price = data["price"]
+            change = data["change"]
+
+            val = f"{price:,.2f}" if "=" in ticker else (f"{price:,.0f}" if price >= 1000 else f"{price:,.2f}")
+            cls = "up" if change >= 0 else "down"
+            sign = "+" if change >= 0 else ""
+
+            # バーチャートデータ
+            chart_data = cached_index_chart(ticker, interval, period)
+            bar_svg = _make_bar_svg(chart_data, width=280, height=80)
+
+            cards_html += f"""
+            <div class="idx-card">
+                <div class="idx-label">{name}</div>
+                <div class="idx-val">{val}</div>
+                <div class="idx-chg {cls}">{sign}{change:.2f}%</div>
+                <div class="idx-chart-wrap">{bar_svg}</div>
+            </div>"""
+        cards_html += '</div>'
+        st.markdown(cards_html, unsafe_allow_html=True)
+
+    # --- ニュースセクション ---
+    news_col1, news_col2 = st.columns(2)
+
+    with news_col1:
+        with st.spinner("マーケットニュース取得中..."):
+            market_news = cached_market_news()
+        news_html = '<div class="news-section"><div class="news-title">マーケットニュース</div>'
+        if market_news:
+            for item in market_news[:5]:
+                thumb = f'<img class="news-thumb" src="{item["thumbnail"]}" alt="">' if item.get("thumbnail") else '<div class="news-thumb"></div>'
+                link = item.get("link", "#")
+                news_html += f"""
+                <a class="news-item" href="{link}" target="_blank" rel="noopener">
+                    {thumb}
+                    <div class="news-body">
+                        <div class="news-headline">{item['title']}</div>
+                        <div class="news-meta">{item.get('publisher', '')} {item.get('published', '')[:10]}</div>
+                    </div>
+                </a>"""
+        else:
+            news_html += '<div class="news-empty">ニュースを取得できませんでした</div>'
+        news_html += '</div>'
+        st.markdown(news_html, unsafe_allow_html=True)
+
+    with news_col2:
+        holdings = get_all_holdings()
+        if not holdings.empty:
+            h_tickers = tuple(holdings["ticker"].tolist())
+            with st.spinner("保有銘柄ニュース取得中..."):
+                portfolio_news = cached_portfolio_news(h_tickers)
+            pn_html = '<div class="news-section"><div class="news-title">保有銘柄ニュース</div>'
+            if portfolio_news:
+                for item in portfolio_news[:5]:
+                    thumb = f'<img class="news-thumb" src="{item["thumbnail"]}" alt="">' if item.get("thumbnail") else '<div class="news-thumb"></div>'
+                    link = item.get("link", "#")
+                    pn_html += f"""
+                    <a class="news-item" href="{link}" target="_blank" rel="noopener">
+                        {thumb}
+                        <div class="news-body">
+                            <div class="news-headline">{item['title']}</div>
+                            <div class="news-meta">{item.get('publisher', '')} {item.get('published', '')[:10]}</div>
+                        </div>
+                    </a>"""
+            else:
+                pn_html += '<div class="news-empty">ニュースがありません</div>'
+            pn_html += '</div>'
+            st.markdown(pn_html, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="news-section">
+                <div class="news-title">保有銘柄ニュース</div>
+                <div class="news-empty">ポートフォリオに銘柄を登録するとニュースが表示されます</div>
+            </div>""", unsafe_allow_html=True)
+
+    # --- 従来の銘柄一覧 ---
+    _render_index_bar()
 
     col_jp, col_us = st.columns(2)
     with col_jp:
@@ -427,11 +925,12 @@ def page_market_overview():
             rows = ""
             for _, row in jp_prices.iterrows():
                 t = row["ticker"].replace(".T", "")
-                p = f"¥{row['price']:,.0f}" if row['currency'] == 'JPY' else f"{row['price']:,.2f}"
+                p = f"&yen;{row['price']:,.0f}" if row['currency'] == 'JPY' else f"{row['price']:,.2f}"
                 c = row["change_pct"]
                 cls = "up" if c >= 0 else "down"
                 arr = "+" if c >= 0 else ""
-                rows += f'<div class="mc-row"><span class="mc-code">{t}</span><span class="mc-name">{row["name"]}</span><span class="mc-price">{p}</span><span class="mc-change {cls}">{arr}{c:.2f}%</span></div>'
+                name_jp = jp_name(row["ticker"], row["name"])
+                rows += f'<div class="mc-row"><span class="mc-code">{t}</span><span class="mc-name">{name_jp}</span><span class="mc-price">{p}</span><span class="mc-change {cls}">{arr}{c:.2f}%</span></div>'
             st.markdown(f'<div class="market-card"><div class="mc-title">日本株式 (東証)</div>{rows}</div>', unsafe_allow_html=True)
 
     with col_us:
@@ -443,7 +942,8 @@ def page_market_overview():
                 c = row["change_pct"]
                 cls = "up" if c >= 0 else "down"
                 arr = "+" if c >= 0 else ""
-                rows += f'<div class="mc-row"><span class="mc-code">{row["ticker"]}</span><span class="mc-name">{row["name"]}</span><span class="mc-price">${row["price"]:,.2f}</span><span class="mc-change {cls}">{arr}{c:.2f}%</span></div>'
+                name_jp = jp_name(row["ticker"], row["name"])
+                rows += f'<div class="mc-row"><span class="mc-code">{row["ticker"]}</span><span class="mc-name">{name_jp}</span><span class="mc-price">${row["price"]:,.2f}</span><span class="mc-change {cls}">{arr}{c:.2f}%</span></div>'
             st.markdown(f'<div class="market-card"><div class="mc-title">米国株式 (NYSE / NASDAQ)</div>{rows}</div>', unsafe_allow_html=True)
 
 
@@ -593,7 +1093,7 @@ def page_favorites():
             <div class="fav-chart-area">{svg}</div>
             <div class="fav-body">
                 <div class="fav-ticker">{ticker}</div>
-                <div class="fav-name" title="{name}">{name}</div>
+                <div class="fav-name" title="{name}">{jp_name(ticker, name)}</div>
                 <div class="fav-row">
                     <span class="fav-price">{price_str}</span>
                     <span class="fav-change {chg_cls}">{chg_sign}{change_pct:.2f}%</span>
@@ -925,7 +1425,7 @@ def _display_recommendations(df: pd.DataFrame):
         bull, bear = row.get("signals_count_bull", 0), row.get("signals_count_bear", 0)
         html += f"""<div class="rec-row">
             <div class="rec-score-circle {sc}">{score}</div>
-            <div class="rec-info"><div class="rec-name">{row['name']}</div><div class="rec-ticker">{row['ticker']}</div></div>
+            <div class="rec-info"><div class="rec-name">{jp_name(row['ticker'], row['name'])}</div><div class="rec-ticker">{row['ticker']}</div></div>
             <div style="font-size:12px;color:#666;">+{bull} / -{bear}</div>
             <div class="rec-label {lc}">{lt}</div>
         </div>"""
@@ -1117,3 +1617,65 @@ def page_jnx_night():
  "銘柄分析": page_stock_analysis, "ポートフォリオ": page_portfolio,
  "価格アラート": page_alerts, "おすすめ銘柄": page_recommendations,
  "JNX 夜間取引": page_jnx_night}[page]()
+
+# ボトムナビ: components.html で親ドキュメントの body に直接注入
+# position:fixed が Streamlit の transform/overflow 付き祖先に阻まれるため、
+# JS で親ウィンドウの body 末尾に追加して確実にビューポート固定にする
+bnav_links_html = "".join(
+    f'<a class="bnav-item {"active" if k == current_page_key else ""}" href="/?p={k}">'
+    f'<span class="bnav-icon">{ic}</span>'
+    f'<span class="bnav-label">{lb[:4] if len(lb) > 4 else lb}</span></a>'
+    for k, lb, ic in zip(PAGE_KEYS[:5], PAGE_LIST[:5], PAGE_ICONS[:5])
+)
+
+components.html(f"""
+<script>
+(function() {{
+    // 768px 以下のみ表示
+    if (window.parent.innerWidth > 768) return;
+    var doc = window.parent.document;
+    // 既存のボトムナビを削除（リロード対策）
+    var old = doc.getElementById('st-bottom-nav');
+    if (old) old.remove();
+    // スタイル注入
+    var style = doc.createElement('style');
+    style.id = 'st-bottom-nav-style';
+    if (!doc.getElementById('st-bottom-nav-style')) {{
+        style.textContent = `
+            #st-bottom-nav {{
+                display: flex !important;
+                position: fixed !important;
+                bottom: 0 !important; left: 0 !important; right: 0 !important;
+                background: linear-gradient(180deg, #1a1a2e, #111125) !important;
+                border-top: 1px solid rgba(255,255,255,0.08) !important;
+                z-index: 999999 !important;
+                padding: 6px 0 env(safe-area-inset-bottom, 8px) !important;
+                justify-content: space-around !important; align-items: center !important;
+                width: 100vw !important; margin: 0 !important;
+                font-family: 'Noto Sans JP', sans-serif;
+                box-shadow: 0 -4px 16px rgba(0,0,0,0.4);
+            }}
+            #st-bottom-nav .bnav-item {{
+                display: flex; flex-direction: column; align-items: center;
+                text-decoration: none; padding: 4px 8px; min-width: 56px;
+                transition: color 0.15s; color: rgba(255,255,255,0.35);
+            }}
+            #st-bottom-nav .bnav-item.active {{ color: #ff5252; }}
+            #st-bottom-nav .bnav-item:hover {{ color: rgba(255,255,255,0.7); }}
+            #st-bottom-nav .bnav-icon {{ font-size: 20px; line-height: 1; }}
+            #st-bottom-nav .bnav-label {{
+                font-size: 9px; margin-top: 2px; font-weight: 600;
+                letter-spacing: 0.3px;
+            }}
+        `;
+        doc.head.appendChild(style);
+    }}
+    // ナビ本体
+    var nav = doc.createElement('div');
+    nav.id = 'st-bottom-nav';
+    nav.innerHTML = `{bnav_links_html}`;
+    doc.body.appendChild(nav);
+}})();
+</script>
+""", height=0)
+

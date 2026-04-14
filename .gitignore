@@ -36,6 +36,12 @@ node_modules/
 investment-dashboard/portfolio.db
 investment-dashboard/__pycache__/
 
+# Next.js
+investment-dashboard-next/.next/
+investment-dashboard-next/node_modules/
+investment-dashboard-next/.env.local
+investment-dashboard-next/next-env.d.ts
+
 # Slides images (binary)
 slides_img/
 

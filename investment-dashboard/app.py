@@ -41,6 +41,13 @@ def jp_name(ticker: str, fallback: str = "") -> str:
     return TICKER_NAME_JP.get(ticker, fallback or ticker)
 
 # ============================================================
+# ビューポート設定（スマホ縮小防止）
+# ============================================================
+st.markdown("""
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+""", unsafe_allow_html=True)
+
+# ============================================================
 # 楽天証券風CSS
 # ============================================================
 st.markdown("""
@@ -494,73 +501,103 @@ st.markdown("""
     @media (max-width: 768px) {
         /* スマホ: 横ナビ非表示 → ボトムナビで代替 */
         .top-nav { display: none !important; }
-        .stMainBlockContainer { padding: 0 8px 80px 8px !important; }
-        .stApp { padding-bottom: 0 !important; }
+        .stMainBlockContainer { padding: 0 10px 80px 10px !important; }
+        .stApp { padding-bottom: 0 !important; font-size: 16px !important; }
 
         /* components.html の iframe 自体を非表示 */
         iframe[height="0"] { display: none !important; }
 
-        /* 指数バー: 横スクロール + 小さめ */
-        .ticker-strip { margin: -1rem -8px 12px -8px; }
-        .ts-item { padding: 10px 14px; min-width: 110px; }
-        .ts-item .ts-price { font-size: 15px; }
-        .ts-item .ts-name { font-size: 9px; }
+        /* ベースフォントサイズ拡大 */
+        .stApp p, .stApp span, .stApp label, .stApp div {
+            font-size: 15px !important;
+        }
+        .stApp [data-testid="stMarkdownContainer"] p { font-size: 15px !important; }
 
-        /* インデックスカード: 2列維持だが小さく */
-        .idx-grid { gap: 8px; }
-        .idx-card { padding: 12px; }
-        .idx-card .idx-val { font-size: 20px; }
-        .idx-card .idx-chg { font-size: 11px; }
-        .idx-card .idx-chart-wrap { height: 60px; }
+        /* 指数バー */
+        .ticker-strip { margin: -1rem -10px 12px -10px; }
+        .ts-item { padding: 10px 14px; min-width: 110px; }
+        .ts-item .ts-price { font-size: 17px; }
+        .ts-item .ts-name { font-size: 11px; }
+        .ts-item .ts-change { font-size: 12px; }
+
+        /* インデックスカード: 2列維持 */
+        .idx-grid { gap: 10px; }
+        .idx-card { padding: 14px; }
+        .idx-card .idx-label { font-size: 12px; }
+        .idx-card .idx-val { font-size: 22px; }
+        .idx-card .idx-chg { font-size: 13px; }
+        .idx-card .idx-chart-wrap { height: 65px; }
 
         /* マーケットカード */
-        .mc-row { padding: 8px 12px; }
-        .mc-row .mc-name { font-size: 11px; }
-        .mc-row .mc-price { font-size: 13px; width: 85px; }
-        .mc-row .mc-change { width: 60px; font-size: 11px; }
+        .mc-row { padding: 10px 14px; }
+        .mc-row .mc-code { font-size: 13px; }
+        .mc-row .mc-name { font-size: 13px; }
+        .mc-row .mc-price { font-size: 15px; width: 95px; }
+        .mc-row .mc-change { width: 65px; font-size: 13px; }
+        .market-card .mc-title { font-size: 13px; }
 
         /* ニュース */
-        .news-item { padding: 10px 14px; }
-        .news-item .news-thumb { width: 50px; height: 38px; }
-        .news-item .news-headline { font-size: 12px; }
+        .news-item { padding: 12px 14px; }
+        .news-item .news-thumb { width: 56px; height: 42px; }
+        .news-item .news-headline { font-size: 14px !important; }
+        .news-item .news-meta { font-size: 11px; }
+        .news-section .news-title { font-size: 13px; }
 
         /* お気に入り: 1列 */
         .fav-gallery { grid-template-columns: 1fr; gap: 12px; }
-        .fav-card .fav-price { font-size: 18px; }
+        .fav-card .fav-ticker { font-size: 13px; }
+        .fav-card .fav-name { font-size: 15px; }
+        .fav-card .fav-price { font-size: 20px; }
+        .fav-card .fav-change { font-size: 14px; }
 
         /* 資産サマリー */
         .asset-summary { padding: 16px; }
         .asset-row { gap: 16px; }
-        .asset-item .a-value { font-size: 18px; }
+        .asset-item .a-label { font-size: 12px; }
+        .asset-item .a-value { font-size: 20px; }
 
         /* テーブル */
-        .ht-table { font-size: 11px; }
-        .ht-table thead th { padding: 8px 8px; font-size: 10px; }
-        .ht-table tbody td { padding: 8px 8px; }
+        .ht-table { font-size: 13px; }
+        .ht-table thead th { padding: 10px 10px; font-size: 12px; }
+        .ht-table tbody td { padding: 10px 10px; }
 
         /* おすすめ */
-        .rec-row { padding: 10px 12px; gap: 10px; }
-        .rec-score-circle { width: 40px; height: 40px; font-size: 14px; }
+        .rec-row { padding: 12px 14px; gap: 12px; }
+        .rec-score-circle { width: 44px; height: 44px; font-size: 15px; }
+        .rec-info .rec-name { font-size: 15px; }
+        .rec-info .rec-ticker { font-size: 12px; }
+        .rec-label { font-size: 13px; }
 
         /* アラート */
-        .alert-row { padding: 10px 12px; }
+        .alert-row { padding: 12px 14px; }
+        .alert-info .alert-name { font-size: 15px; }
+        .alert-info .alert-cond { font-size: 12px; }
+
+        /* セクションヘッダー */
+        .section-hdr { font-size: 13px; }
+
+        /* Streamlit ウィジェット */
+        div[data-testid="stMainBlockContainer"] div[role="radiogroup"] label {
+            padding: 6px 14px !important; font-size: 14px !important;
+        }
+        [data-testid="stExpander"] summary span { font-size: 14px !important; }
     }
 
     @media (max-width: 480px) {
-        .ticker-strip { margin: -1rem -4px 8px -4px; }
-        .ts-item { padding: 8px 10px; min-width: 95px; }
-        .ts-item .ts-price { font-size: 13px; }
-        .ts-item .ts-change { font-size: 10px; }
+        .ticker-strip { margin: -1rem -6px 8px -6px; }
+        .ts-item { padding: 8px 10px; min-width: 100px; }
+        .ts-item .ts-price { font-size: 15px; }
+        .ts-item .ts-change { font-size: 11px; }
 
-        .idx-card .idx-val { font-size: 17px; }
-        .idx-card .idx-chart-wrap { height: 50px; }
+        .idx-card .idx-val { font-size: 19px; }
+        .idx-card .idx-chart-wrap { height: 55px; }
 
         .fav-card .fav-chart-area { height: 110px; }
-        .fav-card .fav-body { padding: 10px 12px; }
+        .fav-card .fav-body { padding: 12px 14px; }
 
-        .mc-row .mc-code { width: 50px; font-size: 11px; }
-        .mc-row .mc-name { display: none; }
-        .mc-row .mc-price { flex: 1; }
+        .mc-row .mc-code { width: 55px; font-size: 12px; }
+        .mc-row .mc-name { font-size: 12px; }
+        .mc-row .mc-price { font-size: 14px; flex: 1; }
     }
 </style>
 """, unsafe_allow_html=True)

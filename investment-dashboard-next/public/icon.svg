@@ -5,16 +5,23 @@
       <stop offset="100%" stop-color="#ff2bd6"/>
     </linearGradient>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feGaussianBlur stdDeviation="8" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
   <rect width="512" height="512" rx="96" fill="#05060d"/>
   <g filter="url(#glow)">
-    <path d="M408 102 L186 102 L102 186 L102 326 L186 410 L408 410"
-      stroke="url(#g)" stroke-width="36" stroke-linecap="square" stroke-linejoin="miter" fill="none"/>
-    <path d="M286 230 L226 230 L226 282 L286 282"
-      stroke="#ff2bd6" stroke-width="22" stroke-linecap="square" fill="none"/>
-    <rect x="356" y="240" width="36" height="36" fill="#00f0ff"/>
+    <g fill="url(#g)">
+      <!-- Top horizontal (segment a) -->
+      <polygon points="160,80 380,80 410,110 380,140 160,140 130,110"/>
+      <!-- Top-left vertical (segment f) -->
+      <polygon points="118,150 148,180 148,236 118,266 88,236 88,180"/>
+      <!-- Bottom-left vertical (segment e) -->
+      <polygon points="118,278 148,308 148,364 118,394 88,364 88,308"/>
+      <!-- Bottom horizontal (segment d) -->
+      <polygon points="160,404 380,404 410,434 380,464 160,464 130,434"/>
+    </g>
+    <!-- 小数点ドット -->
+    <rect x="420" y="430" width="40" height="40" fill="#ff2bd6"/>
   </g>
 </svg>

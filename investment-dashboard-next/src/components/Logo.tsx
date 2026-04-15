@@ -25,25 +25,19 @@ export function Logo({ size = 28, showText = true, className = "" }: LogoProps) 
             <stop offset="100%" stopColor="#ff2bd6" />
           </linearGradient>
         </defs>
-        {/* Angular C bracket */}
-        <path
-          d="M32 8 L14 8 L6 16 L6 24 L14 32 L32 32"
-          stroke="url(#cavka-stroke)"
-          strokeWidth="3"
-          strokeLinecap="square"
-          strokeLinejoin="miter"
-          fill="none"
-        />
-        {/* Inner notch — circuit accent */}
-        <path
-          d="M22 18 L18 18 L18 22 L22 22"
-          stroke="#ff2bd6"
-          strokeWidth="2"
-          strokeLinecap="square"
-          fill="none"
-        />
-        {/* Pixel dot */}
-        <rect x="28" y="19" width="3" height="3" fill="#00f0ff" />
+        {/* 7-segment LED「C」 — 4セグメント (上 / 左上縦 / 左下縦 / 下) */}
+        <g fill="url(#cavka-stroke)">
+          {/* 上水平 (segment a) */}
+          <polygon points="13,6 31,6 33,8 31,10 13,10 11,8" />
+          {/* 左上縦 (segment f) */}
+          <polygon points="9,11 11,13 11,17 9,19 7,17 7,13" />
+          {/* 左下縦 (segment e) */}
+          <polygon points="9,21 11,23 11,27 9,29 7,27 7,23" />
+          {/* 下水平 (segment d) */}
+          <polygon points="13,30 31,30 33,32 31,34 13,34 11,32" />
+        </g>
+        {/* 小数点ドット (右下、電卓の「.」) */}
+        <rect x="34" y="32" width="3" height="3" fill="#ff2bd6" />
       </svg>
       {showText && (
         <span

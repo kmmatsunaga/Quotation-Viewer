@@ -5,9 +5,16 @@ import {
   User,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
 } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
+
+function isMobile(): boolean {
+  if (typeof window === "undefined") return false;
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+}
 
 // 許可するユーザー（メールアドレス）
 const ALLOWED_USERS = [
@@ -36,9 +43,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // リダイレクトログインの結果を処理（スマホ向け）
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user && !ALLOWED_USERS.includes(result.user.email ?? "")) {
+          firebaseSignOut(auth);
+          setUser(null);
+          setError("このアカウントはアクセスが許可されていません");
+        }
+      })
+      .catch((err) => {
+        setError(`ログインに失敗しました: ${err.code ?? err.message}`);
+      });
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser && !ALLOWED_USERS.includes(firebaseUser.email ?? "")) {
-        // 許可されていないユーザー → ログアウト
         firebaseSignOut(auth);
         setUser(null);
         setError("このアカウントはアクセスが許可されていません");
@@ -54,14 +73,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = async () => {
     setError(null);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      if (!ALLOWED_USERS.includes(result.user.email ?? "")) {
-        await firebaseSignOut(auth);
-        setUser(null);
-        setError("このアカウントはアクセスが許可されていません");
+      if (isMobile()) {
+        // スマホ: リダイレクト方式（ポップアップがブロックされるため）
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        // PC: ポップアップ方式
+        const result = await signInWithPopup(auth, googleProvider);
+        if (!ALLOWED_USERS.includes(result.user.email ?? "")) {
+          await firebaseSignOut(auth);
+          setUser(null);
+          setError("このアカウントはアクセスが許可されていません");
+        }
       }
-    } catch {
-      setError("ログインに失敗しました");
+    } catch (err: unknown) {
+      const firebaseErr = err as { code?: string; message?: string };
+      setError(`ログインに失敗しました: ${firebaseErr.code ?? firebaseErr.message}`);
     }
   };
 

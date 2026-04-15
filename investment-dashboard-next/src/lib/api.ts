@@ -28,12 +28,22 @@ function buildUrl(path: string, params?: Record<string, string>): string {
 
 // --- Index / Market Data ---
 
+export interface IndexCandle {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
 export interface IndexData {
   name: string;
   value: number;
   change: number;
   change_pct: number;
   chart_data?: number[];
+  candles?: IndexCandle[];
 }
 
 export function fetchIndicesUrl(): string {

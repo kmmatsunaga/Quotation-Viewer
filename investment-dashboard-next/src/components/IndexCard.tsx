@@ -5,9 +5,18 @@ interface IndexCardProps {
   value: number;
   change: number;
   chartData?: number[];
+  selected?: boolean;
+  onClick?: () => void;
 }
 
-export function IndexCard({ name, value, change, chartData }: IndexCardProps) {
+export function IndexCard({
+  name,
+  value,
+  change,
+  chartData,
+  selected = false,
+  onClick,
+}: IndexCardProps) {
   const safeValue = value ?? 0;
   const safeChange = change ?? 0;
   const isUp = safeChange >= 0;
@@ -18,8 +27,17 @@ export function IndexCard({ name, value, change, chartData }: IndexCardProps) {
   const bars = chartData ?? [];
   const maxBar = Math.max(...bars, 1);
 
+  const Tag = onClick ? "button" : "div";
+
   return (
-    <div className="bg-card rounded-xl p-3 md:p-4 border border-[var(--color-border)] hover:border-[var(--color-accent)]/30 transition-all duration-200">
+    <Tag
+      onClick={onClick}
+      className={`bg-card rounded-xl p-3 md:p-4 border transition-all duration-200 text-left w-full ${
+        selected
+          ? "border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/40"
+          : "border-[var(--color-border)] hover:border-[var(--color-accent)]/30"
+      }`}
+    >
       <div className="flex items-start justify-between mb-2">
         <span className="text-xs text-[var(--color-text-secondary)] truncate">
           {name}
@@ -59,6 +77,6 @@ export function IndexCard({ name, value, change, chartData }: IndexCardProps) {
           ))}
         </div>
       )}
-    </div>
+    </Tag>
   );
 }

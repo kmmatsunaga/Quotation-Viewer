@@ -1,20 +1,74 @@
 @import "tailwindcss";
 
 :root {
-  --bg-primary: #0f1117;
-  --bg-card: #1a1a2e;
-  --bg-card-hover: #222240;
-  --bg-input: #16162b;
-  --color-up: #ff5252;
-  --color-down: #448aff;
-  --color-accent: #ff5252;
-  --color-text: #e0e0e0;
-  --color-text-secondary: #9e9e9e;
-  --color-border: #2a2a4a;
-  --color-success: #4caf50;
-  --color-warning: #ff9800;
+  /* Neo Tokyo palette */
+  --bg-primary: #05060d;
+  --bg-card: #0d1024;
+  --bg-card-hover: #161a3a;
+  --bg-input: #0a0d1f;
+  --color-up: #ff3b6b;          /* JP convention: up = red, neon hot pink */
+  --color-down: #00d9ff;        /* JP convention: down = blue, electric cyan */
+  --color-accent: #00f0ff;      /* primary neon — cyan */
+  --color-accent-2: #ff2bd6;    /* secondary neon — magenta */
+  --color-text: #d9f6ff;
+  --color-text-secondary: #6a7a9a;
+  --color-border: #1f2547;
+  --color-border-glow: #00f0ff44;
+  --color-success: #00ff9d;
+  --color-warning: #ffb000;
   --nav-height: 56px;
   --bottom-nav-height: 64px;
+  --glow-cyan: 0 0 12px rgba(0, 240, 255, 0.55);
+  --glow-magenta: 0 0 12px rgba(255, 43, 214, 0.55);
+}
+
+/* Cyber grid background */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(0, 240, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 240, 255, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 0%, transparent 85%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 0%, transparent 85%);
+}
+
+/* Neon utilities */
+.neon-border {
+  border: 1px solid var(--color-border);
+  box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.06), 0 0 14px rgba(0, 240, 255, 0.08);
+}
+
+.neon-text-cyan {
+  color: var(--color-accent);
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
+}
+
+.neon-text-magenta {
+  color: var(--color-accent-2);
+  text-shadow: 0 0 8px rgba(255, 43, 214, 0.6);
+}
+
+.scanline {
+  position: relative;
+  overflow: hidden;
+}
+.scanline::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 240, 255, 0.025) 2px,
+    rgba(0, 240, 255, 0.025) 3px
+  );
+  pointer-events: none;
 }
 
 * {

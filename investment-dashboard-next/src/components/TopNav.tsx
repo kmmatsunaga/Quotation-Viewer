@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { Logo } from "./Logo";
 
 interface NavItem {
   href: string;
@@ -41,12 +42,17 @@ export function TopNav({ navItems, currentPath }: TopNavProps) {
   };
 
   return (
-    <nav className="hidden md:flex fixed top-0 left-0 right-0 z-50 h-[var(--nav-height)] items-center justify-between px-6 bg-gradient-to-b from-[#1a1a2e] to-[#0f1117] border-b-2 border-[var(--color-accent)]">
+    <nav
+      className="hidden md:flex fixed top-0 left-0 right-0 z-50 h-[var(--nav-height)] items-center justify-between px-6 backdrop-blur-md"
+      style={{
+        background: "linear-gradient(180deg, rgba(13,16,36,0.92) 0%, rgba(5,6,13,0.85) 100%)",
+        borderBottom: "1px solid var(--color-border)",
+        boxShadow: "0 0 24px rgba(0,240,255,0.12), inset 0 -1px 0 rgba(0,240,255,0.4)",
+      }}
+    >
       {/* Brand */}
-      <div className="flex items-center gap-2 shrink-0">
-        <span className="text-[var(--color-accent)] text-xl font-bold">
-          投資ダッシュボード
-        </span>
+      <div className="flex items-center shrink-0">
+        <Logo size={26} />
       </div>
 
       {/* Nav links */}

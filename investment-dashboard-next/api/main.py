@@ -19,7 +19,12 @@ from pydantic import BaseModel
 # Import modules (co-located in the same directory)
 # ---------------------------------------------------------------------------
 import config as cfg
-cfg.DB_PATH = os.path.join(os.path.dirname(__file__), "portfolio.db")
+# Vercel Serverless では /tmp のみ書き込み可能
+_IS_SERVERLESS = os.environ.get("VERCEL") == "1" or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+if _IS_SERVERLESS:
+    cfg.DB_PATH = "/tmp/portfolio.db"
+else:
+    cfg.DB_PATH = os.path.join(os.path.dirname(__file__), "portfolio.db")
 
 import data_fetcher as fetcher
 import portfolio_db as db

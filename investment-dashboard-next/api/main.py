@@ -5,11 +5,9 @@ Wraps the existing investment-dashboard Python modules
 and exposes them as a REST API.
 """
 
-import sys
 import os
 import time
 import logging
-from pathlib import Path
 from typing import Optional
 
 import pandas as pd
@@ -18,15 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # ---------------------------------------------------------------------------
-# Import existing modules from ../investment-dashboard/
+# Import modules (co-located in the same directory)
 # ---------------------------------------------------------------------------
-_DASHBOARD_DIR = str(Path(__file__).resolve().parent.parent.parent / "investment-dashboard")
-if _DASHBOARD_DIR not in sys.path:
-    sys.path.insert(0, _DASHBOARD_DIR)
-
-# Override DB_PATH *before* portfolio_db is imported (it calls init_db() on import)
 import config as cfg
-cfg.DB_PATH = os.path.join(_DASHBOARD_DIR, "portfolio.db")
+cfg.DB_PATH = os.path.join(os.path.dirname(__file__), "portfolio.db")
 
 import data_fetcher as fetcher
 import portfolio_db as db

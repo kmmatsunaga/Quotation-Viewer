@@ -44,7 +44,14 @@ const icons: Record<string, (active: boolean) => React.ReactNode> = {
 
 export function BottomNav({ navItems, currentPath }: BottomNavProps) {
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#1a1a2e] border-t border-[var(--color-border)] pb-safe">
+    <nav
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 pb-safe backdrop-blur-md"
+      style={{
+        background: "linear-gradient(0deg, rgba(13,16,36,0.95) 0%, rgba(5,6,13,0.85) 100%)",
+        borderTop: "1px solid var(--color-accent)",
+        boxShadow: "0 -4px 24px rgba(0,240,255,0.18)",
+      }}
+    >
       <div className="flex items-center justify-around h-[var(--bottom-nav-height)]">
         {navItems.map((item) => {
           const isActive = currentPath === item.href;
@@ -58,8 +65,21 @@ export function BottomNav({ navItems, currentPath }: BottomNavProps) {
                   : "text-[var(--color-text-secondary)]"
               }`}
             >
-              {icons[item.icon]?.(isActive)}
-              <span className="text-[10px] font-medium">{item.shortLabel}</span>
+              <span
+                style={
+                  isActive
+                    ? { filter: "drop-shadow(0 0 6px rgba(0,240,255,0.7))" }
+                    : undefined
+                }
+              >
+                {icons[item.icon]?.(isActive)}
+              </span>
+              <span
+                className="text-[9px] uppercase tracking-[0.1em]"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                {item.shortLabel}
+              </span>
             </Link>
           );
         })}

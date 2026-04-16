@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00f0ff"/>
+      <stop offset="100%" stop-color="#ff2bd6"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="#05060d"/>
+  <g filter="url(#glow)">
+    <g fill="url(#g)">
+      <!-- Top horizontal (segment a) -->
+      <polygon points="160,80 380,80 410,110 380,140 160,140 130,110"/>
+      <!-- Top-left vertical (segment f) -->
+      <polygon points="118,150 148,180 148,236 118,266 88,236 88,180"/>
+      <!-- Bottom-left vertical (segment e) -->
+      <polygon points="118,278 148,308 148,364 118,394 88,364 88,308"/>
+      <!-- Bottom horizontal (segment d) -->
+      <polygon points="160,404 380,404 410,434 380,464 160,464 130,434"/>
+    </g>
+    <!-- 小数点ドット -->
+    <rect x="420" y="430" width="40" height="40" fill="#ff2bd6"/>
+  </g>
+</svg>

@@ -34,7 +34,7 @@ export function NewsCard({
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex gap-3 p-3 bg-card rounded-lg border border-[var(--color-border)] hover:border-[var(--color-accent)]/30 transition-all duration-200 min-h-[44px]"
+      className="relative flex gap-3 p-3 bg-card border-l-2 border-l-[var(--color-accent)] border-y border-r border-[var(--color-border)] hover:border-y-[var(--color-accent)]/40 hover:border-r-[var(--color-accent)]/40 hover:bg-[var(--bg-card-hover)] transition-all duration-200 min-h-[44px]"
     >
       {thumbnail && (
         <div className="shrink-0 w-16 h-16 md:w-20 md:h-20 rounded overflow-hidden bg-[var(--bg-input)]">
@@ -51,10 +51,16 @@ export function NewsCard({
           {title}
         </h3>
         <div className="flex items-center gap-2 mt-1">
-          <span className="text-xs text-[var(--color-text-secondary)] truncate">
+          <span
+            className="text-[10px] uppercase tracking-[0.1em] text-[var(--color-accent)] truncate"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
             {publisher}
           </span>
-          <span className="text-xs text-[var(--color-text-secondary)]">
+          <span
+            className="text-[10px] text-[var(--color-text-secondary)]"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
             {formatDate(publishedAt)}
           </span>
         </div>

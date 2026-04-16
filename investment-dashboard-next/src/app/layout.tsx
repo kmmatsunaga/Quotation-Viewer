@@ -3,7 +3,8 @@ import "./globals.css";
 import { ClientLayout } from "@/components/ClientLayout";
 
 export const metadata: Metadata = {
-  title: "投資ダッシュボード",
+  title: "Cavka — Neo Tokyo Trading Terminal",
+  description: "Cavka: あなたの投資を、ネオ東京の速度で。",
   manifest: "/manifest.json",
 };
 
@@ -11,7 +12,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0f1117",
+  themeColor: "#05060d",
 };
 
 export default function RootLayout({
@@ -23,7 +24,7 @@ export default function RootLayout({
     <html lang="ja">
       <head>
         <link
-          href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;700&display=swap"
           rel="stylesheet"
         />
       </head>

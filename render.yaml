@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: cavka-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.api
+    plan: free
+    envVars:
+      - key: PORT
+        value: "8000"

@@ -1,0 +1,25 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy investment-dashboard modules (config, data_fetcher, portfolio_db, analysis, notifier)
+COPY investment-dashboard/ ./investment-dashboard/
+
+# Copy API
+COPY investment-dashboard-next/api/ ./investment-dashboard-next/api/
+
+# Install dependencies
+RUN pip install --no-cache-dir \
+    fastapi \
+    "uvicorn[standard]" \
+    yfinance \
+    pandas \
+    ta \
+    requests \
+    apscheduler
+
+# Port is set by the hosting platform via $PORT
+ENV PORT=8000
+EXPOSE ${PORT}
+
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT} --app-dir /app/investment-dashboard-next/api

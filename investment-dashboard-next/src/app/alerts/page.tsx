@@ -80,33 +80,68 @@ export default function AlertsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold">価格アラート</h1>
-        <button
-          onClick={handleCheck}
-          disabled={checking}
-          className="px-4 py-2 bg-[var(--bg-card)] text-sm font-medium rounded-lg border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition-colors min-h-[44px] disabled:opacity-50"
+        <h1
+          className="text-lg font-bold"
+          style={{
+            fontFamily: "'Orbitron', sans-serif",
+            background: "linear-gradient(90deg, #00f0ff 0%, #ff2bd6 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
         >
-          {checking ? "確認中..." : "手動チェック"}
-        </button>
+          価格アラート
+        </h1>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleCheck}
+            disabled={checking}
+            className="px-4 py-2 text-sm font-medium transition-all min-h-[44px] disabled:opacity-50 uppercase tracking-wider"
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+              border: "1px solid var(--color-accent-2)",
+              boxShadow: "0 0 18px rgba(255,43,214,0.35), inset 0 0 12px rgba(255,43,214,0.08)",
+              background: "transparent",
+              color: "var(--color-accent-2)",
+            }}
+          >
+            {checking ? "確認中..." : "手動チェック"}
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="px-4 py-2.5 text-sm font-medium transition-all min-h-[44px] uppercase tracking-wider"
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+              border: "1px solid var(--color-accent)",
+              boxShadow: "0 0 18px rgba(0,240,255,0.35), inset 0 0 12px rgba(0,240,255,0.08)",
+              background: "transparent",
+              color: "var(--color-accent)",
+            }}
+          >
+            {showForm ? "キャンセル" : "+ アラート追加"}
+          </button>
+        </div>
       </div>
-
-      {/* Add button */}
-      <button
-        onClick={() => setShowForm(!showForm)}
-        className="w-full md:w-auto px-4 py-2.5 bg-[var(--color-accent)] text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity min-h-[44px]"
-      >
-        {showForm ? "キャンセル" : "+ アラートを追加"}
-      </button>
 
       {/* Add form */}
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="bg-card rounded-xl p-4 border border-[var(--color-border)] space-y-3"
+          className="relative bg-card p-4 border border-[var(--color-border)] space-y-3"
+          style={{
+            clipPath: "polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)",
+            boxShadow: "inset 0 0 0 1px rgba(0,240,255,0.04)",
+          }}
         >
+          <span className="absolute top-0 right-0 w-2 h-2 border-t border-r border-[var(--color-accent)] opacity-60" />
+          <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-[var(--color-accent-2)] opacity-60" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-[var(--color-text-secondary)] block mb-1">
+              <label
+                className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)] block mb-1"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
                 銘柄コード
               </label>
               <input
@@ -116,12 +151,19 @@ export default function AlertsPage() {
                   setFormData({ ...formData, code: e.target.value })
                 }
                 required
-                className="w-full bg-[var(--bg-input)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none min-h-[44px]"
+                className="w-full bg-[var(--bg-input)] border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none min-h-[44px]"
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+                }}
                 placeholder="7203"
               />
             </div>
             <div>
-              <label className="text-xs text-[var(--color-text-secondary)] block mb-1">
+              <label
+                className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)] block mb-1"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
                 銘柄名
               </label>
               <input
@@ -131,12 +173,19 @@ export default function AlertsPage() {
                   setFormData({ ...formData, name: e.target.value })
                 }
                 required
-                className="w-full bg-[var(--bg-input)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none min-h-[44px]"
+                className="w-full bg-[var(--bg-input)] border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none min-h-[44px]"
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+                }}
                 placeholder="トヨタ自動車"
               />
             </div>
             <div>
-              <label className="text-xs text-[var(--color-text-secondary)] block mb-1">
+              <label
+                className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)] block mb-1"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
                 目標価格
               </label>
               <input
@@ -148,12 +197,19 @@ export default function AlertsPage() {
                 required
                 min="0"
                 step="0.01"
-                className="w-full bg-[var(--bg-input)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none min-h-[44px]"
+                className="w-full bg-[var(--bg-input)] border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none min-h-[44px]"
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+                }}
                 placeholder="3500"
               />
             </div>
             <div>
-              <label className="text-xs text-[var(--color-text-secondary)] block mb-1">
+              <label
+                className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)] block mb-1"
+                style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              >
                 条件
               </label>
               <select
@@ -164,7 +220,11 @@ export default function AlertsPage() {
                     direction: e.target.value as "above" | "below",
                   })
                 }
-                className="w-full bg-[var(--bg-input)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none min-h-[44px]"
+                className="w-full bg-[var(--bg-input)] border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none min-h-[44px]"
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+                }}
               >
                 <option value="above">以上になったら</option>
                 <option value="below">以下になったら</option>
@@ -174,7 +234,15 @@ export default function AlertsPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full md:w-auto px-6 py-2.5 bg-[var(--color-accent)] text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 min-h-[44px]"
+            className="w-full md:w-auto px-6 py-2.5 text-sm font-medium transition-all disabled:opacity-50 min-h-[44px] uppercase tracking-wider"
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+              border: "1px solid var(--color-accent)",
+              boxShadow: "0 0 18px rgba(0,240,255,0.35), inset 0 0 12px rgba(0,240,255,0.08)",
+              background: "transparent",
+              color: "var(--color-accent)",
+            }}
           >
             {submitting ? "追加中..." : "追加する"}
           </button>
@@ -191,42 +259,80 @@ export default function AlertsPage() {
           return (
             <div
               key={alert.id}
-              className={`bg-card rounded-xl p-4 border transition-all duration-200 ${
-                isTriggered
-                  ? "border-[var(--color-accent)]"
-                  : "border-[var(--color-border)]"
-              }`}
+              className="relative bg-card p-4 border transition-all duration-200"
+              style={{
+                clipPath: "polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)",
+                borderColor: isTriggered ? "var(--color-accent)" : "var(--color-border)",
+                boxShadow: isTriggered
+                  ? "0 0 18px rgba(0,240,255,0.35), inset 0 0 0 1px rgba(0,240,255,0.15)"
+                  : "inset 0 0 0 1px rgba(0,240,255,0.04)",
+              }}
             >
+              <span className="absolute top-0 right-0 w-2 h-2 border-t border-r border-[var(--color-accent)] opacity-60" />
+              <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-[var(--color-accent-2)] opacity-60" />
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-[var(--color-text-secondary)] font-mono">
+                    <span
+                      className="text-xs text-[var(--color-accent)]"
+                      style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    >
                       {alert.code}
                     </span>
                     <span className="text-sm font-medium">{alert.name}</span>
                     {isTriggered && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-accent)]/20 text-[var(--color-accent)] font-medium">
+                      <span
+                        className="text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 font-medium"
+                        style={{
+                          fontFamily: "'JetBrains Mono', monospace",
+                          border: "1px solid var(--color-accent)",
+                          color: "var(--color-accent)",
+                          boxShadow: "0 0 12px rgba(0,240,255,0.3), inset 0 0 8px rgba(0,240,255,0.1)",
+                          clipPath: "polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)",
+                        }}
+                      >
                         発動済み
                       </span>
                     )}
                     {!isTriggered && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-success)]/20 text-[var(--color-success)] font-medium">
+                      <span
+                        className="text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 font-medium"
+                        style={{
+                          fontFamily: "'JetBrains Mono', monospace",
+                          border: "1px solid var(--color-success)",
+                          color: "var(--color-success)",
+                          boxShadow: "0 0 12px rgba(0,255,136,0.3), inset 0 0 8px rgba(0,255,136,0.1)",
+                          clipPath: "polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)",
+                        }}
+                      >
                         監視中
                       </span>
                     )}
                   </div>
                   <div className="mt-2 flex items-center gap-4 text-sm">
-                    <span className="text-[var(--color-text-secondary)]">
+                    <span
+                      className="text-[var(--color-text-secondary)]"
+                      style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    >
                       目標: ¥{alert.target_price.toLocaleString()} {dirLabel}
                     </span>
-                    <span className="text-[var(--color-text-secondary)]">
+                    <span
+                      className="text-[var(--color-text-secondary)]"
+                      style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    >
                       現在: ¥{alert.current_price.toLocaleString()}
                     </span>
                   </div>
                 </div>
                 <button
                   onClick={() => handleDelete(alert.id)}
-                  className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-up)] min-w-[44px] min-h-[44px] flex items-center justify-center"
+                  className="text-xs min-w-[44px] min-h-[44px] flex items-center justify-center uppercase tracking-wider transition-colors"
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    color: "var(--color-text-secondary)",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--color-accent-2)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--color-text-secondary)")}
                 >
                   削除
                 </button>

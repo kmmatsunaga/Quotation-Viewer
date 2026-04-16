@@ -167,11 +167,18 @@ export default function MarketOverview() {
           <button
             key={tf.key}
             onClick={() => setSelectedTimeframe(tf.key)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap min-h-[36px] transition-all duration-200 ${
+            className={`px-3 py-1.5 text-xs font-medium whitespace-nowrap min-h-[36px] transition-all duration-200 ${
               selectedTimeframe === tf.key
                 ? "bg-[var(--color-accent)] text-white"
                 : "bg-[var(--bg-card)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
             }`}
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+              ...(selectedTimeframe === tf.key
+                ? { boxShadow: "0 0 18px rgba(0,240,255,0.35), inset 0 0 0 1px rgba(0,240,255,0.15)" }
+                : { boxShadow: "inset 0 0 0 1px rgba(0,240,255,0.04)" }),
+            }}
           >
             {tf.label}
           </button>
@@ -180,7 +187,10 @@ export default function MarketOverview() {
 
       {/* Index cards - 2x2 grid + 選択した指数の詳細チャート */}
       <section>
-        <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-3">
+        <h2
+          className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)] mb-3"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
           主要指数
         </h2>
         {selectedIndex && (
@@ -212,10 +222,19 @@ export default function MarketOverview() {
       {/* News sections */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section>
-          <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-3">
+          <h2
+            className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)] mb-3"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
             マーケットニュース
           </h2>
-          <div className="space-y-2">
+          <div
+            className="space-y-2 bg-[var(--bg-card)] p-3 relative overflow-hidden"
+            style={{
+              clipPath: "polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)",
+              boxShadow: "inset 0 0 0 1px rgba(0,240,255,0.04)",
+            }}
+          >
             {displayNews.map((news, i) => (
               <NewsCard
                 key={i}
@@ -230,10 +249,19 @@ export default function MarketOverview() {
         </section>
 
         <section>
-          <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-3">
+          <h2
+            className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)] mb-3"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
             ポートフォリオ関連ニュース
           </h2>
-          <div className="space-y-2">
+          <div
+            className="space-y-2 bg-[var(--bg-card)] p-3 relative overflow-hidden"
+            style={{
+              clipPath: "polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)",
+              boxShadow: "inset 0 0 0 1px rgba(0,240,255,0.04)",
+            }}
+          >
             {displayPortfolioNews.map((news, i) => (
               <NewsCard
                 key={i}
@@ -251,10 +279,19 @@ export default function MarketOverview() {
       {/* Stock lists */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section>
-          <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-3">
+          <h2
+            className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)] mb-3"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
             日本株
           </h2>
-          <div className="bg-card rounded-xl border border-[var(--color-border)] overflow-hidden">
+          <div
+            className="bg-[var(--bg-card)] overflow-hidden relative"
+            style={{
+              clipPath: "polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)",
+              boxShadow: "inset 0 0 0 1px rgba(0,240,255,0.04)",
+            }}
+          >
             {displayJPStocks.map((stock) => (
               <StockRow
                 key={stock.code}
@@ -268,10 +305,19 @@ export default function MarketOverview() {
         </section>
 
         <section>
-          <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-3">
+          <h2
+            className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)] mb-3"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
             米国株
           </h2>
-          <div className="bg-card rounded-xl border border-[var(--color-border)] overflow-hidden">
+          <div
+            className="bg-[var(--bg-card)] overflow-hidden relative"
+            style={{
+              clipPath: "polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)",
+              boxShadow: "inset 0 0 0 1px rgba(0,240,255,0.04)",
+            }}
+          >
             {displayUSStocks.map((stock) => (
               <StockRow
                 key={stock.code}

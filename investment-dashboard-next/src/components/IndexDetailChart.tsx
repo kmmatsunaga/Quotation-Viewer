@@ -48,8 +48,8 @@ export function IndexDetailChart({
             fontSize: 10,
           },
           grid: {
-            vertLines: { color: "rgba(255,255,255,0.04)" },
-            horzLines: { color: "rgba(255,255,255,0.04)" },
+            vertLines: { color: "rgba(0,240,255,0.04)" },
+            horzLines: { color: "rgba(0,240,255,0.04)" },
           },
           timeScale: {
             borderVisible: false,
@@ -113,16 +113,39 @@ export function IndexDetailChart({
   }, [candles, colorHex, isUp]);
 
   return (
-    <div className="bg-card rounded-xl border border-[var(--color-border)] overflow-hidden">
+    <div
+      className="bg-[var(--bg-card)] overflow-hidden relative"
+      style={{
+        clipPath: "polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)",
+        boxShadow: "0 0 18px rgba(0,240,255,0.35), inset 0 0 0 1px rgba(0,240,255,0.15)",
+      }}
+    >
+      {/* Corner tick marks */}
+      <span className="absolute top-0 left-0 w-3 h-[1px] bg-[var(--color-accent)]" />
+      <span className="absolute top-0 left-0 w-[1px] h-3 bg-[var(--color-accent)]" />
+      <span className="absolute top-0 right-0 w-3 h-[1px] bg-[var(--color-accent-2)]" />
+      <span className="absolute top-0 right-0 w-[1px] h-3 bg-[var(--color-accent-2)]" />
+      <span className="absolute bottom-0 left-0 w-3 h-[1px] bg-[var(--color-accent-2)]" />
+      <span className="absolute bottom-0 left-0 w-[1px] h-3 bg-[var(--color-accent-2)]" />
+      <span className="absolute bottom-0 right-0 w-3 h-[1px] bg-[var(--color-accent)]" />
+      <span className="absolute bottom-0 right-0 w-[1px] h-3 bg-[var(--color-accent)]" />
+
       {/* ヘッダー：銘柄名・価格・変化率 */}
       <div className="p-4 pb-2 flex items-start justify-between">
         <div>
-          <div className="text-xs text-[var(--color-text-secondary)] mb-1">
+          <div
+            className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)] mb-1"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
             {name}
           </div>
           <div
             className="text-2xl md:text-3xl font-bold tabular-nums"
-            style={{ color }}
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              color,
+              textShadow: `0 0 12px ${color}`,
+            }}
           >
             {value.toLocaleString("ja-JP", {
               minimumFractionDigits: 2,
@@ -131,7 +154,10 @@ export function IndexDetailChart({
           </div>
           <div
             className="text-sm font-medium mt-1 tabular-nums"
-            style={{ color }}
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              color,
+            }}
           >
             {arrow}
             {changeValue.toLocaleString("ja-JP", {
@@ -143,7 +169,14 @@ export function IndexDetailChart({
           </div>
         </div>
         {timeframeLabel && (
-          <span className="text-xs text-[var(--color-text-secondary)] bg-[var(--bg-primary)] px-2 py-1 rounded">
+          <span
+            className="text-xs text-[var(--color-text-secondary)] bg-[var(--bg-primary)] px-2 py-1"
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              clipPath: "polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px)",
+              boxShadow: "inset 0 0 0 1px rgba(0,240,255,0.04)",
+            }}
+          >
             {timeframeLabel}
           </span>
         )}

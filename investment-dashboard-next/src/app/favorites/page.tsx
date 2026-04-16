@@ -20,6 +20,15 @@ function MiniChart({ data, color }: { data: number[]; color: string }) {
 
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-10">
+      <defs>
+        <filter id={`glow-${color.replace(/[^a-zA-Z0-9]/g, "")}`}>
+          <feGaussianBlur stdDeviation="2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
       <polyline
         points={points}
         fill="none"
@@ -27,6 +36,7 @@ function MiniChart({ data, color }: { data: number[]; color: string }) {
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
+        filter={`url(#glow-${color.replace(/[^a-zA-Z0-9]/g, "")})`}
       />
     </svg>
   );
@@ -40,13 +50,30 @@ function ScoreBar({ score }: { score: number }) {
 
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 bg-[var(--bg-input)] rounded-full overflow-hidden">
+      <div
+        className="flex-1 h-1.5 overflow-hidden"
+        style={{
+          backgroundColor: "var(--bg-input)",
+          clipPath:
+            "polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)",
+        }}
+      >
         <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, backgroundColor: barColor }}
+          className="h-full transition-all duration-500"
+          style={{
+            width: `${pct}%`,
+            backgroundColor: barColor,
+            boxShadow: `0 0 6px ${barColor}`,
+          }}
         />
       </div>
-      <span className="text-xs font-medium" style={{ color: barColor }}>
+      <span
+        className="text-xs font-medium"
+        style={{
+          color: barColor,
+          fontFamily: "'JetBrains Mono', monospace",
+        }}
+      >
         {pct}
       </span>
     </div>
@@ -73,7 +100,17 @@ export default function FavoritesPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-bold">お気に入り銘柄</h1>
+      <h1
+        className="text-lg font-bold tracking-wide"
+        style={{
+          fontFamily: "'Orbitron', sans-serif",
+          background: "linear-gradient(90deg, #00f0ff 0%, #ff2bd6 100%)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+        }}
+      >
+        お気に入り銘柄
+      </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {displayFavorites.map((stock) => {
@@ -84,32 +121,56 @@ export default function FavoritesPage() {
           return (
             <div
               key={stock.code}
-              className="bg-card rounded-xl p-4 border border-[var(--color-border)] hover:border-[var(--color-accent)]/30 transition-all duration-200"
+              className="relative bg-card p-4 border border-[var(--color-border)] hover:border-[var(--color-accent)]/30 transition-all duration-200"
+              style={{
+                clipPath:
+                  "polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)",
+                boxShadow: "inset 0 0 0 1px rgba(0,240,255,0.04)",
+              }}
             >
+              {/* Corner ticks */}
+              <span className="absolute top-0 right-0 w-2 h-2 border-t border-r border-[var(--color-accent)] opacity-60" />
+              <span className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-[var(--color-accent-2)] opacity-60" />
+
               {/* Chart */}
               <MiniChart data={stock.chart_data ?? []} color={color} />
 
               {/* Info */}
               <div className="mt-3 flex items-start justify-between">
                 <div>
-                  <span className="text-xs text-[var(--color-text-secondary)] font-mono">
+                  <span
+                    className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)]"
+                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  >
                     {stock.code}
                   </span>
                   <h3 className="text-sm font-medium">{stock.name}</h3>
                 </div>
                 <div className="text-right">
-                  <div className="text-base font-bold" style={{ color }}>
+                  <div
+                    className="text-base font-bold"
+                    style={{
+                      color,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      textShadow: `0 0 8px ${isUp ? "rgba(255,59,107,0.4)" : "rgba(0,217,255,0.4)"}`,
+                    }}
+                  >
                     {stock.price.toLocaleString("ja-JP", {
                       minimumFractionDigits: stock.price < 1000 ? 2 : 0,
                     })}
                   </div>
                   <span
-                    className="text-xs font-medium px-1.5 py-0.5 rounded inline-block mt-0.5"
+                    className="text-xs font-medium px-1.5 py-0.5 inline-block mt-0.5"
                     style={{
+                      fontFamily: "'JetBrains Mono', monospace",
                       color,
                       backgroundColor: isUp
-                        ? "rgba(255,82,82,0.15)"
-                        : "rgba(68,138,255,0.15)",
+                        ? "rgba(255,59,107,0.10)"
+                        : "rgba(0,217,255,0.10)",
+                      border: `1px solid ${isUp ? "rgba(255,59,107,0.5)" : "rgba(0,217,255,0.5)"}`,
+                      boxShadow: `0 0 8px ${isUp ? "rgba(255,59,107,0.25)" : "rgba(0,217,255,0.25)"}`,
+                      clipPath:
+                        "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
                     }}
                   >
                     {arrow}
@@ -121,7 +182,10 @@ export default function FavoritesPage() {
               {/* Score */}
               {stock.score !== undefined && (
                 <div className="mt-3">
-                  <span className="text-xs text-[var(--color-text-secondary)]">
+                  <span
+                    className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)]"
+                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  >
                     スコア
                   </span>
                   <ScoreBar score={stock.score} />

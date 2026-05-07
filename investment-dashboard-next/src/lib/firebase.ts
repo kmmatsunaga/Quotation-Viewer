@@ -17,3 +17,5 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
+// 毎回アカウント選択画面を表示（前回のアカウントを勝手に使わない）
+googleProvider.setCustomParameters({ prompt: "select_account" });

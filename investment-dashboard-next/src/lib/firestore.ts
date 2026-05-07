@@ -29,6 +29,7 @@ export interface Holding {
   avgCost: number;
   market: string;
   memo: string;
+  purchaseDate?: string; // YYYY-MM-DD
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }

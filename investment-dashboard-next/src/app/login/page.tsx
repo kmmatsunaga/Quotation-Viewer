@@ -144,7 +144,7 @@ export default function LoginPage() {
                 letterSpacing: "0.1em",
               }}
             >
-              {sending ? "&gt; SENDING..." : "✉ &gt; SEND MAGIC LINK"}
+              {sending ? "> SENDING..." : "✉ > SEND MAGIC LINK"}
             </button>
           </form>
         </div>

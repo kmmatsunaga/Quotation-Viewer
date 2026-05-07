@@ -1213,13 +1213,13 @@ export default function PortfolioPage() {
               <div className="text-sm font-bold text-[var(--color-text)]" style={MONO}>
                 {deleteTarget.ticker} — {deleteTarget.name}
               </div>
-              <div className="text-xs text-[var(--color-text-secondary)] mt-0.5" style={MONO}>
+              <div className="text-xs text-[var(--color-text)] opacity-80 mt-0.5" style={MONO}>
                 {deleteTarget.shares.toLocaleString()} 株
               </div>
             </div>
 
-            <p className="text-sm text-[var(--color-text-secondary)]">
-              このロットを削除しますか？この操作は取り消せません。
+            <p className="text-sm text-[var(--color-text)]">
+              このロットを削除しますか？<span className="opacity-70">この操作は取り消せません。</span>
             </p>
 
             {/* ボタン */}

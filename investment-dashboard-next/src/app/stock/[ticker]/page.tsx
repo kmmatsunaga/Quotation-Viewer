@@ -20,7 +20,7 @@ interface StockDetail {
 }
 
 interface Candle {
-  time: string;
+  time: string | number; // 日足以上: "YYYY-MM-DD", イントラデイ: Unixタイムスタンプ
   open: number;
   high: number;
   low: number;
@@ -40,12 +40,74 @@ interface Indicators {
 }
 
 const RANGES = [
+  { label: "1D", value: "1d" },
+  { label: "5D", value: "5d" },
   { label: "1M", value: "1mo" },
   { label: "3M", value: "3mo" },
   { label: "6M", value: "6mo" },
   { label: "1Y", value: "1y" },
   { label: "5Y", value: "5y" },
+  { label: "10Y", value: "10y" },
+  { label: "MAX", value: "max" },
 ];
+
+const INTERVALS = [
+  { label: "1m", value: "1m" },
+  { label: "5m", value: "5m" },
+  { label: "15m", value: "15m" },
+  { label: "1h", value: "1h" },
+  { label: "日", value: "1d" },
+  { label: "週", value: "1wk" },
+  { label: "月", value: "1mo" },
+];
+
+// レンジに対するデフォルトインターバル
+function defaultInterval(range: string): string {
+  switch (range) {
+    case "1d":
+      return "1m";
+    case "5d":
+      return "5m";
+    case "1mo":
+      return "1h";
+    case "3mo":
+    case "6mo":
+      return "1d";
+    case "1y":
+      return "1d";
+    case "5y":
+      return "1wk";
+    case "10y":
+    case "max":
+      return "1mo";
+    default:
+      return "1d";
+  }
+}
+
+// レンジに対して選択可能なインターバル
+function allowedIntervals(range: string): string[] {
+  switch (range) {
+    case "1d":
+      return ["1m", "5m", "15m"];
+    case "5d":
+      return ["1m", "5m", "15m", "1h"];
+    case "1mo":
+      return ["15m", "1h", "1d"];
+    case "3mo":
+      return ["1h", "1d", "1wk"];
+    case "6mo":
+    case "1y":
+      return ["1d", "1wk", "1mo"];
+    case "5y":
+      return ["1d", "1wk", "1mo"];
+    case "10y":
+    case "max":
+      return ["1wk", "1mo"];
+    default:
+      return ["1d"];
+  }
+}
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -59,13 +121,23 @@ export default function StockDetailPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState("6mo");
+  const [interval, setInterval] = useState(() => defaultInterval("6mo"));
   const chartRef = useRef<HTMLDivElement>(null);
+
+  // レンジ変更時にインターバルも自動調整
+  const handleRangeChange = (newRange: string) => {
+    setRange(newRange);
+    const allowed = allowedIntervals(newRange);
+    if (!allowed.includes(interval)) {
+      setInterval(defaultInterval(newRange));
+    }
+  };
 
   // データ取得
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch(`/api/stock/${encodeURIComponent(ticker)}?range=${range}`)
+    fetch(`/api/stock/${encodeURIComponent(ticker)}?range=${range}&interval=${interval}`)
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to fetch");
         return res.json();
@@ -79,7 +151,7 @@ export default function StockDetailPage({
         setError("データの取得に失敗しました");
         setLoading(false);
       });
-  }, [ticker, range]);
+  }, [ticker, range, interval]);
 
   // Lightweight Charts
   useEffect(() => {
@@ -87,11 +159,12 @@ export default function StockDetailPage({
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let chart: any = null;
+    let disposed = false;
 
     (async () => {
       try {
         const { createChart, ColorType } = await import("lightweight-charts");
-        if (!chartRef.current) return;
+        if (disposed || !chartRef.current) return;
 
         // 既存のチャートをクリア
         chartRef.current.innerHTML = "";
@@ -111,7 +184,8 @@ export default function StockDetailPage({
           },
           timeScale: {
             borderColor: "rgba(0,240,255,0.15)",
-            timeVisible: false,
+            timeVisible: ["1m", "5m", "15m", "1h"].includes(interval),
+            secondsVisible: false,
           },
           rightPriceScale: {
             borderColor: "rgba(0,240,255,0.15)",
@@ -176,24 +250,35 @@ export default function StockDetailPage({
 
         chart.timeScale().fitContent();
 
+        // ズームアウト制限: データ範囲外に出たらfitContentに戻す
+        const totalBars = data.candles.length;
+        chart.timeScale().subscribeVisibleLogicalRangeChange((logicalRange: { from: number; to: number } | null) => {
+          if (disposed || !logicalRange) return;
+          const barsVisible = logicalRange.to - logicalRange.from;
+          // データの全バー数より広くズームアウトしようとしたら制限
+          if (barsVisible > totalBars * 1.3 || logicalRange.from < -totalBars * 0.1) {
+            chart.timeScale().fitContent();
+          }
+        });
+
         // Resize observer
         const observer = new ResizeObserver((entries) => {
+          if (disposed) return;
           for (const entry of entries) {
             chart?.applyOptions({ width: entry.contentRect.width });
           }
         });
         observer.observe(chartRef.current);
-
-        return () => observer.disconnect();
       } catch (err) {
         console.error("Chart error:", err);
       }
     })();
 
     return () => {
-      chart?.remove();
+      disposed = true;
+      try { chart?.remove(); } catch { /* already disposed */ }
     };
-  }, [data]);
+  }, [data, interval]);
 
   const isJP = /^\d{4}$/.test(ticker);
   const currencySymbol = isJP ? "¥" : "$";
@@ -243,15 +328,13 @@ export default function StockDetailPage({
 
       {/* ヘッダ: 銘柄名 & 価格 */}
       <div
-        className="relative p-4"
+        className="relative p-5 rounded"
         style={{
           border: "1px solid var(--color-border)",
           background: "var(--bg-card)",
-          clipPath:
-            "polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px)",
         }}
       >
-        <span className="absolute top-0 right-0 w-3 h-3 border-t border-r border-[var(--color-accent)] opacity-60" />
+        <span className="absolute top-0 right-0 w-3 h-3 border-t border-r border-[var(--color-accent)] opacity-60 rounded-tr" />
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
           <div>
             <div className="flex items-center gap-3">
@@ -358,20 +441,22 @@ export default function StockDetailPage({
 
       {/* レンジ切替 + チャート */}
       <div
+        className="rounded overflow-hidden"
         style={{
           border: "1px solid var(--color-border)",
           background: "var(--bg-card)",
         }}
       >
-        {/* レンジボタン */}
+        {/* レンジ & インターバル ボタン */}
         <div
-          className="flex gap-1 p-2 border-b"
+          className="flex flex-wrap items-center gap-1.5 px-4 py-2.5 border-b"
           style={{ borderColor: "var(--color-border)" }}
         >
+          {/* レンジ */}
           {RANGES.map((r) => (
             <button
               key={r.value}
-              onClick={() => setRange(r.value)}
+              onClick={() => handleRangeChange(r.value)}
               className="px-3 py-1.5 text-xs transition-all"
               style={{
                 ...MONO,
@@ -393,6 +478,42 @@ export default function StockDetailPage({
               {r.label}
             </button>
           ))}
+
+          {/* セパレータ */}
+          <span
+            className="mx-1 h-5 w-px"
+            style={{ background: "var(--color-border)" }}
+          />
+
+          {/* インターバル */}
+          {INTERVALS.filter((iv) =>
+            allowedIntervals(range).includes(iv.value)
+          ).map((iv) => (
+            <button
+              key={iv.value}
+              onClick={() => setInterval(iv.value)}
+              className="px-2 py-1.5 text-xs transition-all"
+              style={{
+                ...MONO,
+                letterSpacing: "0.05em",
+                color:
+                  interval === iv.value
+                    ? "var(--color-accent-2)"
+                    : "var(--color-text-secondary)",
+                background:
+                  interval === iv.value
+                    ? "rgba(255,43,214,0.1)"
+                    : "transparent",
+                border:
+                  interval === iv.value
+                    ? "1px solid rgba(255,43,214,0.3)"
+                    : "1px solid transparent",
+              }}
+            >
+              {iv.label}
+            </button>
+          ))}
+
           <span className="ml-auto flex items-center gap-3 text-[10px] text-[var(--color-text-secondary)] pr-2">
             <span className="flex items-center gap-1">
               <span className="w-3 h-0.5 bg-[rgba(0,240,255,0.5)]" />
@@ -406,12 +527,41 @@ export default function StockDetailPage({
         </div>
 
         {/* チャートコンテナ */}
-        <div ref={chartRef} className="w-full" style={{ minHeight: 400 }} />
+        <div className="relative">
+          <div ref={chartRef} className="w-full" style={{ minHeight: 400 }} />
+          {/* ローディングオーバーレイ */}
+          {loading && (
+            <div
+              className="absolute inset-0 flex items-center justify-center"
+              style={{ background: "rgba(5,6,13,0.75)", zIndex: 10 }}
+            >
+              <div className="flex flex-col items-center gap-3">
+                <div
+                  className="loading-pulse"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    border: "2px solid rgba(0,240,255,0.3)",
+                    borderTop: "2px solid var(--color-accent)",
+                    borderRadius: "50%",
+                    animation: "spin 0.8s linear infinite, pulse-glow 1.2s ease-in-out infinite",
+                  }}
+                />
+                <span
+                  className="text-xs text-[var(--color-accent)] loading-pulse"
+                  style={MONO}
+                >
+                  LOADING...
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* テクニカル指標 */}
       <div
-        className="p-4"
+        className="p-5 rounded"
         style={{
           border: "1px solid var(--color-border)",
           background: "var(--bg-card)",
@@ -670,7 +820,7 @@ function ScorePanel({
 
   return (
     <div
-      className="p-4"
+      className="p-5 rounded"
       style={{
         border: "1px solid var(--color-border)",
         background: "var(--bg-card)",
@@ -737,8 +887,8 @@ function ScorePanel({
 function calcSMA(
   candles: Candle[],
   period: number
-): { time: string; value: number }[] {
-  const result: { time: string; value: number }[] = [];
+): { time: string | number; value: number }[] {
+  const result: { time: string | number; value: number }[] = [];
   for (let i = period - 1; i < candles.length; i++) {
     let sum = 0;
     for (let j = i - period + 1; j <= i; j++) {

@@ -2,6 +2,7 @@
   "rewrites": [
     { "source": "/api/stock/:path*", "destination": "/api/stock/:path*" },
     { "source": "/api/stocks/:path*", "destination": "/api/stocks/:path*" },
+    { "source": "/api/stocks/prices", "destination": "/api/stocks/prices" },
     { "source": "/api/(.*)", "destination": "/api/main" }
   ]
 }

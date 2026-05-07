@@ -83,6 +83,24 @@ export const STOCK_LIST: StockEntry[] = [
   { ticker: "6988", name: "日東電工", market: "JP" },
   { ticker: "7735", name: "SCREENホールディングス", market: "JP" },
 
+  // ===== 日本ETF =====
+  { ticker: "1357", name: "NF日経ダブルインバース (日経ダブインバ)", market: "JP" },
+  { ticker: "1570", name: "NF日経レバレッジ (日経レバ)", market: "JP" },
+  { ticker: "1321", name: "NF日経225連動型 (日経225ETF)", market: "JP" },
+  { ticker: "1306", name: "TOPIX連動型上場投信", market: "JP" },
+  { ticker: "1458", name: "楽天ETF日経ダブルインバース", market: "JP" },
+  { ticker: "1459", name: "楽天ETF日経レバレッジ", market: "JP" },
+  { ticker: "1545", name: "NF NASDAQ-100連動型", market: "JP" },
+  { ticker: "1655", name: "iシェアーズ S&P500 ETF", market: "JP" },
+  { ticker: "1330", name: "日経300ETF", market: "JP" },
+  { ticker: "2558", name: "MAXIS米国株式 S&P500 ETF", market: "JP" },
+  { ticker: "2559", name: "MAXIS全世界株式 ETF", market: "JP" },
+  { ticker: "1482", name: "iシェアーズ米国債7-10年 ETF", market: "JP" },
+  { ticker: "1343", name: "NF東証REIT指数連動型", market: "JP" },
+  { ticker: "1546", name: "NF ダウ・ジョーンズ工業株30種", market: "JP" },
+  { ticker: "1671", name: "WisdomTree 金上場投信", market: "JP" },
+  { ticker: "1699", name: "NF 日本REIT・不動産ETF", market: "JP" },
+
   // ===== 米国株 =====
   { ticker: "AAPL", name: "Apple", market: "US" },
   { ticker: "MSFT", name: "Microsoft", market: "US" },

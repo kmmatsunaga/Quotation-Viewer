@@ -43,8 +43,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return (
     <>
       <TopNav navItems={navItems} currentPath={pathname} />
-      <main className="pt-0 md:pt-[var(--nav-height)] pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom,0px))] md:pb-0">
-        <div className="max-w-7xl mx-auto px-3 md:px-6 py-4">
+      <main className="pt-0 md:pt-20 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom,0px))] md:pb-0">
+        <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-12 py-5">
           {children}
         </div>
       </main>

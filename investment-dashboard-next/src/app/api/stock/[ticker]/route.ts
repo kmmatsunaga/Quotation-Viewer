@@ -60,6 +60,9 @@ export async function GET(
     const change = price - prevClose;
     const changePct = prevClose ? (change / prevClose) * 100 : 0;
 
+    // 日足以上かどうか判定
+    const isIntraday = ["1m", "2m", "5m", "15m", "30m", "60m", "1h"].includes(interval);
+
     // OHLCVデータ
     const candles = timestamps
       .map((t: number, i: number) => {
@@ -70,7 +73,8 @@ export async function GET(
         const v = quote.volume?.[i];
         if (o == null || h == null || l == null || c == null) return null;
         return {
-          time: new Date(t * 1000).toISOString().slice(0, 10),
+          // イントラデイはUnixタイムスタンプ、日足以上はYYYY-MM-DD文字列
+          time: isIntraday ? t : new Date(t * 1000).toISOString().slice(0, 10),
           open: Math.round(o * 100) / 100,
           high: Math.round(h * 100) / 100,
           low: Math.round(l * 100) / 100,
@@ -80,7 +84,7 @@ export async function GET(
       })
       .filter(Boolean);
 
-    // 重複日付を除去（最後の値を採用）
+    // 重複を除去（最後の値を採用）
     const seen = new Map();
     for (const c of candles) {
       seen.set(c.time, c);

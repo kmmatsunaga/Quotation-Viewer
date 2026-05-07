@@ -71,23 +71,25 @@ body::before {
   pointer-events: none;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 
-html {
-  font-size: 16px;
-  -webkit-text-size-adjust: 100%;
-}
+  html {
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+  }
 
-body {
-  background-color: var(--bg-primary);
-  color: var(--color-text);
-  min-height: 100dvh;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  body {
+    background-color: var(--bg-primary);
+    color: var(--color-text);
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 }
 
 /* Scrollbar */
@@ -104,10 +106,48 @@ body {
   border-radius: 3px;
 }
 
-/* Tap highlight */
+/* Tap highlight & cursor */
 button,
 a {
   -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* テキストカーソル（キャレット）を非入力要素で無効化 */
+*:not(input):not(textarea):not([contenteditable="true"]) {
+  caret-color: transparent;
+}
+
+/* ボタン押し込みエフェクト */
+button {
+  transition: transform 0.1s ease, filter 0.1s ease, box-shadow 0.15s ease;
+}
+button:active:not(:disabled) {
+  transform: scale(0.95) translateY(1px);
+  filter: brightness(0.85);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ナビリンク押し込み */
+a:active {
+  transform: scale(0.97);
+}
+
+/* ローディングオーバーレイ */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.loading-pulse {
+  animation: pulse-glow 1.2s ease-in-out infinite;
 }
 
 /* Custom utilities */

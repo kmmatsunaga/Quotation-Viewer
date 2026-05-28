@@ -10,7 +10,16 @@ const navItems = [
   { href: "/", label: "マーケット概況", shortLabel: "概況", icon: "chart" },
   { href: "/favorites", label: "お気に入り", shortLabel: "お気に入り", icon: "star" },
   { href: "/analysis", label: "銘柄分析", shortLabel: "分析", icon: "search" },
+  { href: "/patterns", label: "パターン", shortLabel: "パターン", icon: "grid" },
+  { href: "/screener", label: "スクリーナー", shortLabel: "スクリーナー", icon: "filter" },
+  { href: "/rankings", label: "ランキング", shortLabel: "ランキング", icon: "chart" },
   { href: "/portfolio", label: "ポートフォリオ", shortLabel: "資産", icon: "wallet" },
+  { href: "/scenarios", label: "シナリオ", shortLabel: "シナリオ", icon: "clipboard" },
+  { href: "/calendar", label: "決算カレンダー", shortLabel: "決算", icon: "calendar" },
+  { href: "/news", label: "ニュース", shortLabel: "ニュース", icon: "newspaper" },
+  { href: "/recommendations", label: "おすすめ", shortLabel: "🌟", icon: "star" },
+  { href: "/anomaly", label: "異常検知", shortLabel: "異常検知", icon: "fire" },
+  { href: "/watchdog", label: "ウォッチドッグ", shortLabel: "監視", icon: "radio" },
   { href: "/alerts", label: "価格アラート", shortLabel: "アラート", icon: "bell" },
 ];
 
@@ -19,11 +28,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
+  // 認証不要ページ
+  const publicPaths = ["/login", "/qr-login"];
+  const isPublic = publicPaths.includes(pathname);
+
   useEffect(() => {
-    if (!loading && !user && pathname !== "/login") {
+    if (!loading && !user && !isPublic) {
       router.push("/login");
     }
-  }, [user, loading, pathname, router]);
+  }, [user, loading, pathname, router, isPublic]);
 
   if (loading) {
     return (
@@ -33,8 +46,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // ログインページはナビなしで表示
-  if (pathname === "/login") {
+  // 認証不要ページはナビなしで表示
+  if (isPublic) {
     return <>{children}</>;
   }
 

@@ -28,6 +28,10 @@
     {
       "path": "/api/cron/sentiment-update",
       "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/cron/score-rankings",
+      "schedule": "0 16 * * *"
     }
   ]
 }

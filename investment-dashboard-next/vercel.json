@@ -3,6 +3,31 @@
     { "source": "/api/stock/:path*", "destination": "/api/stock/:path*" },
     { "source": "/api/stocks/:path*", "destination": "/api/stocks/:path*" },
     { "source": "/api/stocks/prices", "destination": "/api/stocks/prices" },
+    { "source": "/api/stocks/patterns", "destination": "/api/stocks/patterns" },
+    { "source": "/api/line/:path*", "destination": "/api/line/:path*" },
+    { "source": "/api/alerts/:path*", "destination": "/api/alerts/:path*" },
     { "source": "/api/(.*)", "destination": "/api/main" }
+  ],
+  "crons": [
+    {
+      "path": "/api/alerts/pattern-check",
+      "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/daily-recommend",
+      "schedule": "0 22 * * 1-5"
+    },
+    {
+      "path": "/api/cron/watchdog",
+      "schedule": "0 0 * * 1-5"
+    },
+    {
+      "path": "/api/cron/watchdog",
+      "schedule": "0 6 * * 1-5"
+    },
+    {
+      "path": "/api/cron/sentiment-update",
+      "schedule": "0 17 * * *"
+    }
   ]
 }

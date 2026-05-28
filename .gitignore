@@ -40,6 +40,9 @@ investment-dashboard/__pycache__/
 investment-dashboard-next/.next/
 investment-dashboard-next/node_modules/
 investment-dashboard-next/.env.local
+investment-dashboard-next/.env.local.bak
+investment-dashboard-next/.env.local.*
+investment-dashboard-next/.vercel/
 investment-dashboard-next/next-env.d.ts
 
 # Slides images (binary)

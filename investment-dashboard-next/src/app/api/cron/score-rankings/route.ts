@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { NIKKEI225 } from "@/lib/nikkei225";
 import { STOCK_LIST } from "@/lib/stock-list";
+import { SP500 } from "@/lib/sp500";
 
 /**
  * GET /api/cron/score-rankings
@@ -51,13 +52,18 @@ export async function GET(req: NextRequest) {
 
   const startedAt = Date.now();
 
-  // ユニバース構築 (日経225 + 米国主要)
+  // ユニバース構築 (日経225 + 米国 S&P500 + 既存STOCK_LISTの追加分)
   const jpUniverse = NIKKEI225.map((s) => ({ ticker: s.ticker, name: s.name, market: "JP" as const }));
-  const usUniverse = STOCK_LIST.filter((s) => s.market === "US").map((s) => ({
-    ticker: s.ticker,
-    name: s.name,
-    market: "US" as const,
-  }));
+  // S&P500 をベースに、既存 STOCK_LIST の US も merge
+  const usTickerSet = new Set<string>(SP500.map((s) => s.ticker));
+  const usUniverse = [
+    ...SP500.map((s) => ({ ticker: s.ticker, name: s.name, market: "US" as const })),
+    ...STOCK_LIST.filter((s) => s.market === "US" && !usTickerSet.has(s.ticker)).map((s) => ({
+      ticker: s.ticker,
+      name: s.name,
+      market: "US" as const,
+    })),
+  ];
   const universe = [...jpUniverse, ...usUniverse];
 
   const entries: RankingEntry[] = [];

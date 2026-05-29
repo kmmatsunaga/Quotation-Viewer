@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { NIKKEI225 } from "@/lib/nikkei225";
 import { STOCK_LIST } from "@/lib/stock-list";
+import { SP500 } from "@/lib/sp500";
 import { evaluateUltraShort, type IntradayInput, type UltraShortInsight } from "@/lib/intraday-signals";
 
 /**
@@ -106,12 +107,22 @@ export async function GET(req: NextRequest) {
     market: "JP" as const,
     yfSymbol: `${s.ticker}.T`,
   }));
-  const usEntries = STOCK_LIST.filter((s) => s.market === "US").map((s) => ({
-    ticker: s.ticker,
-    name: s.name,
-    market: "US" as const,
-    yfSymbol: s.ticker,
-  }));
+  // 米国は S&P500 + STOCK_LIST の重複除いた追加分
+  const usTickerSet = new Set<string>(SP500.map((s) => s.ticker));
+  const usEntries = [
+    ...SP500.map((s) => ({
+      ticker: s.ticker,
+      name: s.name,
+      market: "US" as const,
+      yfSymbol: s.ticker,
+    })),
+    ...STOCK_LIST.filter((s) => s.market === "US" && !usTickerSet.has(s.ticker)).map((s) => ({
+      ticker: s.ticker,
+      name: s.name,
+      market: "US" as const,
+      yfSymbol: s.ticker,
+    })),
+  ];
   const includeUS = universe === "nikkei225_us";
   const targets = includeUS ? [...jpEntries, ...usEntries] : jpEntries;
 

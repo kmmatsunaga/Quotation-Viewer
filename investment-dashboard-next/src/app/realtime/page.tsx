@@ -41,7 +41,24 @@ interface ScanResponse {
   computedAt: string;
 }
 
-const REFRESH_INTERVAL = 30_000;
+// ユニバース別の polling 間隔とパス
+type Universe = "fast" | "jp-all";
+const UNIVERSE_CONFIG: Record<Universe, { label: string; description: string; interval: number; path: string; requiresAuth: boolean }> = {
+  fast: {
+    label: "📍 高速 (日経225+米国)",
+    description: "265銘柄、~1秒で更新",
+    interval: 30_000,
+    path: "/api/intraday/scan?minScore=30",
+    requiresAuth: false,
+  },
+  "jp-all": {
+    label: "🇯🇵 プライム全銘柄",
+    description: "立花全マスタ ~4456 銘柄, ~25-30秒で更新",
+    interval: 60_000,
+    path: "/api/intraday/scan-jp-all?minScore=40&limit=100",
+    requiresAuth: true,
+  },
+};
 
 export default function RealtimePage() {
   const router = useRouter();
@@ -50,14 +67,22 @@ export default function RealtimePage() {
   const [error, setError] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState(REFRESH_INTERVAL / 1000);
+  const [universe, setUniverse] = useState<Universe>("fast");
+  const config = UNIVERSE_CONFIG[universe];
+  const [secondsLeft, setSecondsLeft] = useState(config.interval / 1000);
   const [marketFilter, setMarketFilter] = useState<"all" | "JP" | "US">("all");
   const [minChange, setMinChange] = useState<number>(2);
   const timerRef = useRef<number | null>(null);
 
   const fetchScan = useCallback(async () => {
     try {
-      const res = await fetch(`/api/intraday/scan?minScore=30`);
+      const headers: HeadersInit = {};
+      if (config.requiresAuth) {
+        const { auth } = await import("@/lib/firebase");
+        const token = await auth.currentUser?.getIdToken();
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+      }
+      const res = await fetch(config.path, { headers });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: ScanResponse = await res.json();
       setData(json);
@@ -68,7 +93,7 @@ export default function RealtimePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [config]);
 
   // 初回 + 周期更新
   useEffect(() => {
@@ -79,11 +104,11 @@ export default function RealtimePage() {
     if (paused) return;
     const id = setInterval(() => {
       fetchScan();
-      setSecondsLeft(REFRESH_INTERVAL / 1000);
-    }, REFRESH_INTERVAL);
+      setSecondsLeft(config.interval / 1000);
+    }, config.interval);
     timerRef.current = id as unknown as number;
     return () => clearInterval(id);
-  }, [paused, fetchScan]);
+  }, [paused, fetchScan, config.interval]);
 
   // 秒表示
   useEffect(() => {
@@ -91,6 +116,11 @@ export default function RealtimePage() {
     const id = setInterval(() => setSecondsLeft((s) => (s > 0 ? s - 1 : 0)), 1000);
     return () => clearInterval(id);
   }, [paused, lastUpdate]);
+
+  // ユニバース切替時はリセット
+  useEffect(() => {
+    setSecondsLeft(config.interval / 1000);
+  }, [universe, config.interval]);
 
   const filterFn = (list: ScanResult[]) =>
     list
@@ -105,8 +135,31 @@ export default function RealtimePage() {
           ⚡ リアルタイム超短期シグナル
         </h1>
         <p className="text-xs text-[var(--color-text-secondary)] mt-1" style={MONO}>
-          日経225 + 米国主要銘柄を {REFRESH_INTERVAL / 1000} 秒ごとにスキャン、当日の急変・反発・反落チャンスを検出。
+          {config.description} · {config.interval / 1000}秒ごと自動更新
         </p>
+      </div>
+
+      {/* ユニバース切替 */}
+      <div className="flex flex-wrap gap-2 items-center text-xs" style={MONO}>
+        <span className="text-[var(--color-text-secondary)]">対象:</span>
+        {(Object.keys(UNIVERSE_CONFIG) as Universe[]).map((u) => {
+          const isActive = universe === u;
+          return (
+            <button
+              key={u}
+              onClick={() => setUniverse(u)}
+              title={UNIVERSE_CONFIG[u].description}
+              className="px-3 py-1.5"
+              style={{
+                border: `1px solid ${isActive ? "var(--color-accent)" : "var(--color-border)"}`,
+                color: isActive ? "var(--color-accent)" : "var(--color-text-secondary)",
+                background: isActive ? "rgba(0,240,255,0.08)" : "transparent",
+              }}
+            >
+              {UNIVERSE_CONFIG[u].label}
+            </button>
+          );
+        })}
       </div>
 
       {/* ステータスバー */}
@@ -170,7 +223,7 @@ export default function RealtimePage() {
         <button
           onClick={() => {
             fetchScan();
-            setSecondsLeft(REFRESH_INTERVAL / 1000);
+            setSecondsLeft(config.interval / 1000);
           }}
           className="px-3 py-1.5"
           style={{ border: "1px solid var(--color-border)", color: "var(--color-text-secondary)" }}

@@ -14,6 +14,7 @@ const navItems = [
   { href: "/screener", label: "スクリーナー", shortLabel: "スクリーナー", icon: "filter" },
   { href: "/rankings", label: "ランキング", shortLabel: "ランキング", icon: "chart" },
   { href: "/realtime", label: "⚡リアルタイム", shortLabel: "⚡", icon: "radio" },
+  { href: "/backtest", label: "🔬検証", shortLabel: "🔬", icon: "chart" },
   { href: "/portfolio", label: "ポートフォリオ", shortLabel: "資産", icon: "wallet" },
   { href: "/scenarios", label: "シナリオ", shortLabel: "シナリオ", icon: "clipboard" },
   { href: "/calendar", label: "決算カレンダー", shortLabel: "決算", icon: "calendar" },

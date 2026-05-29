@@ -11,6 +11,7 @@ import OrderBookPanel from "./OrderBookPanel";
 import MarginPanel from "./MarginPanel";
 import InsightPanel from "./InsightPanel";
 import FutureScorePanel from "./FutureScorePanel";
+import FinancialsPanel from "./FinancialsPanel";
 import EarningsPatternPanel from "./EarningsPatternPanel";
 import { TachibanaSnapshotProvider } from "./TachibanaSnapshotContext";
 import {
@@ -731,6 +732,9 @@ export default function StockDetailPage({
 
       {/* 🔮 将来性スコア (Phase 1: 5因子グレード + バリュートラップ警告) */}
       <FutureScorePanel ticker={data.ticker} />
+
+      {/* 📊 業績推移 (Yahoo 4年/4Q) */}
+      <FinancialsPanel ticker={data.ticker} />
 
       {/* 📊 決算前後パターン分析 */}
       <EarningsPatternPanel ticker={data.ticker} />

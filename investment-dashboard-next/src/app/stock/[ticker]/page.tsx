@@ -11,6 +11,7 @@ import OrderBookPanel from "./OrderBookPanel";
 import MarginPanel from "./MarginPanel";
 import InsightPanel from "./InsightPanel";
 import FutureScorePanel from "./FutureScorePanel";
+import LargeHoldingsPanel from "./LargeHoldingsPanel";
 import FinancialsPanel from "./FinancialsPanel";
 import SectorRankPanel from "./SectorRankPanel";
 import EarningsPatternPanel from "./EarningsPatternPanel";
@@ -739,6 +740,9 @@ export default function StockDetailPage({
 
       {/* 🏷 業種内ポジション */}
       <SectorRankPanel ticker={data.ticker} />
+
+      {/* 🏛 EDINET 機関投資家動向 (大量保有報告書) */}
+      <LargeHoldingsPanel ticker={data.ticker} />
 
       {/* 📊 決算前後パターン分析 */}
       <EarningsPatternPanel ticker={data.ticker} />

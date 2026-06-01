@@ -55,23 +55,36 @@ export function TopNav({ navItems, currentPath }: TopNavProps) {
         <Logo size={26} />
       </div>
 
-      {/* Nav links */}
-      <div className="flex items-center gap-1">
+      {/* Nav links — 改行禁止 + 横スクロール (ホイール→水平、スクロールバー薄表示) */}
+      <div
+        className="flex items-center gap-0.5 flex-1 mx-3 overflow-x-auto nav-scroll min-w-0"
+        style={{ flexWrap: "nowrap" }}
+        onWheel={(e) => {
+          // 縦スクロールを横にリダイレクト (デスクトップでマウスホイールで横スクロール可能に)
+          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+            e.currentTarget.scrollLeft += e.deltaY;
+          }
+        }}
+      >
         {navItems.map((item) => {
           const isActive = currentPath === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`px-4 py-2 text-sm font-medium rounded-t transition-colors-custom relative ${
+              title={item.label}
+              className={`shrink-0 px-2 lg:px-3 py-2 text-xs lg:text-sm font-medium rounded-t transition-colors-custom relative ${
                 isActive
                   ? "text-[var(--color-accent)]"
                   : "text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
               }`}
+              style={{ whiteSpace: "nowrap", wordBreak: "keep-all" }}
             >
-              {item.label}
+              {/* 1536px(2xl)以上は label, 未満は shortLabel */}
+              <span className="hidden 2xl:inline">{item.label}</span>
+              <span className="inline 2xl:hidden">{item.shortLabel}</span>
               {isActive && (
-                <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-[var(--color-accent)] rounded-t" />
+                <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-[var(--color-accent)] rounded-t" />
               )}
             </Link>
           );
@@ -102,11 +115,17 @@ export function TopNav({ navItems, currentPath }: TopNavProps) {
                 </div>
               )}
             </button>
-            <div className="absolute right-0 top-full mt-1 w-48 bg-[var(--bg-card)] border border-[var(--color-border)] rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+            <div className="absolute right-0 top-full mt-1 w-52 bg-[var(--bg-card)] border border-[var(--color-border)] rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
               <div className="px-3 py-2 border-b border-[var(--color-border)]">
                 <p className="text-xs text-[var(--color-text)] truncate">{user.displayName}</p>
                 <p className="text-xs text-[var(--color-text-secondary)] truncate">{user.email}</p>
               </div>
+              <Link
+                href="/mobile-link"
+                className="block w-full px-3 py-2 text-left text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--bg-card-hover)] transition-colors border-b border-[var(--color-border)]"
+              >
+                📱 iPhoneでログイン (QR)
+              </Link>
               <button
                 onClick={signOut}
                 className="w-full px-3 py-2 text-left text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-up)] hover:bg-[var(--bg-card-hover)] transition-colors rounded-b-lg"

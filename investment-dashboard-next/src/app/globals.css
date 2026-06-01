@@ -197,3 +197,34 @@ a:active {
   animation: shimmer 1.5s ease-in-out infinite;
   border-radius: 4px;
 }
+
+/* Hide scrollbar (Chrome/Safari/Firefox) */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Navigation horizontal scroll — 薄スクロールバー (透明感あり、ホバー時くっきり) */
+.nav-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 240, 255, 0.3) transparent;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+.nav-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+.nav-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.nav-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.25);
+  border-radius: 2px;
+  transition: background 0.2s;
+}
+.nav-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.6);
+}

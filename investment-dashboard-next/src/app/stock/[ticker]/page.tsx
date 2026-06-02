@@ -12,6 +12,7 @@ import MarginPanel from "./MarginPanel";
 import InsightPanel from "./InsightPanel";
 import FutureScorePanel from "./FutureScorePanel";
 import LargeHoldingsPanel from "./LargeHoldingsPanel";
+import MasterScorePanel from "./MasterScorePanel";
 import FinancialsPanel from "./FinancialsPanel";
 import SectorRankPanel from "./SectorRankPanel";
 import EarningsPatternPanel from "./EarningsPatternPanel";
@@ -765,7 +766,10 @@ export default function StockDetailPage({
         </div>
       </div>
 
-      {/* 💡 インサイトパネル (一番目立つ位置) */}
+      {/* 🏆 Cavka Master Score — 全評価データを統合した1画面サマリ */}
+      <MasterScorePanel ticker={data.ticker} />
+
+      {/* 💡 インサイトパネル (短/中/長期の詳細シグナル) */}
       <InsightPanel ticker={data.ticker} />
 
       {/* 🔮 将来性スコア (Phase 1: 5因子グレード + バリュートラップ警告) */}
@@ -811,9 +815,6 @@ export default function StockDetailPage({
 
       {/* チャートパターン */}
       <PatternPanel patterns={patterns} loading={patternsLoading} transitions={transitions} />
-
-      {/* 総合分析スコア（パターン統合版） */}
-      <IntegratedScorePanel indicators={data.indicators} price={data.price} patterns={patterns} transitions={transitions} currencySymbol={currencySymbol} />
     </div>
     </TachibanaSnapshotProvider>
   );
@@ -923,156 +924,6 @@ function PatternPanel({ patterns, loading, transitions }: { patterns: Record<str
   );
 }
 
-/**
- * 統合分析スコアパネル — テクニカル指標 + パターン分析を統合
- */
-function IntegratedScorePanel({
-  indicators,
-  price,
-  patterns,
-  transitions,
-  currencySymbol,
-}: {
-  indicators: Indicators;
-  price: number;
-  patterns: Record<string, PatternData[]>;
-  transitions?: Array<{ signal: string; proximity: number; toLabel: string }> | null;
-  currencySymbol: string;
-}) {
-  let score = 50;
-  const signals: { text: string; weight: number; type: "positive" | "negative" | "neutral" }[] = [];
-
-  // ── Technical indicators ──
-  if (indicators.rsi != null) {
-    if (indicators.rsi < 30) { score += 15; signals.push({ text: "RSI 売られすぎ圏 → 反発の可能性", weight: 15, type: "positive" }); }
-    else if (indicators.rsi > 70) { score -= 15; signals.push({ text: "RSI 買われすぎ圏 → 調整の可能性", weight: -15, type: "negative" }); }
-    else if (indicators.rsi > 40 && indicators.rsi < 60) { score += 5; signals.push({ text: "RSI 中立圏", weight: 5, type: "neutral" }); }
-  }
-
-  if (indicators.macd != null && indicators.signal != null) {
-    if (indicators.macd > indicators.signal) { score += 10; signals.push({ text: "MACD > Signal → 上昇モメンタム", weight: 10, type: "positive" }); }
-    else { score -= 10; signals.push({ text: "MACD < Signal → 下降モメンタム", weight: -10, type: "negative" }); }
-  }
-
-  if (indicators.sma20 != null && indicators.sma50 != null) {
-    if (price > indicators.sma20 && indicators.sma20 > indicators.sma50) { score += 10; signals.push({ text: `価格 > SMA20 > SMA50 → ゴールデンクロス圏`, weight: 10, type: "positive" }); }
-    else if (price < indicators.sma20 && indicators.sma20 < indicators.sma50) { score -= 10; signals.push({ text: `価格 < SMA20 < SMA50 → デッドクロス圏`, weight: -10, type: "negative" }); }
-  }
-
-  if (indicators.bbUpper != null && indicators.bbLower != null) {
-    if (price >= indicators.bbUpper) { score -= 5; signals.push({ text: "BB上限タッチ → 過熱注意", weight: -5, type: "negative" }); }
-    else if (price <= indicators.bbLower) { score += 5; signals.push({ text: "BB下限タッチ → 割安圏", weight: 5, type: "positive" }); }
-  }
-
-  // ── Pattern analysis ──
-  const dailyPattern = patterns["daily"]?.[0];
-  if (dailyPattern) {
-    if (dailyPattern.signal === "buy") { score += 10; signals.push({ text: `パターン「${dailyPattern.label}」→ 買いシグナル`, weight: 10, type: "positive" }); }
-    else if (dailyPattern.signal === "sell") { score -= 10; signals.push({ text: `パターン「${dailyPattern.label}」→ 売りシグナル`, weight: -10, type: "negative" }); }
-    else if (dailyPattern.signal === "watch") { signals.push({ text: `パターン「${dailyPattern.label}」→ 注目`, weight: 0, type: "neutral" }); }
-  }
-
-  // Weekly pattern for longer-term confirmation
-  const weeklyPattern = patterns["weekly"]?.[0];
-  if (weeklyPattern) {
-    if (dailyPattern && weeklyPattern.signal === dailyPattern.signal && weeklyPattern.signal !== "neutral") {
-      score += 5;
-      signals.push({ text: `日足・週足パターン一致 → シグナル強化`, weight: 5, type: weeklyPattern.signal === "buy" ? "positive" : "negative" });
-    }
-  }
-
-  // Transition proximity
-  if (transitions && transitions.length > 0) {
-    const highProx = transitions.filter((t) => t.proximity >= 50);
-    for (const t of highProx.slice(0, 2)) {
-      if (t.signal === "buy") { score += 3; signals.push({ text: `転換接近: →${t.toLabel} (${t.proximity}%) 買い`, weight: 3, type: "positive" }); }
-      else if (t.signal === "sell") { score -= 3; signals.push({ text: `転換接近: →${t.toLabel} (${t.proximity}%) 売り`, weight: -3, type: "negative" }); }
-    }
-  }
-
-  score = Math.max(0, Math.min(100, score));
-
-  const getColor = (s: number) => s >= 65 ? "var(--color-up)" : s >= 40 ? "#f0a030" : "var(--color-down)";
-  const getLabel = (s: number) => s >= 75 ? "強い買いシグナル" : s >= 60 ? "買い検討" : s >= 45 ? "中立" : s >= 30 ? "様子見" : "売り検討";
-  const getEmoji = (s: number) => s >= 75 ? "🔥" : s >= 60 ? "📈" : s >= 45 ? "➡️" : s >= 30 ? "⚠️" : "📉";
-
-  // Support/Resistance levels
-  const levels: { label: string; price: number; type: "support" | "resistance" }[] = [];
-  if (indicators.sma20) levels.push({ label: "SMA20", price: indicators.sma20, type: price > indicators.sma20 ? "support" : "resistance" });
-  if (indicators.sma50) levels.push({ label: "SMA50", price: indicators.sma50, type: price > indicators.sma50 ? "support" : "resistance" });
-  if (indicators.sma200) levels.push({ label: "SMA200", price: indicators.sma200, type: price > indicators.sma200 ? "support" : "resistance" });
-  if (indicators.bbUpper) levels.push({ label: "BB上限", price: indicators.bbUpper, type: "resistance" });
-  if (indicators.bbLower) levels.push({ label: "BB下限", price: indicators.bbLower, type: "support" });
-
-  const supports = levels.filter((l) => l.type === "support").sort((a, b) => b.price - a.price);
-  const resistances = levels.filter((l) => l.type === "resistance").sort((a, b) => a.price - b.price);
-
-  return (
-    <div className="p-5 rounded space-y-5" style={{ border: "1px solid var(--color-border)", background: "var(--bg-card)", boxShadow: "inset 0 0 0 1px rgba(0,240,255,0.06)" }}>
-      <span className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)] block" style={MONO}>Integrated Analysis</span>
-
-      <div className="flex items-center gap-6 flex-wrap">
-        <div>
-          <div className="text-5xl font-bold" style={{ color: getColor(score), textShadow: `0 0 20px ${getColor(score)}40`, ...MONO }}>{score}</div>
-          <div className="text-[9px] text-[var(--color-text-secondary)] mt-1" style={MONO}>/ 100</div>
-        </div>
-        <div className="flex-1">
-          <div className="text-lg font-bold flex items-center gap-2" style={{ color: getColor(score) }}>
-            <span>{getEmoji(score)}</span> {getLabel(score)}
-          </div>
-          <div className="mt-2 h-2.5 bg-[var(--bg-input)] overflow-hidden" style={{ clipPath: clip(2) }}>
-            <div className="h-full transition-all duration-1000" style={{ width: `${score}%`, background: `linear-gradient(90deg, var(--color-accent), ${getColor(score)})`, boxShadow: `0 0 8px ${getColor(score)}80` }} />
-          </div>
-          {dailyPattern && (
-            <div className="mt-2 text-[10px] text-[var(--color-text-secondary)]" style={MONO}>
-              パターン: {dailyPattern.label} | テクニカル + パターン統合スコア
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Support / Resistance */}
-      {levels.length > 0 && (
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <span className="text-[9px] uppercase tracking-[0.1em] text-[var(--color-up)] block mb-2" style={MONO}>📈 サポートライン</span>
-            {supports.length > 0 ? supports.map((l) => (
-              <div key={l.label} className="flex items-center justify-between text-xs py-1" style={MONO}>
-                <span className="text-[var(--color-text-secondary)]">{l.label}</span>
-                <span className="text-[var(--color-text)]">{currencySymbol}{l.price.toLocaleString()}</span>
-              </div>
-            )) : <span className="text-[10px] text-[var(--color-text-secondary)]">—</span>}
-          </div>
-          <div>
-            <span className="text-[9px] uppercase tracking-[0.1em] text-[var(--color-down)] block mb-2" style={MONO}>📉 レジスタンスライン</span>
-            {resistances.length > 0 ? resistances.map((l) => (
-              <div key={l.label} className="flex items-center justify-between text-xs py-1" style={MONO}>
-                <span className="text-[var(--color-text-secondary)]">{l.label}</span>
-                <span className="text-[var(--color-text)]">{currencySymbol}{l.price.toLocaleString()}</span>
-              </div>
-            )) : <span className="text-[10px] text-[var(--color-text-secondary)]">—</span>}
-          </div>
-        </div>
-      )}
-
-      {/* Signal breakdown */}
-      <div className="space-y-1.5 pt-3" style={{ borderTop: "1px solid var(--color-border)" }}>
-        <span className="text-[9px] uppercase tracking-[0.1em] text-[var(--color-text-secondary)] block mb-2" style={MONO}>Signal Breakdown</span>
-        {signals.map((s, i) => (
-          <div key={i} className="flex items-start gap-2 text-xs">
-            <span className="mt-0.5" style={{ color: s.type === "positive" ? "var(--color-up)" : s.type === "negative" ? "var(--color-down)" : "var(--color-text-secondary)" }}>
-              {s.type === "positive" ? "▲" : s.type === "negative" ? "▼" : "▸"}
-            </span>
-            <span className="text-[var(--color-text)] opacity-80">{s.text}</span>
-            <span className="ml-auto text-[9px] font-bold" style={{ ...MONO, color: s.weight > 0 ? "var(--color-up)" : s.weight < 0 ? "var(--color-down)" : "var(--color-text-secondary)" }}>
-              {s.weight > 0 ? `+${s.weight}` : s.weight < 0 ? String(s.weight) : "±0"}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ========================================
 // ユーティリティ

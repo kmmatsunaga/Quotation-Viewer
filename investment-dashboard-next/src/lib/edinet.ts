@@ -109,7 +109,11 @@ export async function fetchEdinetDocList(
  * 7203 → "72030"
  */
 export function tickerToSecCode(ticker: string): string {
-  return /^\d{4}$/.test(ticker) ? `${ticker}0` : ticker;
+  // 4桁数字 → "72030" (末尾0付加)
+  // 3-4桁+英字 (例 "543A", "137A") → "543A0" (EDINET 形式に合わせる)
+  if (/^\d{4}$/.test(ticker)) return `${ticker}0`;
+  if (/^\d{3,4}[A-Z]$/.test(ticker)) return `${ticker}0`;
+  return ticker;
 }
 
 /**

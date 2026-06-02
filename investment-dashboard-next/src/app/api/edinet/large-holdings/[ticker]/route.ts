@@ -28,9 +28,9 @@ export async function GET(
   const { ticker } = await params;
   const days = Number(req.nextUrl.searchParams.get("days") ?? DEFAULT_DAYS);
 
-  if (!/^\d{4}$/.test(ticker)) {
+  if (!/^\d{3,4}[A-Z]?$/.test(ticker)) {
     return NextResponse.json(
-      { ok: false, error: "EDINET は日本株 (4桁ティッカー) のみ対応" },
+      { ok: false, error: "EDINET は日本株 (3-4桁ティッカー、末尾英字付きも可) のみ対応" },
       { status: 400 }
     );
   }

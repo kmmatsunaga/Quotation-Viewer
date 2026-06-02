@@ -21,7 +21,8 @@ export async function GET(
   const interval = req.nextUrl.searchParams.get("interval") ?? "1d";
 
   // 日本株は .T サフィックスが必要
-  const isJP = /^\d{4}$/.test(rawTicker);
+  // 日本株: 4桁数字 (例: 7203) または 3-4桁数字+英字 (例: 543A, 137A 新規上場銘柄)
+  const isJP = /^\d{3,4}[A-Z]?$/.test(rawTicker);
   const yfTicker = isJP ? `${rawTicker}.T` : rawTicker;
 
   try {

@@ -48,7 +48,7 @@ export default function LargeHoldingsPanel({ ticker }: { ticker: string }) {
 
   useEffect(() => {
     // 日本株 (4桁) のみ
-    if (!/^\d{4}$/.test(ticker)) {
+    if (!/^\d{3,4}[A-Z]?$/.test(ticker)) {
       setLoading(false);
       return;
     }
@@ -74,7 +74,7 @@ export default function LargeHoldingsPanel({ ticker }: { ticker: string }) {
   }, [ticker]);
 
   // 日本株でない or 取得失敗時は何も表示しない
-  if (!/^\d{4}$/.test(ticker)) return null;
+  if (!/^\d{3,4}[A-Z]?$/.test(ticker)) return null;
   if (loading) {
     return (
       <div className="p-4 border" style={{ borderColor: "var(--color-border)" }}>

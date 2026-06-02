@@ -267,6 +267,35 @@ export default function StockDetailPage({
         if (disposed || !chartRef.current) return;
         chartRef.current.innerHTML = "";
 
+        // 銘柄の所属市場でタイムゾーンを決定
+        // 日本株 (4桁数字) → JST, 米国株 → ET (America/New_York)
+        const isJP = /^\d{3,4}[A-Z]?$/.test(data.ticker);
+        const tz = isJP ? "Asia/Tokyo" : "America/New_York";
+        const isIntraday = ["1m", "5m", "15m", "1h"].includes(interval);
+        // tickMarkFormatter / timeFormatter で UTC → ローカル市場時刻に変換
+        const fmtTime = (time: number | string): string => {
+          if (typeof time === "string") return time; // 日付文字列はそのまま
+          const date = new Date(time * 1000);
+          return new Intl.DateTimeFormat("ja-JP", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            timeZone: tz,
+          }).format(date);
+        };
+        const fmtDateTime = (time: number | string): string => {
+          if (typeof time === "string") return time;
+          const date = new Date(time * 1000);
+          return new Intl.DateTimeFormat("ja-JP", {
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            timeZone: tz,
+          }).format(date);
+        };
+
         chart = createChart(chartRef.current, {
           width: chartRef.current.clientWidth,
           height: 400,
@@ -282,8 +311,15 @@ export default function StockDetailPage({
           },
           timeScale: {
             borderColor: "rgba(0,240,255,0.15)",
-            timeVisible: ["1m", "5m", "15m", "1h"].includes(interval),
+            timeVisible: isIntraday,
             secondsVisible: false,
+            tickMarkFormatter: (time: number | string) =>
+              isIntraday ? fmtTime(time) : (typeof time === "string" ? time : new Intl.DateTimeFormat("ja-JP", { month: "2-digit", day: "2-digit", timeZone: tz }).format(new Date(time * 1000))),
+          },
+          localization: {
+            locale: "ja-JP",
+            timeFormatter: (time: number | string) =>
+              isIntraday ? fmtDateTime(time) : (typeof time === "string" ? time : fmtDateTime(time)),
           },
           rightPriceScale: { borderColor: "rgba(0,240,255,0.15)" },
           crosshair: {

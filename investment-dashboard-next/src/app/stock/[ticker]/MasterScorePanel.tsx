@@ -25,6 +25,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { getSectorsForTicker, MACRO_DRIVER_LABELS } from "@/lib/jp-themes";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -97,11 +98,21 @@ function patternToScore(p: PatternItem | null | undefined): number | null {
   return Math.max(0, Math.min(100, Math.round(base + adj)));
 }
 
+interface SectorBoost {
+  sectorId: string;
+  sectorName: string;
+  sectorEmoji: string;
+  hotIndex: number;            // 0-100
+  avgScore: number | null;
+  macroDrivers: string[];      // 連動マクロ要因 (ID 配列)
+}
+
 interface MasterInput {
   future: FutureScoreResp | null;
   insights: InsightsResp | null;
   daily: PatternItem | null;
   weekly: PatternItem | null;
+  sectorBoost: SectorBoost | null;  // 銘柄が属する最高Hotセクター
 }
 
 interface Component {
@@ -167,6 +178,17 @@ function computeMasterScore(input: MasterInput): MasterResult {
     components.push({ key: "short", label: "短期テクニカル", emoji: "🔥", score: input.insights.short.score, weight: 1.0 });
     components.push({ key: "mid", label: "中期テクニカル", emoji: "📈", score: input.insights.mid.score, weight: 2.0 });
     components.push({ key: "long", label: "長期テクニカル", emoji: "🏛", score: input.insights.long.score, weight: 1.5 });
+  }
+  // セクター追い風/逆風 (新規 Phase 21)
+  if (input.sectorBoost) {
+    components.push({
+      key: "sector",
+      label: "セクター環境",
+      emoji: "🏭",
+      score: input.sectorBoost.hotIndex,
+      weight: 1.5,
+      note: `${input.sectorBoost.sectorName} (Hot ${input.sectorBoost.hotIndex})`,
+    });
   }
   // チャートパターン
   const dailyS = patternToScore(input.daily);
@@ -345,10 +367,17 @@ function actionRecommendation(r: MasterResult, insights: InsightsResp | null): s
 // Component
 // ───────────────────────────────────────────────────
 
+interface SectorTrendResp {
+  ok: boolean;
+  industries: { id: string; name: string; emoji: string; hotIndex: number; avgOverall: number | null; macroDrivers: string[] }[];
+  themes: { id: string; name: string; emoji: string; hotIndex: number; avgOverall: number | null; macroDrivers: string[] }[];
+}
+
 export default function MasterScorePanel({ ticker }: { ticker: string }) {
   const [future, setFuture] = useState<FutureScoreResp | null>(null);
   const [insights, setInsights] = useState<InsightsResp | null>(null);
   const [patterns, setPatterns] = useState<{ daily: PatternItem | null; weekly: PatternItem | null } | null>(null);
+  const [sectorBoost, setSectorBoost] = useState<SectorBoost | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -356,11 +385,19 @@ export default function MasterScorePanel({ ticker }: { ticker: string }) {
     let cancelled = false;
     setLoading(true);
     setError(null);
+
+    // 銘柄が属するセクター定義 (静的に判定)
+    const tickerSectors = getSectorsForTicker(ticker);
+
     Promise.allSettled([
       fetch(`/api/stocks/future-score/${encodeURIComponent(ticker)}`).then((r) => (r.ok ? r.json() : null)),
       fetch(`/api/stocks/insights?ticker=${encodeURIComponent(ticker)}`).then((r) => (r.ok ? r.json() : null)),
       fetch(`/api/stocks/patterns?tickers=${encodeURIComponent(ticker)}`).then((r) => (r.ok ? r.json() : null)),
-    ]).then(([f, i, p]) => {
+      // セクター情報 (所属セクターがある場合のみ取りに行く)
+      tickerSectors.length > 0
+        ? fetch(`/api/sectors/trends`).then((r) => (r.ok ? r.json() : null))
+        : Promise.resolve(null),
+    ]).then(([f, i, p, st]) => {
       if (cancelled) return;
       if (f.status === "fulfilled" && f.value) setFuture(f.value as FutureScoreResp);
       if (i.status === "fulfilled" && i.value) setInsights(i.value as InsightsResp);
@@ -370,6 +407,25 @@ export default function MasterScorePanel({ ticker }: { ticker: string }) {
           daily: pp?.daily?.[0] ?? null,
           weekly: pp?.weekly?.[0] ?? null,
         });
+      }
+      // セクター trends から、銘柄所属の中で hotIndex 最高を採用
+      if (st.status === "fulfilled" && st.value) {
+        const sr = st.value as SectorTrendResp;
+        const all = [...(sr.industries ?? []), ...(sr.themes ?? [])];
+        const matched = tickerSectors
+          .map((ts) => all.find((a) => a.id === ts.id))
+          .filter((x): x is NonNullable<typeof x> => !!x);
+        if (matched.length > 0) {
+          const best = matched.reduce((a, b) => (a.hotIndex >= b.hotIndex ? a : b));
+          setSectorBoost({
+            sectorId: best.id,
+            sectorName: best.name,
+            sectorEmoji: best.emoji,
+            hotIndex: best.hotIndex,
+            avgScore: best.avgOverall,
+            macroDrivers: best.macroDrivers ?? [],
+          });
+        }
       }
       const anyOk = [f, i, p].some((r) => r.status === "fulfilled" && r.value);
       if (!anyOk) setError("評価データを取得できませんでした");
@@ -387,8 +443,9 @@ export default function MasterScorePanel({ ticker }: { ticker: string }) {
       insights,
       daily: patterns?.daily ?? null,
       weekly: patterns?.weekly ?? null,
+      sectorBoost,
     });
-  }, [future, insights, patterns]);
+  }, [future, insights, patterns, sectorBoost]);
 
   if (loading) {
     return (
@@ -420,73 +477,91 @@ export default function MasterScorePanel({ ticker }: { ticker: string }) {
         boxShadow: `0 0 24px ${color}30, inset 0 0 0 1px ${color}20`,
       }}
     >
-      {/* ━━ ヒーロー ━━ */}
-      <div className="flex items-end gap-5 flex-wrap">
-        <div className="flex items-baseline gap-3">
-          <div className="text-6xl font-black leading-none" style={{ color, textShadow: `0 0 28px ${color}60`, ...MONO }}>
-            {master.score}
-          </div>
-          <div className="text-sm text-[var(--color-text-secondary)]" style={MONO}>/ 100</div>
-          <div className="text-2xl font-black ml-2" style={{ color: gradeColor(master.grade), ...MONO }}>
-            {master.grade}
-          </div>
-        </div>
-        <div className="flex-1 min-w-[200px]">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--color-text-secondary)]" style={MONO}>
+      {/* ━━ ヒーロー (バー無し、スコアを巨大表示) ━━ */}
+      <div className="flex items-start gap-6 flex-wrap">
+        {/* 左: 巨大スコア */}
+        <div className="flex flex-col">
+          <div className="text-xs font-bold uppercase tracking-[0.3em] text-[var(--color-text)]" style={MONO}>
             // CAVKA_MASTER_SCORE
           </div>
-          <div className="text-xl font-bold mt-1" style={{ color }}>
-            {master.label}
-          </div>
-          <div className="text-[10px] text-[var(--color-text-secondary)] mt-1" style={MONO}>
-            {master.components.length} ソース統合 (Future+短中長+パターン)
-            {master.scoreUncapped !== master.score && ` · 補正前 ${master.scoreUncapped} → 最終 ${master.score}`}
+          <div className="flex items-baseline gap-3 mt-1">
+            <div
+              className="text-8xl font-black leading-none"
+              style={{ color, textShadow: `0 0 32px ${color}70`, ...MONO }}
+            >
+              {master.score}
+            </div>
+            <div className="flex flex-col">
+              <div className="text-base font-bold text-[var(--color-text)]" style={MONO}>/100</div>
+              <div className="text-4xl font-black mt-1" style={{ color: gradeColor(master.grade), ...MONO }}>
+                {master.grade}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* プログレスバー */}
-      <div className="h-2 bg-[var(--bg-input)] overflow-hidden rounded-full">
-        <div className="h-full transition-all duration-1000 rounded-full" style={{ width: `${master.score}%`, background: `linear-gradient(90deg, var(--color-accent), ${color})`, boxShadow: `0 0 8px ${color}80` }} />
+        {/* 右: 判定ラベル */}
+        <div className="flex-1 min-w-[260px] pt-4">
+          <div className="text-3xl font-black leading-tight" style={{ color }}>
+            {master.label}
+          </div>
+          <div className="text-sm text-[var(--color-text)] mt-2" style={MONO}>
+            {master.components.length} ソース統合 · Future+短中長+パターン{sectorBoost ? "+セクター" : ""}
+            {master.scoreUncapped !== master.score && ` · 補正前 ${master.scoreUncapped} → ${master.score}`}
+          </div>
+        </div>
       </div>
 
       {/* ━━ アクション推奨 ━━ */}
-      <div className="p-3 border" style={{ borderColor: `${color}55`, background: `${color}10` }}>
-        <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--color-text-secondary)] mb-1" style={MONO}>
+      <div className="p-4 border-l-4" style={{ borderColor: color, background: `${color}10` }}>
+        <div className="text-sm font-bold uppercase tracking-[0.3em] text-[var(--color-text)] mb-1" style={MONO}>
           💡 アクション推奨
         </div>
-        <div className="text-sm" style={{ color: "var(--color-text)", ...MONO }}>
+        <div className="text-base font-medium" style={{ color: "var(--color-text)" }}>
           {actionLine}
         </div>
       </div>
 
-      {/* ━━ 内訳 (構成データ) ━━ */}
+      {/* ━━ 内訳 (バー無し、グリッド大型カード) ━━ */}
       <div>
-        <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--color-text-secondary)] mb-2" style={MONO}>
-          📊 構成内訳 (加重平均)
+        <div className="text-sm font-bold uppercase tracking-[0.3em] text-[var(--color-text)] mb-3" style={MONO}>
+          📊 構成内訳 (加重平均、計 {master.components.length} ソース)
         </div>
-        <div className="space-y-1.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {master.components.map((c) => {
             const cColor = scoreColor(c.score);
             const pct = (c.weight / master.components.reduce((a, b) => a + b.weight, 0)) * 100;
             return (
-              <div key={c.key} className="flex items-center gap-3 text-xs" style={MONO}>
-                <span className="w-32 text-[var(--color-text-secondary)] shrink-0">
-                  {c.emoji} {c.label}
-                </span>
-                <span className="font-black w-10 text-right" style={{ color: cColor }}>
-                  {c.score}
-                </span>
-                <span className="text-[10px] text-[var(--color-text-secondary)] w-12 shrink-0">
-                  w{c.weight.toFixed(1)} ({pct.toFixed(0)}%)
-                </span>
-                <div className="flex-1 h-1.5 bg-[var(--bg-input)] overflow-hidden rounded-full">
-                  <div className="h-full" style={{ width: `${c.score}%`, background: cColor }} />
+              <div
+                key={c.key}
+                className="p-4 border flex flex-col items-center text-center"
+                style={{ borderColor: `${cColor}55`, background: `${cColor}0d` }}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="text-sm font-bold text-[var(--color-text)]">
+                    {c.emoji} {c.label}
+                  </div>
+                  <div className="text-xs font-bold text-[var(--color-text)]" style={MONO}>
+                    {pct.toFixed(0)}%
+                  </div>
+                </div>
+                <div className="flex items-baseline gap-1 mt-2">
+                  <div
+                    className="text-5xl font-black leading-none"
+                    style={{ color: cColor, ...MONO }}
+                  >
+                    {c.score}
+                  </div>
+                  <div className="text-sm text-[var(--color-text)]" style={MONO}>
+                    /100
+                  </div>
                 </div>
                 {c.note && (
-                  <span className="text-[10px] text-[var(--color-text-secondary)] truncate max-w-[260px]">
+                  <div
+                    className="text-xs text-[var(--color-text)] mt-2 truncate w-full"
+                    title={c.note}
+                  >
                     {c.note}
-                  </span>
+                  </div>
                 )}
               </div>
             );
@@ -496,7 +571,7 @@ export default function MasterScorePanel({ ticker }: { ticker: string }) {
 
       {/* 調整 / キャップの理由 */}
       {(master.adjustments.length > 0 || master.caps.length > 0) && (
-        <div className="text-[10px] text-[var(--color-text-secondary)] space-y-0.5" style={MONO}>
+        <div className="text-xs text-[var(--color-text)] space-y-1" style={MONO}>
           {master.adjustments.map((a, i) => (
             <div key={`adj-${i}`} style={{ color: a.delta > 0 ? "#7fffd4" : "#fb923c" }}>
               ▸ {a.reason}: {a.delta > 0 ? "+" : ""}{a.delta}pt
@@ -526,10 +601,51 @@ export default function MasterScorePanel({ ticker }: { ticker: string }) {
         </div>
       )}
 
+      {/* ━━ セクター環境バナー (Phase 21) ━━ */}
+      {sectorBoost && (
+        <div
+          className="p-3 border-l-4"
+          style={{
+            borderColor: scoreColor(sectorBoost.hotIndex),
+            background: `${scoreColor(sectorBoost.hotIndex)}10`,
+          }}
+        >
+          <div className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text)] mb-1" style={MONO}>
+            🏭 所属セクター環境
+          </div>
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <span className="text-lg font-bold text-[var(--color-text)]">
+              {sectorBoost.sectorEmoji} {sectorBoost.sectorName}
+            </span>
+            <span className="text-2xl font-black" style={{ color: scoreColor(sectorBoost.hotIndex), ...MONO }}>
+              Hot {sectorBoost.hotIndex}
+            </span>
+            {sectorBoost.avgScore !== null && (
+              <span className="text-sm text-[var(--color-text)]" style={MONO}>
+                同業平均スコア {sectorBoost.avgScore}
+              </span>
+            )}
+          </div>
+          {sectorBoost.macroDrivers.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {sectorBoost.macroDrivers.map((d) => (
+                <span
+                  key={d}
+                  className="text-xs px-2 py-1 border"
+                  style={{ ...MONO, borderColor: "var(--color-accent)", color: "var(--color-accent)" }}
+                >
+                  {MACRO_DRIVER_LABELS[d] ?? d}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ━━ アナリスト要約 (コンパクト) ━━ */}
       {future?.analyst && (future.analyst.targetMeanPrice || future.analyst.netRevisions30d !== null) && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] pt-2 border-t border-[var(--color-border)]" style={MONO}>
-          <span className="text-[var(--color-text-secondary)]">📊 アナリスト{future.analyst.numberOfAnalysts ? `(${future.analyst.numberOfAnalysts}人)` : ""}:</span>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm pt-3 border-t border-[var(--color-border)]" style={MONO}>
+          <span className="font-bold text-[var(--color-text)]">📊 アナリスト{future.analyst.numberOfAnalysts ? `(${future.analyst.numberOfAnalysts}人)` : ""}:</span>
           {future.analyst.targetMeanPrice !== null && (
             <span className="text-[var(--color-text)]">
               目標 {future.analyst.targetMeanPrice.toLocaleString()}

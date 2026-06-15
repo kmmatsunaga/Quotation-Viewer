@@ -9,6 +9,8 @@ import { BottomNav } from "@/components/BottomNav";
 const navItems = [
   { href: "/", label: "マーケット概況", shortLabel: "概況", icon: "chart" },
   { href: "/macro", label: "🌐マクロ", shortLabel: "🌐", icon: "chart" },
+  { href: "/macro-watch", label: "🔮予兆", shortLabel: "🔮", icon: "chart" },
+  { href: "/sectors", label: "🏭業界", shortLabel: "🏭", icon: "grid" },
   { href: "/favorites", label: "お気に入り", shortLabel: "お気に入り", icon: "star" },
   { href: "/analysis", label: "銘柄分析", shortLabel: "分析", icon: "search" },
   { href: "/patterns", label: "パターン", shortLabel: "パターン", icon: "grid" },

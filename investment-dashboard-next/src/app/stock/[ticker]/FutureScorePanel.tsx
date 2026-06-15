@@ -230,8 +230,8 @@ export default function FutureScorePanel({ ticker }: { ticker: string }) {
         >
           {analyst.targetMeanPrice !== null && (
             <div>
-              <div className="text-[9px] uppercase text-[var(--color-text-secondary)]">目標株価</div>
-              <div className="text-base font-bold text-[var(--color-text)]">
+              <div className="text-sm font-bold text-[var(--color-text)]">目標株価</div>
+              <div className="text-2xl font-black text-[var(--color-text)] mt-1">
                 {analyst.targetMeanPrice.toLocaleString()}
               </div>
               {analyst.upsidePct !== null && (
@@ -246,8 +246,8 @@ export default function FutureScorePanel({ ticker }: { ticker: string }) {
           )}
           {analyst.numberOfAnalysts !== null && (
             <div>
-              <div className="text-[9px] uppercase text-[var(--color-text-secondary)]">アナリスト数</div>
-              <div className="text-base font-bold text-[var(--color-text)]">{analyst.numberOfAnalysts}人</div>
+              <div className="text-sm font-bold text-[var(--color-text)]">アナリスト数</div>
+              <div className="text-2xl font-black text-[var(--color-text)] mt-1">{analyst.numberOfAnalysts}人</div>
               {analyst.recommendationKey && (
                 <div className="text-[10px] text-[var(--color-text-secondary)] uppercase">{analyst.recommendationKey}</div>
               )}
@@ -255,9 +255,9 @@ export default function FutureScorePanel({ ticker }: { ticker: string }) {
           )}
           {analyst.recommendationMean !== null && (
             <div>
-              <div className="text-[9px] uppercase text-[var(--color-text-secondary)]">コンセンサス</div>
+              <div className="text-sm font-bold text-[var(--color-text)]">コンセンサス</div>
               <div
-                className="text-base font-bold"
+                className="text-2xl font-black mt-1"
                 style={{ color: analyst.recommendationMean <= 2.3 ? "#7fffd4" : analyst.recommendationMean >= 3.5 ? "#fb923c" : "#facc15" }}
               >
                 {analyst.recommendationMean.toFixed(2)}
@@ -267,9 +267,9 @@ export default function FutureScorePanel({ ticker }: { ticker: string }) {
           )}
           {analyst.netRevisions30d !== null && (
             <div>
-              <div className="text-[9px] uppercase text-[var(--color-text-secondary)]">EPSリビジョン30d</div>
+              <div className="text-sm font-bold text-[var(--color-text)]">EPSリビジョン30d</div>
               <div
-                className="text-base font-bold"
+                className="text-2xl font-black mt-1"
                 style={{ color: analyst.netRevisions30d > 0 ? "#7fffd4" : analyst.netRevisions30d < 0 ? "#fb923c" : "#facc15" }}
               >
                 {analyst.netRevisions30d > 0 ? "+" : ""}{analyst.netRevisions30d}件
@@ -471,20 +471,20 @@ export default function FutureScorePanel({ ticker }: { ticker: string }) {
             <button
               key={key}
               onClick={() => setExpanded(isExpanded ? null : key)}
-              className="border p-2 text-left transition-all hover:scale-[1.02]"
+              className="border p-3 text-left transition-all hover:scale-[1.02]"
               style={{
                 borderColor: color,
                 background: isExpanded ? `${color}22` : `${color}10`,
                 boxShadow: isExpanded ? `0 0 12px ${color}` : "none",
               }}
             >
-              <div className="text-[9px] uppercase text-[var(--color-text-secondary)]" style={MONO}>
+              <div className="text-sm font-bold" style={{ color: "var(--color-text)" }}>
                 {FACTOR_LABELS[key as string]}
               </div>
-              <div className="text-2xl font-black mt-1" style={{ ...MONO, color }}>
+              <div className="text-4xl font-black mt-1.5 leading-none" style={{ ...MONO, color }}>
                 {f.grade}
               </div>
-              <div className="text-[10px] text-[var(--color-text-secondary)]" style={MONO}>
+              <div className="text-xs text-[var(--color-text-secondary)] mt-1" style={MONO}>
                 {f.raw}/100
               </div>
             </button>

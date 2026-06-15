@@ -897,14 +897,9 @@ function PatternPanel({ patterns, loading, transitions }: { patterns: Record<str
                     <span className="text-sm font-bold" style={{ ...MONO, color: ss.color }}>→ {t.toLabel}</span>
                     <span className="text-[8px] px-1.5 py-0.5 font-bold rounded-sm" style={{ background: ss.color, color: "#05060d", ...MONO }}>{ss.label}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9px] text-[var(--color-text-secondary)]" style={MONO}>確率: {probLabel}</span>
-                    <div className="flex items-center gap-1">
-                      <div className="w-16 h-1.5 bg-[var(--bg-input)] rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all" style={{ width: `${t.proximity}%`, background: ss.color }} />
-                      </div>
-                      <span className="text-[9px]" style={{ ...MONO, color: ss.color }}>{t.proximity}%</span>
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-[var(--color-text-secondary)]" style={MONO}>確率: <span className="text-[var(--color-text)] font-bold">{probLabel}</span></span>
+                    <span className="text-lg font-black" style={{ ...MONO, color: ss.color }}>{t.proximity}%</span>
                   </div>
                 </div>
                 <div className="space-y-1">

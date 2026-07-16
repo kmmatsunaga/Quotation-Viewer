@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import CommentaryPanel from "@/components/CommentaryPanel";
+import { assessLargeHoldings } from "@/lib/holdings-assess";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -183,6 +185,19 @@ export default function LargeHoldingsPanel({ ticker }: { ticker: string }) {
           </tbody>
         </table>
       </div>
+
+      {/* 🏛 大口動向の温度計 (自動解説) */}
+      {(() => {
+        const c = assessLargeHoldings({
+          totalFilings: s.totalFilings,
+          uniqueFilers: s.uniqueFilers,
+          newFilers: s.newFilers,
+          increasing: s.increasing,
+          decreasing: s.decreasing,
+          windowDays: 60,
+        });
+        return c ? <CommentaryPanel title="大口動向の温度計" c={c} /> : null;
+      })()}
 
       <div className="text-[9px] text-[var(--color-text-secondary)]" style={MONO}>
         Source: EDINET (金融庁) · cached: {data.cached ? "yes" : "no"}

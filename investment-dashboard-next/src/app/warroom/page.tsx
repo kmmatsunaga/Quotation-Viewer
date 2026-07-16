@@ -19,6 +19,7 @@ import { NIKKEI225 } from "@/lib/nikkei225";
 import { STOCK_LIST } from "@/lib/stock-list";
 import { addTrade, computeTradePnl, TRADE_REASON_TAGS } from "@/lib/firestore";
 import { syncRakutenMail } from "@/lib/rakuten-sync";
+import { GlossaryBox } from "@/components/CommentaryPanel";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 const LS_WATCHLIST = "cavka_warroom_watchlist";
@@ -725,6 +726,9 @@ export default function WarroomPage() {
         ※ 🚨損切りライン到達 / 🎯利確ライン到達 は低音3連打で強く鳴ります。感情でブレる前に、機械にルールを突きつけさせる装置です。<br />
         ※ 建玉と損益はこのブラウザに保存。決済すると 📓ジャーナル に自動記録されます。
       </div>
+
+      {/* 📖 用語メモ (ウォールームで使う概念) */}
+      <GlossaryBox terms={["ノイズ幅", "ATR", "リスクリワード比", "VWAP", "支え", "抵抗", "板"]} />
     </div>
   );
 }

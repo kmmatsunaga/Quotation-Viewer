@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { GlossaryBox } from "@/components/CommentaryPanel";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -510,6 +511,11 @@ export default function FutureScorePanel({ ticker }: { ticker: string }) {
           </ul>
         </div>
       )}
+
+      {/* 📖 用語メモ (5因子の意味) */}
+      <div className="mb-3">
+        <GlossaryBox terms={["割安度", "成長性", "収益力", "値動き (モメンタム)", "業績修正"]} />
+      </div>
 
       {/* メタ情報 */}
       <div className="flex items-center justify-between text-[10px] text-[var(--color-text-secondary)]" style={MONO}>

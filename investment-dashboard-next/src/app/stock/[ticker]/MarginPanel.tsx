@@ -1,6 +1,8 @@
 "use client";
 
 import { useTachibanaSnapshot } from "./TachibanaSnapshotContext";
+import CommentaryPanel from "@/components/CommentaryPanel";
+import { assessMargin } from "@/lib/margin-assess";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -234,6 +236,20 @@ export default function MarginPanel({ ticker }: { ticker: string }) {
           {h?.rate === null || h?.rate === undefined ? "なし" : `¥${h.rate}/株/日`}
         </span>
       </div>
+
+      {/* 🌊 需給の温度計 (自動解説) */}
+      {(() => {
+        const c = assessMargin({
+          longTotal: m?.longTotal ?? null,
+          longChangeTotal: m?.longChangeTotal ?? null,
+          shortTotal: m?.shortTotal ?? null,
+          shortChangeTotal: m?.shortChangeTotal ?? null,
+          ratioTotal: m?.ratioTotal ?? null,
+          hibuRate: h?.rate ?? null,
+          syoukinRatio: s?.ratio ?? null,
+        });
+        return c ? <CommentaryPanel title="需給の温度計" c={c} /> : null;
+      })()}
     </div>
   );
 }

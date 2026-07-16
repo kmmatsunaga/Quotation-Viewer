@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useTachibanaSnapshot, type SnapshotQuote as MarketQuote } from "./TachibanaSnapshotContext";
+import { assessOrderBook } from "@/lib/order-book-assess";
+import CommentaryPanel from "@/components/CommentaryPanel";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -99,6 +101,17 @@ export default function OrderBookPanel({ ticker }: { ticker: string }) {
   const upColor = "#ff3b6b";
   const downColor = "#00d9ff";
   const isUp = (quote.changeAbs ?? 0) >= 0;
+
+  // 板の温度計 (自動解説)
+  const assessment = assessOrderBook({
+    currentPrice: quote.currentPrice,
+    changePct: quote.changePct,
+    vwap: quote.vwap,
+    highPrice: quote.highPrice,
+    lowPrice: quote.lowPrice,
+    bids: quote.bids,
+    asks: quote.asks,
+  });
 
   return (
     <div
@@ -240,6 +253,9 @@ export default function OrderBookPanel({ ticker }: { ticker: string }) {
         <Stat label="出来高" value={quote.volume} format="vol" />
         <Stat label="売買代金" value={quote.turnover} format="money" />
       </div>
+
+      {/* 板の温度計 (自動解説) */}
+      {assessment && <CommentaryPanel title="板の温度計" c={assessment} />}
     </div>
   );
 }

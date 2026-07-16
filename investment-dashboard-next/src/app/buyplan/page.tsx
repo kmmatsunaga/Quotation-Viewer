@@ -18,6 +18,7 @@ import {
   type PositionPlan,
 } from "@/lib/firestore";
 import { computePositionPlan, type PositionPlanCalc } from "@/lib/position-plan";
+import { GlossaryBox } from "@/components/CommentaryPanel";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 const UP = "var(--color-up)";
@@ -272,6 +273,9 @@ export default function BuyPlanPage() {
                   <div className="text-[10px] text-[var(--color-text-secondary)]">総資産の{calc.positionPctOfAssets}% / 平均 ¥{calc.avgEntry.toLocaleString()}</div>
                 </div>
               </div>
+
+              {/* 📖 用語メモ (設計に使っている概念) */}
+              <GlossaryBox terms={["ATR", "リスクリワード比", "分割エントリー", "ノイズ幅"]} />
 
               {calc.notes.length > 0 && (
                 <ul className="text-[12px] text-[var(--color-text-secondary)] space-y-1 leading-relaxed">

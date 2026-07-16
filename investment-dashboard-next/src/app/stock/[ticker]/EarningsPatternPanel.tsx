@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { EarningsPatternResult } from "@/app/api/stocks/earnings-pattern/route";
+import { GlossaryBox } from "@/components/CommentaryPanel";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -183,6 +184,26 @@ export default function EarningsPatternPanel({ ticker }: { ticker: string }) {
           ※ 「7日前→」=決算7日前→決算当日の変化率 / 「→7日後」=決算当日→7日後の変化率
         </div>
       </div>
+
+      {/* 持ち越しリスクの読み解き */}
+      {stats.volatilityPost1d !== null && stats.sampleSize >= 3 && (
+        <div
+          className="p-2.5 rounded text-[11px] leading-relaxed"
+          style={{
+            background: "rgba(251,191,36,0.06)",
+            border: "1px solid rgba(251,191,36,0.3)",
+            color: "var(--color-text)",
+          }}
+        >
+          🌡 この銘柄は決算翌日に <strong style={{ color: "#fbbf24", ...MONO }}>±{stats.volatilityPost1d.toFixed(1)}%</strong> 程度動くのが常連
+          (過去{stats.sampleSize}回のバラつき)。
+          決算をまたいで持つ = この変動をまるごと受け入れる行為。
+          持ち越すなら「翌日この幅で逆に動いても耐えられる株数か」を先に確認。
+        </div>
+      )}
+
+      {/* 📖 用語メモ */}
+      <GlossaryBox terms={["勝率", "σ (標準偏差)", "EPS", "決算サプライズ"]} />
 
       {/* 過去イベント詳細 (折りたたみ) */}
       <details className="text-xs" style={MONO}>

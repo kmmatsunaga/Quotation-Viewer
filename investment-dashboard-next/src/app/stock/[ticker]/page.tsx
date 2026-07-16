@@ -20,6 +20,8 @@ import FinancialsPanel from "./FinancialsPanel";
 import SectorRankPanel from "./SectorRankPanel";
 import EarningsPatternPanel from "./EarningsPatternPanel";
 import { TachibanaSnapshotProvider } from "./TachibanaSnapshotContext";
+import CommentaryPanel from "@/components/CommentaryPanel";
+import { assessTechnical } from "@/lib/technical-assess";
 import {
   getWatchlistGroups,
   addToWatchlist,
@@ -821,6 +823,21 @@ export default function StockDetailPage({
               </div>
             </div>
           </div>
+          {/* 📈 テクニカルの温度計 (自動解説) */}
+          {(() => {
+            const tech = assessTechnical({
+              price: data.price,
+              rsi: data.indicators.rsi,
+              macd: data.indicators.macd,
+              signal: data.indicators.signal,
+              sma20: data.indicators.sma20,
+              sma50: data.indicators.sma50,
+              sma200: data.indicators.sma200,
+              bbUpper: data.indicators.bbUpper,
+              bbLower: data.indicators.bbLower,
+            });
+            return tech ? <div className="mt-4"><CommentaryPanel title="テクニカルの温度計" c={tech} /></div> : null;
+          })()}
         </div>
         <div
           className="p-4 rounded"

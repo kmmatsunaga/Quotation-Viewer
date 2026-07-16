@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import CommentaryPanel from "@/components/CommentaryPanel";
+import { assessFinancials } from "@/lib/financials-assess";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -140,6 +142,32 @@ export default function FinancialsPanel({ ticker }: { ticker: string }) {
           ))}
         </div>
       </div>
+
+      {/* 📊 業績の温度計 (自動解説) */}
+      {(() => {
+        const fin = assessFinancials({
+          currency: data.currency,
+          annual: data.annual.map((a) => ({
+            fiscalYearEnd: a.fiscalYearEnd,
+            revenue: a.revenue,
+            operatingIncome: a.operatingIncome,
+            netIncome: a.netIncome,
+            operatingMargin: a.operatingMargin,
+            netMargin: a.netMargin,
+            equityRatio: a.equityRatio,
+            roe: a.roe,
+            freeCashflow: a.freeCashflow,
+          })),
+          quarterly: data.quarterly.map((q) => ({
+            quarter: q.quarter,
+            date: q.date,
+            revenue: q.revenue,
+            netIncome: q.netIncome,
+            surprise: q.surprise,
+          })),
+        });
+        return fin ? <CommentaryPanel title="業績の温度計" c={fin} /> : null;
+      })()}
 
       {tab === "annual" && <AnnualTable annual={data.annual} currency={data.currency} />}
       {tab === "quarterly" && <QuarterlyTable quarterly={data.quarterly} currency={data.currency} />}

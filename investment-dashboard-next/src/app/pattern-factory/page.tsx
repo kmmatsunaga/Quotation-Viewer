@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { GlossaryBox } from "@/components/CommentaryPanel";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 const UP = "var(--color-up)";
@@ -126,6 +127,9 @@ export default function PatternFactoryPage() {
           ⚠ 過去データは現在の上場銘柄のみ (期間中の上場廃止銘柄を含まない = 生存者バイアス)。
           発見時の勝率は1割引いて読むこと。信じてよいのは「発見後ライブ」の数字だけ。
         </p>
+        <div className="mt-2">
+          <GlossaryBox terms={["発見時成績", "ライブ検証", "t値", "n (サンプル数)", "生存者バイアス", "勝率", "σ (標準偏差)"]} />
+        </div>
       </div>
 
       {/* 時間軸切替 */}

@@ -81,7 +81,7 @@ export default function BacktestPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-bold text-[var(--color-accent)]" style={MONO}>
+        <h1 className="text-[26px] font-bold text-[var(--color-text)] tracking-tight">
           🔬 シグナル精度検証 (バックテスト)
         </h1>
         <p className="text-xs text-[var(--color-text-secondary)] mt-1" style={MONO}>

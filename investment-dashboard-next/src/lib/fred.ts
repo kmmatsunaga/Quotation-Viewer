@@ -235,6 +235,119 @@ export function estimateFedPolicyOutlook(
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// BOJ 政策方向の推定 (簡易モデル、Fed と類似アプローチ)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export interface BojPolicyOutlook {
+  currentRate: number | null;          // 短期金利 (3M Interbank, BOJ ターゲット代理)
+  recentChangeBps: number | null;      // 直近12ヶ月の bps 変化
+  cpiYoY: number | null;               // 日本CPI YoY (%)
+  unemploymentRate: number | null;     // 日本失業率
+  jgb10y: number | null;               // 10年JGB利回り
+  jgb10yChange3m: number | null;       // 10Y JGB 直近3ヶ月の bps 変化
+  usdJpy: number | null;               // USD/JPY (円安は利上げ圧力)
+  // Cavka 簡易モデル
+  probRateCut: number;
+  probRateHold: number;
+  probRateHike: number;
+  rationale: string[];
+}
+
+export function estimateBojPolicyOutlook(
+  callRate: FredSeriesResult | null,
+  jpnCpi: FredSeriesResult | null,
+  jpnUnrate: FredSeriesResult | null,
+  jgb10y: FredSeriesResult | null,
+  usdJpy: number | null
+): BojPolicyOutlook {
+  const rationale: string[] = [];
+  let scoreCut = 20, scoreHold = 50, scoreHike = 30; // base: BOJ は基本「据置」寄り
+
+  const currentRate = callRate?.latest?.value ?? null;
+  // BOJ は動きが遅いので 12ヶ月変化を見る
+  const recentChange = callRate ? changeInBps(callRate.observations, 0, 12) : null;
+  const cpiYoY = jpnCpi ? yearOverYear(jpnCpi.observations) : null;
+  const unemploymentRate = jpnUnrate?.latest?.value ?? null;
+  const jgb10yVal = jgb10y?.latest?.value ?? null;
+  const jgb10yChg = jgb10y ? changeInBps(jgb10y.observations, 0, 3) : null;
+
+  // インフレ判定 (BOJ ターゲット 2%)
+  if (cpiYoY !== null) {
+    if (cpiYoY >= 3.0) {
+      scoreHike += 25; scoreCut -= 15; scoreHold -= 10;
+      rationale.push(`日本CPI YoY +${cpiYoY.toFixed(1)}% (BOJ目標2%大幅超 → 利上げ圧力)`);
+    } else if (cpiYoY >= 2.0) {
+      scoreHike += 10; scoreHold -= 5;
+      rationale.push(`日本CPI YoY +${cpiYoY.toFixed(1)}% (目標達成、持続性確認段階 → 段階的利上げ余地)`);
+    } else if (cpiYoY >= 1.0) {
+      rationale.push(`日本CPI YoY +${cpiYoY.toFixed(1)}% (目標下回り → 据置寄り)`);
+    } else {
+      scoreCut += 15; scoreHike -= 10;
+      rationale.push(`日本CPI YoY +${cpiYoY.toFixed(1)}% (デフレリスク → 緩和方向)`);
+    }
+  }
+
+  // 円安は BOJ への利上げ圧力 (輸入インフレ + 政治的圧力)
+  if (usdJpy !== null) {
+    if (usdJpy >= 155) {
+      scoreHike += 15; scoreCut -= 5;
+      rationale.push(`USD/JPY ${usdJpy.toFixed(1)} (円安進行 → 利上げで円防衛圧力)`);
+    } else if (usdJpy >= 150) {
+      scoreHike += 5;
+      rationale.push(`USD/JPY ${usdJpy.toFixed(1)} (円安方向、利上げ余地観察)`);
+    } else if (usdJpy <= 140) {
+      scoreHike -= 5; scoreCut += 5;
+      rationale.push(`USD/JPY ${usdJpy.toFixed(1)} (円高方向 → 利上げ動機薄)`);
+    }
+  }
+
+  // 失業率 (上昇は緩和方向、ただし日本は構造的に低い)
+  if (unemploymentRate !== null) {
+    if (unemploymentRate >= 3.0) {
+      scoreCut += 10; scoreHike -= 5;
+      rationale.push(`日本失業率 ${unemploymentRate.toFixed(1)}% (上昇傾向、緩和圧力)`);
+    } else if (unemploymentRate <= 2.5) {
+      rationale.push(`日本失業率 ${unemploymentRate.toFixed(1)}% (歴史的低水準、利上げ余地)`);
+    }
+  }
+
+  // 10Y JGB の急上昇 = 市場が利上げを織込みに行ってる
+  if (jgb10yChg !== null && jgb10yChg >= 20) {
+    scoreHike += 10;
+    rationale.push(`10年JGB 直近3M +${jgb10yChg}bps (市場が利上げ織込み中)`);
+  } else if (jgb10yChg !== null && jgb10yChg <= -20) {
+    scoreCut += 5;
+    rationale.push(`10年JGB 直近3M ${jgb10yChg}bps (利回り低下、緩和観測)`);
+  }
+
+  // 直近の方向感 (12ヶ月)
+  if (recentChange !== null && recentChange >= 25) {
+    scoreHike += 5;
+    rationale.push(`過去12ヶ月で +${recentChange}bps 利上げ済 → 正常化トレンド継続観測`);
+  }
+
+  // 正規化
+  scoreCut = Math.max(scoreCut, 1);
+  scoreHold = Math.max(scoreHold, 1);
+  scoreHike = Math.max(scoreHike, 1);
+  const total = scoreCut + scoreHold + scoreHike;
+
+  return {
+    currentRate,
+    recentChangeBps: recentChange,
+    cpiYoY,
+    unemploymentRate,
+    jgb10y: jgb10yVal,
+    jgb10yChange3m: jgb10yChg,
+    usdJpy,
+    probRateCut: Math.round((scoreCut / total) * 100),
+    probRateHold: Math.round((scoreHold / total) * 100),
+    probRateHike: Math.round((scoreHike / total) * 100),
+    rationale,
+  };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 景気後退確率 (Yield Curve + Sahm Rule)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -409,6 +522,151 @@ export function estimateOilOutlook(
     direction,
     highPrice,
     lowPrice,
+    signals,
+  };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 半導体サイクル (FRED 生産・PPI + Yahoo SMH ETF)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export interface SemiCycleOutlook {
+  productionIndex: number | null;       // IPG3344S 半導体製造業 生産指数
+  productionYoY: number | null;         // 前年同月比 (%)
+  ppi: number | null;                   // PCU3344133441 半導体 PPI
+  ppiYoY: number | null;
+  smhPrice: number | null;              // VanEck Semiconductor ETF 価格 (USD)
+  smhChange3m: number | null;           // 3ヶ月前比 (%)
+  smhChange1y: number | null;           // 1年前比 (%)
+  cycleStage: "boom" | "expansion" | "peak" | "contraction" | "trough" | "neutral";
+  cycleScore: number;                   // -100 〜 +100
+  signals: string[];
+}
+
+/**
+ * Yahoo の SMH ETF 月足を取得 (FRED の月次データと粒度合わせる)
+ */
+export async function fetchSmhMonthly(): Promise<{ price: number | null; change3m: number | null; change1y: number | null } | null> {
+  try {
+    const url = "https://query1.finance.yahoo.com/v8/finance/chart/SMH?range=1y&interval=1mo";
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const r = json.chart?.result?.[0];
+    if (!r) return null;
+    const closes = (r.indicators?.quote?.[0]?.close ?? []).filter((c: number | null): c is number => c !== null);
+    const price = r.meta?.regularMarketPrice ?? null;
+    if (price === null || closes.length < 2) return { price, change3m: null, change1y: null };
+    const oldest = closes[0];
+    const threeAgo = closes.length >= 4 ? closes[closes.length - 4] : null;
+    const change1y = oldest > 0 ? ((price - oldest) / oldest) * 100 : null;
+    const change3m = threeAgo !== null && threeAgo > 0 ? ((price - threeAgo) / threeAgo) * 100 : null;
+    return { price, change3m, change1y };
+  } catch {
+    return null;
+  }
+}
+
+export function estimateSemiCycleOutlook(
+  production: FredSeriesResult | null,
+  ppi: FredSeriesResult | null,
+  smh: { price: number | null; change3m: number | null; change1y: number | null } | null
+): SemiCycleOutlook {
+  const signals: string[] = [];
+  let score = 0;
+
+  const productionIndex = production?.latest?.value ?? null;
+  const productionYoY = production ? yearOverYear(production.observations) : null;
+  const ppiValue = ppi?.latest?.value ?? null;
+  const ppiYoY = ppi ? yearOverYear(ppi.observations) : null;
+  const smhPrice = smh?.price ?? null;
+  const smhChange3m = smh?.change3m ?? null;
+  const smhChange1y = smh?.change1y ?? null;
+
+  // SMH モメンタム (最重要、市場の織込みを反映)
+  if (smhChange1y !== null) {
+    if (smhChange1y >= 50) {
+      score += 50;
+      signals.push(`SMH ETF 過去1年で +${smhChange1y.toFixed(0)}% → 強いブル相場`);
+    } else if (smhChange1y >= 20) {
+      score += 30;
+      signals.push(`SMH ETF 過去1年で +${smhChange1y.toFixed(0)}% → 拡大期`);
+    } else if (smhChange1y >= 0) {
+      score += 10;
+      signals.push(`SMH ETF 過去1年で +${smhChange1y.toFixed(0)}% (緩やか)`);
+    } else if (smhChange1y >= -20) {
+      score -= 20;
+      signals.push(`SMH ETF 過去1年で ${smhChange1y.toFixed(0)}% → 調整局面`);
+    } else {
+      score -= 40;
+      signals.push(`SMH ETF 過去1年で ${smhChange1y.toFixed(0)}% → 弱気相場`);
+    }
+  }
+  if (smhChange3m !== null) {
+    if (smhChange3m >= 10) {
+      score += 15;
+      signals.push(`SMH ETF 直近3ヶ月 +${smhChange3m.toFixed(1)}% (上昇加速)`);
+    } else if (smhChange3m <= -10) {
+      score -= 15;
+      signals.push(`SMH ETF 直近3ヶ月 ${smhChange3m.toFixed(1)}% (下落加速)`);
+    }
+  }
+
+  // 生産指数 (実体経済の動き、遅行指標)
+  if (productionYoY !== null) {
+    if (productionYoY >= 15) {
+      score += 20;
+      signals.push(`半導体生産 前年比 +${productionYoY.toFixed(1)}% → 実需活況`);
+    } else if (productionYoY >= 5) {
+      score += 10;
+      signals.push(`半導体生産 前年比 +${productionYoY.toFixed(1)}%`);
+    } else if (productionYoY < 0) {
+      score -= 15;
+      signals.push(`半導体生産 前年比 ${productionYoY.toFixed(1)}% → 実需弱含み`);
+    }
+  }
+  // PPI (価格の動向)
+  if (ppiYoY !== null) {
+    if (ppiYoY >= 5) {
+      score += 5;
+      signals.push(`半導体PPI 前年比 +${ppiYoY.toFixed(1)}% → 価格上昇トレンド`);
+    } else if (ppiYoY <= -10) {
+      score -= 5;
+      signals.push(`半導体PPI 前年比 ${ppiYoY.toFixed(1)}% → 値下げ圧力`);
+    }
+  }
+
+  // クリップ
+  score = Math.max(-100, Math.min(100, score));
+
+  // ステージ判定
+  let cycleStage: SemiCycleOutlook["cycleStage"];
+  if (score >= 60) cycleStage = "boom";
+  else if (score >= 25) cycleStage = "expansion";
+  else if (score >= -10) cycleStage = "neutral";
+  else if (score >= -40) cycleStage = "contraction";
+  else cycleStage = "trough";
+
+  // Peak 検出: 過去 SMH 大幅上昇 + 直近モメンタム鈍化
+  if (smhChange1y !== null && smhChange1y >= 50 && smhChange3m !== null && smhChange3m < 5) {
+    cycleStage = "peak";
+    signals.push(`⚠ Peak 兆候: 1年で大幅上昇後、足元で減速`);
+    score -= 10;
+  }
+
+  return {
+    productionIndex,
+    productionYoY,
+    ppi: ppiValue,
+    ppiYoY,
+    smhPrice,
+    smhChange3m,
+    smhChange1y,
+    cycleStage,
+    cycleScore: score,
     signals,
   };
 }

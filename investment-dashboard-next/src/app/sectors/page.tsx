@@ -119,10 +119,10 @@ export default function SectorsPage() {
     <div className="space-y-4">
       {/* ヘッダ */}
       <div>
-        <h1 className="text-xl font-bold text-[var(--color-accent)]" style={MONO}>
+        <h1 className="text-[26px] font-bold text-[var(--color-text)] tracking-tight">
           🏭 業界/テーマトレンド
         </h1>
-        <p className="text-sm text-[var(--color-text)] mt-1" style={MONO}>
+        <p className="text-[14px] text-[var(--color-text-secondary)] mt-1.5 leading-relaxed">
           18業界 + 7テーマの Hot Index・構成銘柄・連動マクロ要因
         </p>
       </div>

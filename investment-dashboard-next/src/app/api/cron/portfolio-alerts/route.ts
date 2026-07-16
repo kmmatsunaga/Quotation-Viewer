@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { sendLineMessage } from "@/lib/line-notify";
+import { getCronOrigin } from "@/lib/cron-origin";
 
 /**
  * GET /api/cron/portfolio-alerts
@@ -57,9 +58,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "MCP_API_KEY not configured" }, { status: 500 });
   }
 
-  const host = req.headers.get("host") ?? "localhost:3000";
-  const proto = host.includes("localhost") ? "http" : "https";
-  const origin = `${proto}://${host}`;
+  const origin = getCronOrigin(req);
 
   const db = getAdminDb();
   const emailsRaw = process.env.CAVKA_CRON_EMAILS ?? FALLBACK_EMAIL;
@@ -86,6 +85,7 @@ export async function GET(req: NextRequest) {
         const subs = [
           { col: "favorites", field: "ticker" },
           { col: "portfolio", field: "ticker" },
+          { col: "watchlist", field: "ticker" },
         ];
         for (const s of subs) {
           const ss = await db.collection("users").doc(uid).collection(s.col).get();

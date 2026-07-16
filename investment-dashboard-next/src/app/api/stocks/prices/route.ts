@@ -23,8 +23,9 @@ export async function GET(req: NextRequest) {
   }
 
   // Yahoo Finance用のティッカーに変換
+  // JP株: 3-4桁数字+英字(285A等)、投資信託: 数字+英字の組み合わせ(2931113C等)
   const yfTickers = tickers.map((t) => {
-    const isJP = /^\d{4}$/.test(t);
+    const isJP = /^\d{3,}[A-Z]?$/.test(t);
     return { original: t, yf: isJP ? `${t}.T` : t, isJP };
   });
 

@@ -50,6 +50,7 @@ interface SectorTrend {
   bearishRatio: number;        // overall < 45 の比率
   topPicks: { ticker: string; name: string; overall: number; mid: number; long: number }[];  // Top 5
   weakest: { ticker: string; name: string; overall: number; mid: number; long: number }[];   // Worst 3
+  peers: { ticker: string; name: string; overall: number; short: number; mid: number; long: number; price: number | null }[];  // 全銘柄 (overall 降順、関連銘柄パネル用)
   hotIndex: number;            // 0-100 統合
 }
 
@@ -94,6 +95,19 @@ function aggregateSector(sector: SectorDef, byTicker: Map<string, RankingEntry>)
     .slice(0, 3)
     .map((e) => ({ ticker: e.ticker, name: e.name, overall: e.overall, mid: e.mid, long: e.long }));
 
+  // 全 peers (overall 降順、関連銘柄パネル用)
+  const peers = [...matched]
+    .sort((a, b) => b.overall - a.overall)
+    .map((e) => ({
+      ticker: e.ticker,
+      name: e.name,
+      overall: e.overall,
+      short: e.short,
+      mid: e.mid,
+      long: e.long,
+      price: e.price,
+    }));
+
   return {
     id: sector.id,
     name: sector.name,
@@ -112,6 +126,7 @@ function aggregateSector(sector: SectorDef, byTicker: Map<string, RankingEntry>)
     bearishRatio: Math.round(bearishRatio * 100) / 100,
     topPicks,
     weakest,
+    peers,
     hotIndex: computeHotIndex(avgOverall, bullishRatio, bearishRatio),
   };
 }

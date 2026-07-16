@@ -2,12 +2,22 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   async rewrites() {
-    // ローカル開発時のみFastAPIに転送（Vercel上ではvercel.jsonが処理）
-    // Next.js App Router の API ルート（/api/stocks/search 等）は
-    // rewrite より優先されるので、それ以外を FastAPI に fallback する
+    // Firebase 認証ハンドラを自分のドメインからプロキシ（iOS ITP対策）
+    // これで認証Cookieが同一オリジン扱いになり、Safariで保持される
+    const firebaseAuthRewrites = [
+      {
+        source: "/__/auth/:path*",
+        destination: "https://cavka-79d45.firebaseapp.com/__/auth/:path*",
+      },
+      {
+        source: "/__/firebase/:path*",
+        destination: "https://cavka-79d45.firebaseapp.com/__/firebase/:path*",
+      },
+    ];
+
     if (process.env.NODE_ENV === "development") {
       return {
-        beforeFiles: [],
+        beforeFiles: firebaseAuthRewrites,
         afterFiles: [],
         fallback: [
           {
@@ -17,7 +27,7 @@ const nextConfig: NextConfig = {
         ],
       };
     }
-    return [];
+    return firebaseAuthRewrites;
   },
   async headers() {
     return [

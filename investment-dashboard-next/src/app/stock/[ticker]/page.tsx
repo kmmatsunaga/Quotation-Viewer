@@ -13,6 +13,9 @@ import InsightPanel from "./InsightPanel";
 import FutureScorePanel from "./FutureScorePanel";
 import LargeHoldingsPanel from "./LargeHoldingsPanel";
 import MasterScorePanel from "./MasterScorePanel";
+import VerdictCockpit from "./VerdictCockpit";
+import WhyMovedPanel from "./WhyMovedPanel";
+import RelatedStocksPanel from "./RelatedStocksPanel";
 import FinancialsPanel from "./FinancialsPanel";
 import SectorRankPanel from "./SectorRankPanel";
 import EarningsPatternPanel from "./EarningsPatternPanel";
@@ -129,6 +132,8 @@ export default function StockDetailPage({
   const { user } = useAuth();
   const [data, setData] = useState<StockDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  // 詳細タブ: 15パネルの縦積みを役割別に畳む (Verdict は常時表示の頂点)
+  const [detailTab, setDetailTab] = useState<"summary" | "technical" | "fundamental" | "supply" | "related">("summary");
   const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState("6mo");
   const [interval, setInterval] = useState(() => defaultInterval("6mo"));
@@ -555,6 +560,21 @@ export default function StockDetailPage({
             >
               📋 シナリオ作成
             </button>
+            {isJP && (
+              <button
+                onClick={() => { window.location.href = `/buyplan?ticker=${data.ticker}`; }}
+                className="px-3 py-1.5 text-[10px] uppercase tracking-wider min-h-[32px] transition-all"
+                style={{
+                  ...MONO, clipPath: clip(4),
+                  border: "1px solid var(--color-up)",
+                  color: "var(--color-up)",
+                  background: "rgba(255,59,107,0.06)",
+                }}
+                title="買うと決めたら: 分割エントリー・損切り・リスク上限を設計"
+              >
+                🧭 買い方を設計
+              </button>
+            )}
           </div>
         )}
 
@@ -740,81 +760,106 @@ export default function StockDetailPage({
         </div>
       </div>
 
-      {/* テクニカル指標 */}
-      <div className="p-5 rounded" style={{ border: "1px solid var(--color-border)", background: "var(--bg-card)" }}>
-        <span className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)] block mb-4" style={MONO}>Technical Indicators</span>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <IndicatorCard label="RSI (14)" value={data.indicators.rsi?.toFixed(1) ?? "—"} color={data.indicators.rsi ? data.indicators.rsi >= 70 ? upColor : data.indicators.rsi <= 30 ? downColor : "var(--color-text)" : "var(--color-text-secondary)"} sub={data.indicators.rsi ? data.indicators.rsi >= 70 ? "買われすぎ" : data.indicators.rsi <= 30 ? "売られすぎ" : "中立" : null} bar={data.indicators.rsi ? data.indicators.rsi / 100 : null} />
-          <IndicatorCard label="MACD" value={data.indicators.macd?.toFixed(2) ?? "—"} color={data.indicators.macd ? data.indicators.macd > 0 ? upColor : downColor : "var(--color-text-secondary)"} sub={data.indicators.signal != null ? `Signal: ${data.indicators.signal.toFixed(2)}` : null} />
-          <div>
-            <span className="text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-secondary)] block mb-1" style={MONO}>Bollinger Bands</span>
-            {data.indicators.bbUpper ? (
-              <div style={MONO}>
-                <div className="text-sm"><span className="text-[var(--color-text-secondary)]">Upper </span><span style={{ color: upColor }}>{currencySymbol}{data.indicators.bbUpper.toLocaleString()}</span></div>
-                <div className="text-sm mt-1"><span className="text-[var(--color-text-secondary)]">Lower </span><span style={{ color: downColor }}>{currencySymbol}{data.indicators.bbLower?.toLocaleString()}</span></div>
+      {/* ⚖ Cavka Verdict — 頂点。タブに関係なく常時表示 */}
+      <VerdictCockpit ticker={data.ticker} />
+
+      {/* ── 詳細タブ: 15パネルの縦積みを役割別に畳む ── */}
+      <div className="flex gap-1 border-b border-[var(--color-border)] overflow-x-auto sticky top-[var(--nav-height)] z-20 backdrop-blur-md" style={{ background: "rgba(5,6,13,0.85)" }}>
+        {([
+          ["summary", "🧭", "総合", "総合"],
+          ["technical", "📈", "テクニカル", "テクニカル"],
+          ["fundamental", "🔮", "ファンダ", "ファンダ"],
+          ["supply", "🏦", "需給", "需給・板"],
+          ["related", "🤝", "関連", "関連・ニュース"],
+        ] as const).map(([id, emoji, shortLabel, fullLabel]) => (
+          <button
+            key={id}
+            onClick={() => setDetailTab(id)}
+            className="flex-1 md:flex-none px-1 md:px-4 py-2.5 text-xs md:text-sm whitespace-nowrap transition-colors"
+            style={{
+              ...MONO,
+              color: detailTab === id ? "var(--color-accent)" : "var(--color-text-secondary)",
+              borderBottom: detailTab === id ? "2px solid var(--color-accent)" : "2px solid transparent",
+              fontWeight: detailTab === id ? 700 : 400,
+            }}
+          >
+            <span className="md:hidden">{emoji}<br />{shortLabel}</span>
+            <span className="hidden md:inline">{emoji} {fullLabel}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* 🧭 総合 */}
+      <div className={detailTab === "summary" ? "space-y-6" : "hidden"}>
+        {isJP && <WhyMovedPanel ticker={data.ticker} />}
+        <MasterScorePanel ticker={data.ticker} />
+        <InsightPanel ticker={data.ticker} />
+      </div>
+
+      {/* 📈 テクニカル */}
+      <div className={detailTab === "technical" ? "space-y-6" : "hidden"}>
+        <div className="p-5 rounded" style={{ border: "1px solid var(--color-border)", background: "var(--bg-card)" }}>
+          <span className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)] block mb-4" style={MONO}>Technical Indicators</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <IndicatorCard label="RSI (14)" value={data.indicators.rsi?.toFixed(1) ?? "—"} color={data.indicators.rsi ? data.indicators.rsi >= 70 ? upColor : data.indicators.rsi <= 30 ? downColor : "var(--color-text)" : "var(--color-text-secondary)"} sub={data.indicators.rsi ? data.indicators.rsi >= 70 ? "買われすぎ" : data.indicators.rsi <= 30 ? "売られすぎ" : "中立" : null} bar={data.indicators.rsi ? data.indicators.rsi / 100 : null} />
+            <IndicatorCard label="MACD" value={data.indicators.macd?.toFixed(2) ?? "—"} color={data.indicators.macd ? data.indicators.macd > 0 ? upColor : downColor : "var(--color-text-secondary)"} sub={data.indicators.signal != null ? `Signal: ${data.indicators.signal.toFixed(2)}` : null} />
+            <div>
+              <span className="text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-secondary)] block mb-1" style={MONO}>Bollinger Bands</span>
+              {data.indicators.bbUpper ? (
+                <div style={MONO}>
+                  <div className="text-sm"><span className="text-[var(--color-text-secondary)]">Upper </span><span style={{ color: upColor }}>{currencySymbol}{data.indicators.bbUpper.toLocaleString()}</span></div>
+                  <div className="text-sm mt-1"><span className="text-[var(--color-text-secondary)]">Lower </span><span style={{ color: downColor }}>{currencySymbol}{data.indicators.bbLower?.toLocaleString()}</span></div>
+                </div>
+              ) : <span className="text-sm text-[var(--color-text-secondary)]">—</span>}
+            </div>
+            <div>
+              <span className="text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-secondary)] block mb-1" style={MONO}>Moving Averages</span>
+              <div style={MONO} className="text-sm space-y-1">
+                <div><span className="text-[rgba(0,240,255,0.7)]">SMA20 </span><span>{data.indicators.sma20 ? `${currencySymbol}${data.indicators.sma20.toLocaleString()}` : "—"}</span></div>
+                <div><span className="text-[rgba(255,43,214,0.7)]">SMA50 </span><span>{data.indicators.sma50 ? `${currencySymbol}${data.indicators.sma50.toLocaleString()}` : "—"}</span></div>
+                {data.indicators.sma200 && <div><span className="text-[var(--color-text-secondary)]">SMA200 </span><span>{currencySymbol}{data.indicators.sma200.toLocaleString()}</span></div>}
               </div>
-            ) : <span className="text-sm text-[var(--color-text-secondary)]">—</span>}
-          </div>
-          <div>
-            <span className="text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-secondary)] block mb-1" style={MONO}>Moving Averages</span>
-            <div style={MONO} className="text-sm space-y-1">
-              <div><span className="text-[rgba(0,240,255,0.7)]">SMA20 </span><span>{data.indicators.sma20 ? `${currencySymbol}${data.indicators.sma20.toLocaleString()}` : "—"}</span></div>
-              <div><span className="text-[rgba(255,43,214,0.7)]">SMA50 </span><span>{data.indicators.sma50 ? `${currencySymbol}${data.indicators.sma50.toLocaleString()}` : "—"}</span></div>
-              {data.indicators.sma200 && <div><span className="text-[var(--color-text-secondary)]">SMA200 </span><span>{currencySymbol}{data.indicators.sma200.toLocaleString()}</span></div>}
             </div>
           </div>
         </div>
+        <div
+          className="p-4 rounded"
+          style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}
+        >
+          <MultiTimeframeView
+            ticker={data.ticker}
+            breakeven={myHoldings[0]?.avgCost}
+            targetPrice={myScenarios[0]?.targetPrices[0]}
+            stopLoss={myScenarios[0]?.stopLossPrice}
+          />
+        </div>
+        <PatternPanel patterns={patterns} loading={patternsLoading} transitions={transitions} />
       </div>
 
-      {/* 🏆 Cavka Master Score — 全評価データを統合した1画面サマリ */}
-      <MasterScorePanel ticker={data.ticker} />
-
-      {/* 💡 インサイトパネル (短/中/長期の詳細シグナル) */}
-      <InsightPanel ticker={data.ticker} />
-
-      {/* 🔮 将来性スコア (Phase 1: 5因子グレード + バリュートラップ警告) */}
-      <FutureScorePanel ticker={data.ticker} />
-
-      {/* 📊 業績推移 (Yahoo 4年/4Q) */}
-      <FinancialsPanel ticker={data.ticker} />
-
-      {/* 🏷 業種内ポジション */}
-      <SectorRankPanel ticker={data.ticker} />
-
-      {/* 🏛 EDINET 機関投資家動向 (大量保有報告書) */}
-      <LargeHoldingsPanel ticker={data.ticker} />
-
-      {/* 📊 決算前後パターン分析 */}
-      <EarningsPatternPanel ticker={data.ticker} />
-
-      {/* 板情報 (日本株のみ) */}
-      {/^\d{3,4}[A-Z]?$/.test(data.ticker) && (
-        <OrderBookPanel ticker={data.ticker} />
-      )}
-
-      {/* 信用残・需給情報 (日本株のみ) */}
-      {/^\d{3,4}[A-Z]?$/.test(data.ticker) && (
-        <MarginPanel ticker={data.ticker} />
-      )}
-
-      {/* マルチタイムフレーム */}
-      <div
-        className="p-4 rounded"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}
-      >
-        <MultiTimeframeView
-          ticker={data.ticker}
-          breakeven={myHoldings[0]?.avgCost}
-          targetPrice={myScenarios[0]?.targetPrices[0]}
-          stopLoss={myScenarios[0]?.stopLossPrice}
-        />
+      {/* 🔮 ファンダ */}
+      <div className={detailTab === "fundamental" ? "space-y-6" : "hidden"}>
+        <FutureScorePanel ticker={data.ticker} />
+        <FinancialsPanel ticker={data.ticker} />
+        <EarningsPatternPanel ticker={data.ticker} />
+        <SectorRankPanel ticker={data.ticker} />
       </div>
 
-      {/* 関連ニュース */}
-      <StockNewsPanel ticker={data.ticker} />
+      {/* 🏦 需給・板 */}
+      <div className={detailTab === "supply" ? "space-y-6" : "hidden"}>
+        {/^\d{3,4}[A-Z]?$/.test(data.ticker) && (
+          <OrderBookPanel ticker={data.ticker} />
+        )}
+        {/^\d{3,4}[A-Z]?$/.test(data.ticker) && (
+          <MarginPanel ticker={data.ticker} />
+        )}
+        <LargeHoldingsPanel ticker={data.ticker} />
+      </div>
 
-      {/* チャートパターン */}
-      <PatternPanel patterns={patterns} loading={patternsLoading} transitions={transitions} />
+      {/* 🤝 関連・ニュース */}
+      <div className={detailTab === "related" ? "space-y-6" : "hidden"}>
+        <RelatedStocksPanel ticker={data.ticker} />
+        <StockNewsPanel ticker={data.ticker} />
+      </div>
     </div>
     </TachibanaSnapshotProvider>
   );
@@ -824,17 +869,12 @@ export default function StockDetailPage({
 // サブコンポーネント
 // ========================================
 
-function IndicatorCard({ label, value, color, sub, bar }: { label: string; value: string; color: string; sub?: string | null; bar?: number | null }) {
+function IndicatorCard({ label, value, color, sub }: { label: string; value: string; color: string; sub?: string | null; bar?: number | null }) {
   return (
     <div>
-      <span className="text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-secondary)] block mb-1" style={MONO}>{label}</span>
-      <div className="text-xl font-bold" style={{ color, ...MONO }}>{value}</div>
-      {sub && <span className="text-[10px] text-[var(--color-text-secondary)] mt-0.5 block">{sub}</span>}
-      {bar != null && (
-        <div className="mt-2 h-1 bg-[var(--bg-input)] rounded-full overflow-hidden">
-          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${bar * 100}%`, backgroundColor: color }} />
-        </div>
-      )}
+      <span className="text-xs font-bold text-[var(--color-text)] block mb-1" style={MONO}>{label}</span>
+      <div className="text-2xl font-black" style={{ color, ...MONO }}>{value}</div>
+      {sub && <span className="text-xs text-[var(--color-text)] mt-0.5 block">{sub}</span>}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { IndexCard } from "@/components/IndexCard";
 import { IndexDetailChart } from "@/components/IndexDetailChart";
 import { NewsCard } from "@/components/NewsCard";
 import { StockRow } from "@/components/StockRow";
+import AgentPanels from "./AgentPanels";
 import {
   fetcher,
   fetchIndicesUrl,
@@ -161,6 +162,9 @@ export default function MarketOverview() {
 
   return (
     <div className="space-y-6">
+      {/* 🤖 AIエージェント (ウォッチドッグ + おすすめ) */}
+      <AgentPanels />
+
       {/* Timeframe selector */}
       <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-hide">
         {timeframes.map((tf) => (

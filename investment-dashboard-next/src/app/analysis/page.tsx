@@ -1,13 +1,69 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { fetcher, fetchAnalysisUrl, type AnalysisResult } from "@/lib/api";
 
+interface SearchResult {
+  ticker: string;
+  name: string;
+  market: string;
+}
+
 export default function AnalysisPage() {
+  const router = useRouter();
   const [ticker, setTicker] = useState("");
   const [searchTicker, setSearchTicker] = useState("");
   const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  // サジェスト機能
+  const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // 入力に応じて検索 (debounce 300ms)
+  useEffect(() => {
+    const q = ticker.trim();
+    // ティッカーコード形式なら検索不要
+    if (!q || /^\d{3,4}[A-Z]?$/.test(q) || /^[A-Z]{1,5}$/.test(q.toUpperCase())) {
+      setSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/stocks/search?q=${encodeURIComponent(q)}`);
+        const data = (await res.json()) as SearchResult[];
+        setSuggestions(data.slice(0, 8));
+        setShowSuggestions(true);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [ticker]);
+
+  // 外クリックで閉じる
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  const selectStock = (s: SearchResult) => {
+    setSuggestions([]);
+    setShowSuggestions(false);
+    // 銘柄詳細画面 (新版・フル機能) に遷移
+    router.push(`/stock/${s.ticker}`);
+  };
 
   const { data: analysis, isLoading } = useSWR<AnalysisResult>(
     searchTicker ? fetchAnalysisUrl(searchTicker) : null,
@@ -100,9 +156,19 @@ export default function AnalysisPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (ticker.trim()) {
-      setSearchTicker(ticker.trim().toUpperCase());
+    const q = ticker.trim();
+    if (!q) return;
+    // ティッカーコード形式 (4桁数字 or 英字) なら直接 /stock へ
+    if (/^\d{3,4}[A-Z]?$/.test(q) || /^[A-Z]{1,5}$/.test(q.toUpperCase())) {
+      router.push(`/stock/${q.toUpperCase()}`);
+      return;
     }
+    // それ以外: 検索結果のトップを使う
+    if (suggestions.length > 0) {
+      router.push(`/stock/${suggestions[0].ticker}`);
+      return;
+    }
+    setSearchTicker(q.toUpperCase());
   };
 
   const getScoreColor = (score: number) => {
@@ -119,46 +185,70 @@ export default function AnalysisPage() {
 
   return (
     <div className="space-y-6">
-      <h1
-        className="text-lg font-bold"
-        style={{
-          fontFamily: "'Orbitron', sans-serif",
-          background: "linear-gradient(90deg, #00f0ff 0%, #ff2bd6 100%)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-        }}
-      >
-        銘柄分析
-      </h1>
+      <h1 className="text-[26px] font-bold tracking-tight text-[var(--color-text)]">🔎 銘柄分析</h1>
 
       {/* Search */}
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <input
-          type="text"
-          value={ticker}
-          onChange={(e) => setTicker(e.target.value)}
-          placeholder="銘柄コードを入力 (例: 7203, AAPL)"
-          className="flex-1 bg-[var(--bg-input)] border border-[var(--color-border)] px-4 py-2.5 text-sm text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none min-h-[44px]"
-          style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
-          }}
-        />
-        <button
-          type="submit"
-          className="px-6 py-2.5 text-sm font-medium transition-all min-h-[44px] uppercase tracking-wider"
-          style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
-            border: "1px solid var(--color-accent)",
-            boxShadow: "0 0 18px rgba(0,240,255,0.35), inset 0 0 12px rgba(0,240,255,0.08)",
-            background: "transparent",
-            color: "var(--color-accent)",
-          }}
-        >
-          分析
-        </button>
-      </form>
+      <div ref={searchRef} className="relative">
+        <form onSubmit={handleSearch} className="flex gap-2">
+          <input
+            type="text"
+            value={ticker}
+            onChange={(e) => setTicker(e.target.value)}
+            onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+            placeholder="銘柄コード or 銘柄名で検索 (例: 7203, AAPL, トヨタ, KOKUSAI)"
+            className="flex-1 bg-[var(--bg-input)] border border-[var(--color-border)] px-4 py-2.5 text-sm text-[var(--color-text)] focus:border-[var(--color-accent)] focus:outline-none min-h-[44px]"
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+            }}
+          />
+          <button
+            type="submit"
+            className="px-6 py-2.5 text-sm font-medium transition-all min-h-[44px] uppercase tracking-wider"
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              clipPath: "polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px)",
+              border: "1px solid var(--color-accent)",
+              boxShadow: "0 0 18px rgba(0,240,255,0.35), inset 0 0 12px rgba(0,240,255,0.08)",
+              background: "transparent",
+              color: "var(--color-accent)",
+            }}
+          >
+            分析
+          </button>
+        </form>
+        {searching && (
+          <span className="absolute right-28 top-3.5 text-[10px] text-[var(--color-accent)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+            検索中...
+          </span>
+        )}
+        {showSuggestions && suggestions.length > 0 && (
+          <div
+            className="absolute z-50 left-0 right-24 mt-1 max-h-[300px] overflow-y-auto"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--color-accent)",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.6), 0 0 12px rgba(0,240,255,0.15)",
+            }}
+          >
+            {suggestions.map((s) => (
+              <button
+                key={s.ticker + s.market}
+                onClick={() => selectStock(s)}
+                className="block w-full text-left px-3 py-2 text-xs hover:bg-[rgba(0,240,255,0.08)] border-b border-[var(--color-border)] last:border-b-0"
+              >
+                <span className="text-[9px] px-1 py-0.5 mr-2" style={{ background: s.market === "US" ? "rgba(255,43,214,0.15)" : "rgba(0,240,255,0.15)", color: s.market === "US" ? "var(--color-accent-2)" : "var(--color-accent)", fontFamily: "'JetBrains Mono', monospace" }}>
+                  {s.market}
+                </span>
+                <span className="text-[var(--color-accent)] font-bold mr-2" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  {s.ticker}
+                </span>
+                <span className="text-[var(--color-text)]">{s.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {isLoading && (
         <div className="space-y-3">
@@ -281,16 +371,6 @@ export default function AnalysisPage() {
                 >
                   / 100
                 </span>
-              </div>
-              <div className="mt-3 h-2 bg-[var(--bg-input)] overflow-hidden" style={{ clipPath: "polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px)" }}>
-                <div
-                  className="h-full transition-all duration-700"
-                  style={{
-                    width: `${display.score}%`,
-                    background: `linear-gradient(90deg, var(--color-accent) 0%, var(--color-accent-2) 100%)`,
-                    boxShadow: `0 0 10px ${getScoreColor(display.score)}`,
-                  }}
-                />
               </div>
             </div>
 
@@ -428,9 +508,12 @@ export default function AnalysisPage() {
               d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
             />
           </svg>
-          <p className="text-sm">銘柄コードを入力して分析を開始してください</p>
+          <p className="text-sm">銘柄を選んで詳細分析画面に進みます</p>
           <p className="text-xs mt-1">
-            日本株 (例: 7203) または米国株 (例: AAPL)
+            銘柄コード (7203, AAPL) または銘柄名 (トヨタ, KOKUSAI)
+          </p>
+          <p className="text-[10px] mt-3 text-[var(--color-accent)]">
+            ※ 候補をクリック → 銘柄詳細画面 (💡インサイト, 📊板情報, 🏦信用残, 📰ニュース, 📊決算パターン 等) に遷移
           </p>
         </div>
       )}

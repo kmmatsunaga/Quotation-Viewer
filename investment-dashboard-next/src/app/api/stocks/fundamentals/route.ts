@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { yfQuoteSummary } from "@/lib/yahoo-finance";
 import { getCachedJpStocks } from "@/lib/jp-stocks-cache";
+import { NIKKEI225 } from "@/lib/nikkei225";
+import { SP500 } from "@/lib/sp500";
+import { STOCK_LIST } from "@/lib/stock-list";
+
+// 銘柄名ルックアップ (モジュールロード時に1回構築)
+const LOCAL_NAME_MAP = new Map<string, string>([
+  ...NIKKEI225.map((s) => [s.ticker, s.name] as const),
+  ...SP500.map((s) => [s.ticker, s.name] as const),
+  ...STOCK_LIST.map((s) => [s.ticker, s.name] as const),
+]);
 
 /**
  * GET /api/stocks/fundamentals?tickers=7203,4502,AAPL
@@ -85,7 +95,7 @@ export async function GET(req: NextRequest) {
 
         const result = await yfQuoteSummary(
           yfTicker,
-          "defaultKeyStatistics,financialData,summaryDetail,summaryProfile"
+          "defaultKeyStatistics,financialData,summaryDetail,summaryProfile,quoteType"
         );
         if (!result) return null;
 
@@ -93,6 +103,7 @@ export async function GET(req: NextRequest) {
         const fd = (result.financialData ?? {}) as Record<string, unknown>;
         const sd = (result.summaryDetail ?? {}) as Record<string, unknown>;
         const sp = (result.summaryProfile ?? {}) as Record<string, unknown>;
+        const qt = (result.quoteType ?? {}) as Record<string, unknown>;
 
         // Helper to extract raw value from Yahoo's format { raw: number, fmt: string }
         const raw = (obj: Record<string, unknown> | undefined, key: string): number | null => {
@@ -113,9 +124,13 @@ export async function GET(req: NextRequest) {
         const revenueGrowth = raw(fd, "revenueGrowth");
         const earningsGrowth = raw(fd, "earningsGrowth");
 
-        // 名前の優先順位: 立花マスタの日本語名 > Yahoo shortName > ticker
+        // 名前の優先順位:
+        //   日本株: 立花マスタ日本語名 > ローカルマスタ (NIKKEI225) > Yahoo > ticker
+        //   米国株: ローカルマスタ (SP500/STOCK_LIST) > Yahoo > ticker
         const jpName = isJP ? jpNameMap.get(ticker) : null;
-        const name = jpName ?? (fd.shortName ?? sd.shortName ?? ticker) as string;
+        const localName = LOCAL_NAME_MAP.get(ticker);
+        const yfName = (qt.longName ?? qt.shortName ?? sp.longName ?? null) as string | null;
+        const name = jpName ?? localName ?? yfName ?? ticker;
 
         const data: FundamentalData = {
           ticker,

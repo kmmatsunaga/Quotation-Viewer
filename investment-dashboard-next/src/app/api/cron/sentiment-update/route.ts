@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { getCronOrigin } from "@/lib/cron-origin";
 
 /**
  * GET /api/cron/sentiment-update
@@ -31,9 +32,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "MCP_API_KEY not configured" }, { status: 500 });
   }
 
-  const host = req.headers.get("host") ?? "localhost:3000";
-  const proto = host.includes("localhost") ? "http" : "https";
-  const origin = `${proto}://${host}`;
+  const origin = getCronOrigin(req);
 
   // 対象銘柄: ポートフォリオ + お気に入り (日本株のみ、立花のニュースは日本株中心)
   const emailsRaw = process.env.CAVKA_CRON_EMAILS ?? FALLBACK_EMAIL;

@@ -68,9 +68,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // メールリンク経由のログイン処理
     if (typeof window !== "undefined" && isSignInWithEmailLink(auth, window.location.href)) {
-      let email = window.localStorage.getItem(EMAIL_FOR_SIGNIN_KEY);
+      // 優先順位: URL の email > localStorage > prompt (フォールバック)
+      const urlParams = new URLSearchParams(window.location.search);
+      let email =
+        urlParams.get("email") ??
+        window.localStorage.getItem(EMAIL_FOR_SIGNIN_KEY) ??
+        "";
       if (!email) {
-        // フォールバック：別デバイスでリンクを開いた場合は再度入力してもらう
         email = window.prompt("ログインに使ったメールアドレスを入力してください") ?? "";
       }
       if (email) {
@@ -129,8 +133,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
+      // URL にメアドを埋め込んで送信 → メール経由で開いた時に自動補完
       await sendSignInLinkToEmail(auth, email, {
-        url: `${window.location.origin}/login`,
+        url: `${window.location.origin}/login?email=${encodeURIComponent(email)}`,
         handleCodeInApp: true,
       });
       window.localStorage.setItem(EMAIL_FOR_SIGNIN_KEY, email);

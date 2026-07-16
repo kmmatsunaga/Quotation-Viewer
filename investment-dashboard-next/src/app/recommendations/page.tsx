@@ -116,7 +116,7 @@ export default function RecommendationsPage() {
       {/* ヘッダー */}
       <div className="flex justify-between items-start flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-[var(--color-accent)]" style={MONO}>
+          <h1 className="text-[26px] font-bold text-[var(--color-text)] tracking-tight">
             🌟 おすすめ銘柄
           </h1>
           <p className="text-xs text-[var(--color-text-secondary)] mt-1" style={MONO}>

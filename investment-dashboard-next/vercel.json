@@ -40,6 +40,38 @@
     {
       "path": "/api/cron/portfolio-alerts",
       "schedule": "30 23 * * *"
+    },
+    {
+      "path": "/api/cron/macro-alerts",
+      "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/cron/verdict-track",
+      "schedule": "30 16 * * *"
+    },
+    {
+      "path": "/api/cron/bq-export",
+      "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/cron/morning-agent",
+      "schedule": "15 22 * * 0-4"
+    },
+    {
+      "path": "/api/cron/candidates-eval",
+      "schedule": "10 7 * * 1-5"
+    },
+    {
+      "path": "/api/cron/daily-features",
+      "schedule": "0 8 * * 1-5"
+    },
+    {
+      "path": "/api/cron/pattern-incubate",
+      "schedule": "0 9 * * 1-5"
+    },
+    {
+      "path": "/api/cron/why-snapshot",
+      "schedule": "45 7 * * 1-5"
     }
   ]
 }

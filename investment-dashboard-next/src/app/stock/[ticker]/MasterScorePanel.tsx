@@ -107,12 +107,21 @@ interface SectorBoost {
   macroDrivers: string[];      // 連動マクロ要因 (ID 配列)
 }
 
+interface MacroAlignment {
+  activeDrivers: string[];     // 「今、追い風になっている」マクロ要因
+  inactiveDrivers: string[];   // 「中立 or 逆風」になっている要因
+  alignmentRatio: number;      // active / total (0-1)
+  netDelta: number;            // Master Score への加算/減算 (-10 〜 +10)
+  summary: string;
+}
+
 interface MasterInput {
   future: FutureScoreResp | null;
   insights: InsightsResp | null;
   daily: PatternItem | null;
   weekly: PatternItem | null;
   sectorBoost: SectorBoost | null;  // 銘柄が属する最高Hotセクター
+  macroAlignment: MacroAlignment | null;
 }
 
 interface Component {
@@ -224,8 +233,18 @@ function computeMasterScore(input: MasterInput): MasterResult {
   let score = totalWeight > 0 ? weightedSum / totalWeight : 50;
   const scorePreCapped = score;
 
-  // 調整 (微補正): ニュース感情、業績修正
+  // 調整 (微補正): マクロ整合、ニュース感情、業績修正
   const adjustments: MasterResult["adjustments"] = [];
+
+  // Phase 25: マクロ予兆との整合性
+  if (input.macroAlignment && input.macroAlignment.netDelta !== 0) {
+    score += input.macroAlignment.netDelta;
+    adjustments.push({
+      reason: `🌐 マクロ整合: ${input.macroAlignment.summary}`,
+      delta: input.macroAlignment.netDelta,
+    });
+  }
+
   const s = input.future?.sentiment;
   if (s && s.articleCount > 0) {
     const delta = Math.round((s.finalScore / 100) * 5);
@@ -373,11 +392,107 @@ interface SectorTrendResp {
   themes: { id: string; name: string; emoji: string; hotIndex: number; avgOverall: number | null; macroDrivers: string[] }[];
 }
 
+interface MacroWatchResp {
+  ok: boolean;
+  fedPolicy: { probRateCut: number; probRateHold: number; probRateHike: number; currentRate: number | null };
+  recession: { probRecession12m: number; isInverted: boolean; sahmRuleTriggered: boolean };
+  fx: { usdJpy: number | null; changeFrom30d: number | null };
+  oil: { wti: number | null; direction: "up" | "down" | "sideways"; highPrice: boolean; lowPrice: boolean };
+  china: { demandLabel: "expansion" | "neutral" | "contraction"; demandScore: number };
+  semi: { cycleStage: "boom" | "expansion" | "peak" | "contraction" | "trough" | "neutral"; cycleScore: number };
+  bojPolicy: { probRateCut: number; probRateHold: number; probRateHike: number; currentRate: number | null };
+}
+
+/**
+ * セクター macroDrivers と現在のマクロ予兆を突合し、整合性を判定。
+ * 各 driver が「現在 active か」を判定 → 比率と差分を返す。
+ */
+function computeMacroAlignment(
+  macroDrivers: string[],
+  macro: MacroWatchResp
+): MacroAlignment {
+  const active: string[] = [];
+  const inactive: string[] = [];
+
+  for (const d of macroDrivers) {
+    let isActive = false;
+    switch (d) {
+      case "fed_cut":
+        isActive = macro.fedPolicy.probRateCut >= 35;
+        break;
+      case "fed_hike":
+        isActive = macro.fedPolicy.probRateHike >= 40;
+        break;
+      case "boj_hike":
+        isActive = (macro.bojPolicy?.probRateHike ?? 0) >= 35;
+        break;
+      case "boj_dovish":
+        isActive = (macro.bojPolicy?.probRateCut ?? 0) >= 30;
+        break;
+      case "recession_low":
+        isActive = macro.recession.probRecession12m < 30;
+        break;
+      case "fx_weak_yen":
+        isActive = (macro.fx.changeFrom30d ?? 0) >= 1 || (macro.fx.usdJpy ?? 0) >= 148;
+        break;
+      case "fx_strong_yen":
+        isActive = (macro.fx.changeFrom30d ?? 0) <= -1;
+        break;
+      case "oil_high":
+        isActive = macro.oil.highPrice || macro.oil.direction === "up";
+        break;
+      case "oil_low":
+        isActive = macro.oil.lowPrice || macro.oil.direction === "down";
+        break;
+      case "china_demand":
+        isActive = macro.china.demandLabel === "expansion";
+        break;
+      case "inbound":
+        isActive = (macro.fx.usdJpy ?? 0) >= 145;
+        break;
+      case "consumer_strong":
+        isActive = macro.recession.probRecession12m < 30;
+        break;
+      case "semi_cycle_up":
+        isActive = macro.semi?.cycleStage === "boom" || macro.semi?.cycleStage === "expansion";
+        break;
+      default:
+        isActive = false;
+    }
+    if (isActive) active.push(d);
+    else inactive.push(d);
+  }
+
+  const total = macroDrivers.length;
+  const ratio = total > 0 ? active.length / total : 0;
+
+  // netDelta: 整合率を -10 〜 +10 にマッピング
+  //   ratio 1.0 (全部追い風) → +10
+  //   ratio 0.5 (半分) → 0
+  //   ratio 0.0 (全部逆風) → -10
+  const netDelta = total > 0 ? Math.round((ratio - 0.5) * 20) : 0;
+
+  let summary = "";
+  if (total === 0) summary = "対応するマクロ要因なし";
+  else if (active.length === total) summary = `全 ${total} 要因が追い風 (満点)`;
+  else if (active.length === 0) summary = `全 ${total} 要因が逆風`;
+  else summary = `${active.length} / ${total} 要因が追い風`;
+
+  return {
+    activeDrivers: active,
+    inactiveDrivers: inactive,
+    alignmentRatio: ratio,
+    netDelta,
+    summary,
+  };
+}
+
 export default function MasterScorePanel({ ticker }: { ticker: string }) {
   const [future, setFuture] = useState<FutureScoreResp | null>(null);
   const [insights, setInsights] = useState<InsightsResp | null>(null);
   const [patterns, setPatterns] = useState<{ daily: PatternItem | null; weekly: PatternItem | null } | null>(null);
   const [sectorBoost, setSectorBoost] = useState<SectorBoost | null>(null);
+  const [macroAlignment, setMacroAlignment] = useState<MacroAlignment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -397,7 +512,11 @@ export default function MasterScorePanel({ ticker }: { ticker: string }) {
       tickerSectors.length > 0
         ? fetch(`/api/sectors/trends`).then((r) => (r.ok ? r.json() : null))
         : Promise.resolve(null),
-    ]).then(([f, i, p, st]) => {
+      // マクロ予兆 (常に取りに行く、整合性判定に使う)
+      tickerSectors.length > 0
+        ? fetch(`/api/macro/fred-watch`).then((r) => (r.ok ? r.json() : null))
+        : Promise.resolve(null),
+    ]).then(([f, i, p, st, mw]) => {
       if (cancelled) return;
       if (f.status === "fulfilled" && f.value) setFuture(f.value as FutureScoreResp);
       if (i.status === "fulfilled" && i.value) setInsights(i.value as InsightsResp);
@@ -409,6 +528,7 @@ export default function MasterScorePanel({ ticker }: { ticker: string }) {
         });
       }
       // セクター trends から、銘柄所属の中で hotIndex 最高を採用
+      let bestSector: { id: string; name: string; emoji: string; hotIndex: number; avgOverall: number | null; macroDrivers: string[] } | null = null;
       if (st.status === "fulfilled" && st.value) {
         const sr = st.value as SectorTrendResp;
         const all = [...(sr.industries ?? []), ...(sr.themes ?? [])];
@@ -416,15 +536,22 @@ export default function MasterScorePanel({ ticker }: { ticker: string }) {
           .map((ts) => all.find((a) => a.id === ts.id))
           .filter((x): x is NonNullable<typeof x> => !!x);
         if (matched.length > 0) {
-          const best = matched.reduce((a, b) => (a.hotIndex >= b.hotIndex ? a : b));
+          bestSector = matched.reduce((a, b) => (a.hotIndex >= b.hotIndex ? a : b));
           setSectorBoost({
-            sectorId: best.id,
-            sectorName: best.name,
-            sectorEmoji: best.emoji,
-            hotIndex: best.hotIndex,
-            avgScore: best.avgOverall,
-            macroDrivers: best.macroDrivers ?? [],
+            sectorId: bestSector.id,
+            sectorName: bestSector.name,
+            sectorEmoji: bestSector.emoji,
+            hotIndex: bestSector.hotIndex,
+            avgScore: bestSector.avgOverall,
+            macroDrivers: bestSector.macroDrivers ?? [],
           });
+        }
+      }
+      // マクロ整合性: 最高セクターの macroDrivers と現在のマクロ予兆を突合
+      if (mw.status === "fulfilled" && mw.value && bestSector) {
+        const macro = mw.value as MacroWatchResp;
+        if (macro.ok && bestSector.macroDrivers.length > 0) {
+          setMacroAlignment(computeMacroAlignment(bestSector.macroDrivers, macro));
         }
       }
       const anyOk = [f, i, p].some((r) => r.status === "fulfilled" && r.value);
@@ -444,8 +571,9 @@ export default function MasterScorePanel({ ticker }: { ticker: string }) {
       daily: patterns?.daily ?? null,
       weekly: patterns?.weekly ?? null,
       sectorBoost,
+      macroAlignment,
     });
-  }, [future, insights, patterns, sectorBoost]);
+  }, [future, insights, patterns, sectorBoost, macroAlignment]);
 
   if (loading) {
     return (
@@ -600,6 +728,63 @@ export default function MasterScorePanel({ ticker }: { ticker: string }) {
           ))}
         </div>
       )}
+
+      {/* ━━ マクロ整合バナー (Phase 25) ━━ */}
+      {macroAlignment && sectorBoost && (macroAlignment.activeDrivers.length > 0 || macroAlignment.inactiveDrivers.length > 0) && (() => {
+        const r = macroAlignment.alignmentRatio;
+        const c = r >= 0.7 ? "#22c55e" : r >= 0.4 ? "#facc15" : "#fb923c";
+        const label = r >= 0.7 ? "🌊 マクロ追い風" : r >= 0.4 ? "🟡 マクロ拮抗" : "🌊 マクロ逆風";
+        return (
+          <div
+            className="p-3 border-l-4"
+            style={{ borderColor: c, background: `${c}10` }}
+          >
+            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--color-text)] mb-1" style={MONO}>
+              🌐 マクロ整合性 ({sectorBoost.sectorName} の連動要因 vs 現在のマクロ予兆)
+            </div>
+            <div className="flex items-baseline gap-3 flex-wrap">
+              <span className="text-2xl font-black" style={{ color: c }}>
+                {label}
+              </span>
+              <span className="text-xl font-black" style={{ ...MONO, color: c }}>
+                {macroAlignment.activeDrivers.length} / {macroAlignment.activeDrivers.length + macroAlignment.inactiveDrivers.length}
+              </span>
+              <span className="text-sm font-bold" style={{ color: macroAlignment.netDelta >= 0 ? "#22c55e" : "#fb923c", ...MONO }}>
+                {macroAlignment.netDelta >= 0 ? "+" : ""}{macroAlignment.netDelta}pt
+              </span>
+              <span className="text-sm text-[var(--color-text)]">{macroAlignment.summary}</span>
+            </div>
+            {macroAlignment.activeDrivers.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                <span className="text-xs font-bold text-[#22c55e]">✓ 現在追い風:</span>
+                {macroAlignment.activeDrivers.map((d) => (
+                  <span
+                    key={d}
+                    className="text-xs px-2 py-1 border"
+                    style={{ ...MONO, borderColor: "#22c55e", color: "#22c55e", background: "rgba(34,197,94,0.10)" }}
+                  >
+                    {MACRO_DRIVER_LABELS[d] ?? d}
+                  </span>
+                ))}
+              </div>
+            )}
+            {macroAlignment.inactiveDrivers.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                <span className="text-xs font-bold text-[var(--color-text)]">▽ 現在中立/逆風:</span>
+                {macroAlignment.inactiveDrivers.map((d) => (
+                  <span
+                    key={d}
+                    className="text-xs px-2 py-1 border"
+                    style={{ ...MONO, borderColor: "var(--color-border)", color: "var(--color-text)" }}
+                  >
+                    {MACRO_DRIVER_LABELS[d] ?? d}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ━━ セクター環境バナー (Phase 21) ━━ */}
       {sectorBoost && (

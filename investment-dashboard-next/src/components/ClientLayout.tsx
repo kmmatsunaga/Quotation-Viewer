@@ -5,27 +5,43 @@ import { useEffect } from "react";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { TopNav } from "@/components/TopNav";
 import { BottomNav } from "@/components/BottomNav";
+import QuickNote from "@/components/QuickNote";
+import TickerContextMenu from "@/components/TickerContextMenu";
 
+// ナビ構造: ☀玄関 → ⚔戦場 (場中) → 🔬研究所 (分析) → 📊資産と記録
+// group が前項と変わる位置に区切りとグループ見出しが入る (TopNav)
 const navItems = [
-  { href: "/", label: "マーケット概況", shortLabel: "概況", icon: "chart" },
-  { href: "/macro", label: "🌐マクロ", shortLabel: "🌐", icon: "chart" },
-  { href: "/macro-watch", label: "🔮予兆", shortLabel: "🔮", icon: "chart" },
-  { href: "/sectors", label: "🏭業界", shortLabel: "🏭", icon: "grid" },
-  { href: "/favorites", label: "お気に入り", shortLabel: "お気に入り", icon: "star" },
-  { href: "/analysis", label: "銘柄分析", shortLabel: "分析", icon: "search" },
-  { href: "/patterns", label: "パターン", shortLabel: "パターン", icon: "grid" },
-  { href: "/screener", label: "スクリーナー", shortLabel: "スクリーナー", icon: "filter" },
-  { href: "/rankings", label: "ランキング", shortLabel: "ランキング", icon: "chart" },
-  { href: "/realtime", label: "⚡リアルタイム", shortLabel: "⚡", icon: "radio" },
-  { href: "/backtest", label: "🔬検証", shortLabel: "🔬", icon: "chart" },
-  { href: "/portfolio", label: "ポートフォリオ", shortLabel: "資産", icon: "wallet" },
-  { href: "/scenarios", label: "シナリオ", shortLabel: "シナリオ", icon: "clipboard" },
-  { href: "/calendar", label: "決算カレンダー", shortLabel: "決算", icon: "calendar" },
-  { href: "/news", label: "ニュース", shortLabel: "ニュース", icon: "newspaper" },
-  { href: "/recommendations", label: "おすすめ", shortLabel: "🌟", icon: "star" },
-  { href: "/anomaly", label: "異常検知", shortLabel: "異常検知", icon: "fire" },
-  { href: "/watchdog", label: "ウォッチドッグ", shortLabel: "監視", icon: "radio" },
-  { href: "/alerts", label: "価格アラート", shortLabel: "アラート", icon: "bell" },
+  { href: "/briefing", label: "☀今日", shortLabel: "☀", icon: "chart", group: "" },
+  { href: "/", label: "概況", shortLabel: "概況", icon: "chart", group: "" },
+  // ⚔ デイトレ — 一日の武器一式
+  { href: "/briefing", label: "☀ 今日の候補 (作戦)", shortLabel: "☀", icon: "chart", group: "⚔デイトレ" },
+  { href: "/warroom", label: "場中ウォールーム", shortLabel: "⚔", icon: "radio", group: "⚔デイトレ" },
+  { href: "/journal", label: "ジャーナル (取引記録)", shortLabel: "📓", icon: "clipboard", group: "⚔デイトレ" },
+  { href: "/tendencies", label: "デイトレ傾向 (法則)", shortLabel: "🔍", icon: "chart", group: "⚔デイトレ" },
+  { href: "/pattern-factory", label: "パターン工場 (自動学習)", shortLabel: "🏭", icon: "grid", group: "⚔デイトレ" },
+  { href: "/realtime", label: "リアルタイムスキャン", shortLabel: "⚡", icon: "radio", group: "⚔デイトレ" },
+  { href: "/anomaly", label: "異常検知", shortLabel: "異常", icon: "fire", group: "⚔デイトレ" },
+  { href: "/alerts", label: "価格アラート", shortLabel: "アラート", icon: "bell", group: "⚔デイトレ" },
+  // 🔬 研究所 — 夜と週末の分析
+  { href: "/analysis", label: "銘柄分析", shortLabel: "分析", icon: "search", group: "🔬研究所" },
+  { href: "/screener", label: "スクリーナー", shortLabel: "スクリーナー", icon: "filter", group: "🔬研究所" },
+  { href: "/sectors", label: "業界", shortLabel: "🏭", icon: "grid", group: "🔬研究所" },
+  { href: "/macro-watch", label: "予兆", shortLabel: "🔮", icon: "chart", group: "🔬研究所" },
+  { href: "/macro", label: "マクロ", shortLabel: "🌐", icon: "chart", group: "🔬研究所" },
+  { href: "/patterns", label: "パターン", shortLabel: "パターン", icon: "grid", group: "🔬研究所" },
+  { href: "/rankings", label: "ランキング", shortLabel: "ランキング", icon: "chart", group: "🔬研究所" },
+  { href: "/recommendations", label: "おすすめ", shortLabel: "🌟", icon: "star", group: "🔬研究所" },
+  { href: "/calendar", label: "決算カレンダー", shortLabel: "決算", icon: "calendar", group: "🔬研究所" },
+  { href: "/news", label: "ニュース", shortLabel: "ニュース", icon: "newspaper", group: "🔬研究所" },
+  { href: "/scenarios", label: "シナリオ", shortLabel: "シナリオ", icon: "clipboard", group: "🔬研究所" },
+  { href: "/backtest", label: "検証", shortLabel: "🔬", icon: "chart", group: "🔬研究所" },
+  // 📊 資産と記録 — 自分のもの
+  { href: "/portfolio", label: "ポートフォリオ", shortLabel: "資産", icon: "wallet", group: "📊資産" },
+  { href: "/buyplan", label: "買い方の設計 (プラン)", shortLabel: "🧭", icon: "clipboard", group: "📊資産" },
+  { href: "/earnings-guard", label: "決算またぎ (リスク管理)", shortLabel: "🛡", icon: "calendar", group: "📊資産" },
+  { href: "/favorites", label: "お気に入り", shortLabel: "お気に入り", icon: "star", group: "📊資産" },
+  { href: "/watchdog", label: "ウォッチドッグ (保有監視)", shortLabel: "監視", icon: "radio", group: "📊資産" },
+  { href: "/accuracy", label: "的中率", shortLabel: "🎯", icon: "chart", group: "📊資産" },
 ];
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -67,6 +83,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         </div>
       </main>
       <BottomNav navItems={navItems} currentPath={pathname} />
+      <QuickNote />
+      <TickerContextMenu />
     </>
   );
 }

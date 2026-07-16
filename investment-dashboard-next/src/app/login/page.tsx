@@ -76,7 +76,7 @@ export default function LoginPage() {
         )}
         {info && (
           <div
-            className="border px-4 py-3 text-sm"
+            className="border px-4 py-3 text-sm space-y-2"
             style={{
               background: "rgba(0,240,255,0.08)",
               borderColor: "var(--color-accent)",
@@ -84,7 +84,13 @@ export default function LoginPage() {
               boxShadow: "0 0 14px rgba(0,240,255,0.25)",
             }}
           >
-            {info}
+            <div>{info}</div>
+            <div className="text-[10px] text-[var(--color-text-secondary)] leading-relaxed pt-2 border-t border-[var(--color-border)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              📱 iPhone使用時のTips:<br />
+              ① メール内のリンクをタップ → 自動ログイン完了 (メアド再入力なし)<br />
+              ② Safari の <b>共有 → ホーム画面に追加</b> でアプリ化<br />
+              ③ 次回からはアイコンをタップするだけで開きます
+            </div>
           </div>
         )}
 

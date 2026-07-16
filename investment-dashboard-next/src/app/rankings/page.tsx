@@ -89,7 +89,7 @@ export default function RankingsPage() {
     <div className="space-y-4">
       {/* ヘッダー */}
       <div>
-        <h1 className="text-xl font-bold text-[var(--color-accent)]" style={MONO}>
+        <h1 className="text-[26px] font-bold text-[var(--color-text)] tracking-tight">
           📊 時間軸別スコアランキング
         </h1>
         <p className="text-xs text-[var(--color-text-secondary)] mt-1" style={MONO}>

@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect } from "react";
 
 interface NavItem {
   href: string;
   label: string;
   shortLabel: string;
   icon: string;
+  group: string;
 }
 
 interface BottomNavProps {
@@ -20,29 +22,9 @@ const icons: Record<string, (active: boolean) => React.ReactNode> = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
     </svg>
   ),
-  star: (active) => (
-    <svg className="w-6 h-6" fill={active ? "var(--color-accent)" : "none"} stroke={active ? "var(--color-accent)" : "currentColor"} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-    </svg>
-  ),
-  search: (active) => (
+  radio: (active) => (
     <svg className="w-6 h-6" fill="none" stroke={active ? "var(--color-accent)" : "currentColor"} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-    </svg>
-  ),
-  wallet: (active) => (
-    <svg className="w-6 h-6" fill="none" stroke={active ? "var(--color-accent)" : "currentColor"} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-    </svg>
-  ),
-  grid: (active) => (
-    <svg className="w-6 h-6" fill="none" stroke={active ? "var(--color-accent)" : "currentColor"} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-    </svg>
-  ),
-  filter: (active) => (
-    <svg className="w-6 h-6" fill="none" stroke={active ? "var(--color-accent)" : "currentColor"} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17l-5-5 5-5M9 17l-5-5 5-5M21 12h-9" />
     </svg>
   ),
   clipboard: (active) => (
@@ -50,79 +32,170 @@ const icons: Record<string, (active: boolean) => React.ReactNode> = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
     </svg>
   ),
-  radio: (active) => (
+  wallet: (active) => (
     <svg className="w-6 h-6" fill="none" stroke={active ? "var(--color-accent)" : "currentColor"} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17l-5-5 5-5M9 17l-5-5 5-5M21 12h-9" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
     </svg>
   ),
-  fire: (active) => (
-    <svg className="w-6 h-6" fill={active ? "var(--color-accent)" : "none"} stroke={active ? "var(--color-accent)" : "currentColor"} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.24 17 7.346c1.367 3.158-.5 6.654-1 7.654-.18.36-.342.69-.486 1z" />
-    </svg>
-  ),
-  newspaper: (active) => (
+  menu: (active) => (
     <svg className="w-6 h-6" fill="none" stroke={active ? "var(--color-accent)" : "currentColor"} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-    </svg>
-  ),
-  calendar: (active) => (
-    <svg className="w-6 h-6" fill="none" stroke={active ? "var(--color-accent)" : "currentColor"} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-    </svg>
-  ),
-  bell: (active) => (
-    <svg className="w-6 h-6" fill={active ? "var(--color-accent)" : "none"} stroke={active ? "var(--color-accent)" : "currentColor"} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
     </svg>
   ),
 };
 
+// 下部の主要タブ (毎日の流れ: 今日 → 場中 → 記録 → 資産)。5列固定・横スクロールなし。
+const PRIMARY: { href: string; label: string; icon: string }[] = [
+  { href: "/briefing", label: "今日", icon: "chart" },
+  { href: "/warroom", label: "場中", icon: "radio" },
+  { href: "/journal", label: "記録", icon: "clipboard" },
+  { href: "/portfolio", label: "資産", icon: "wallet" },
+];
+
+// ドロワーのグループ表示順 (デスクトップと同じ階層)
+const GROUP_ORDER = ["", "⚔デイトレ", "🔬研究所", "📊資産"];
+const GROUP_TITLE: Record<string, string> = {
+  "": "ホーム",
+  "⚔デイトレ": "⚔ デイトレ",
+  "🔬研究所": "🔬 研究所",
+  "📊資産": "📊 資産と記録",
+};
+
 export function BottomNav({ navItems, currentPath }: BottomNavProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // ルート変更やドロワー閉時に body スクロールを戻す
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [menuOpen]);
+
+  // 主要タブ以外にいる時は「メニュー」をアクティブ表示
+  const onPrimary = PRIMARY.some((p) => p.href === currentPath);
+
+  // ドロワー用: group ごとに整理し、href 重複を除去
+  const grouped = GROUP_ORDER.map((g) => ({
+    group: g,
+    items: navItems.filter((it) => it.group === g),
+  })).filter((sec) => sec.items.length > 0);
+  const seen = new Set<string>();
+
   return (
-    <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 pb-safe backdrop-blur-md"
-      style={{
-        background: "linear-gradient(0deg, rgba(13,16,36,0.95) 0%, rgba(5,6,13,0.85) 100%)",
-        borderTop: "1px solid var(--color-accent)",
-        boxShadow: "0 -4px 24px rgba(0,240,255,0.18)",
-      }}
-    >
-      <div
-        className="flex items-center h-[var(--bottom-nav-height)] overflow-x-auto nav-scroll px-1"
-        style={{ scrollSnapType: "x mandatory" }}
+    <>
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 pb-safe backdrop-blur-md"
+        style={{
+          background: "linear-gradient(0deg, rgba(13,16,36,0.95) 0%, rgba(5,6,13,0.85) 100%)",
+          borderTop: "1px solid var(--color-accent)",
+          boxShadow: "0 -4px 24px rgba(0,240,255,0.18)",
+        }}
       >
-        {navItems.map((item) => {
-          const isActive = currentPath === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex flex-col items-center justify-center min-w-[58px] shrink-0 min-h-[44px] gap-0.5 px-1.5 transition-colors-custom ${
-                isActive
-                  ? "text-[var(--color-accent)]"
-                  : "text-[var(--color-text-secondary)]"
-              }`}
-              style={{ scrollSnapAlign: "start" }}
-            >
-              <span
-                style={
-                  isActive
-                    ? { filter: "drop-shadow(0 0 6px rgba(0,240,255,0.7))" }
-                    : undefined
-                }
+        <div className="grid grid-cols-5 h-[var(--bottom-nav-height)]">
+          {PRIMARY.map((item) => {
+            const isActive = currentPath === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex flex-col items-center justify-center min-h-[44px] gap-0.5 transition-colors-custom ${
+                  isActive ? "text-[var(--color-accent)]" : "text-[var(--color-text-secondary)]"
+                }`}
               >
-                {icons[item.icon]?.(isActive)}
-              </span>
-              <span
-                className="text-[9px] uppercase tracking-[0.1em]"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                {item.shortLabel}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+                <span style={isActive ? { filter: "drop-shadow(0 0 6px rgba(0,240,255,0.7))" } : undefined}>
+                  {icons[item.icon]?.(isActive)}
+                </span>
+                <span className="text-[10px] tracking-[0.05em]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+          {/* メニュー (ドロワー起動) */}
+          <button
+            onClick={() => setMenuOpen(true)}
+            className={`flex flex-col items-center justify-center min-h-[44px] gap-0.5 transition-colors-custom ${
+              !onPrimary ? "text-[var(--color-accent)]" : "text-[var(--color-text-secondary)]"
+            }`}
+          >
+            <span style={!onPrimary ? { filter: "drop-shadow(0 0 6px rgba(0,240,255,0.7))" } : undefined}>
+              {icons.menu(!onPrimary)}
+            </span>
+            <span className="text-[10px] tracking-[0.05em]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+              メニュー
+            </span>
+          </button>
+        </div>
+      </nav>
+
+      {/* フルメニュー ドロワー */}
+      {menuOpen && (
+        <div className="md:hidden fixed inset-0 z-[60]" role="dialog" aria-modal="true">
+          {/* 背景 */}
+          <div
+            className="absolute inset-0"
+            style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(2px)" }}
+            onClick={() => setMenuOpen(false)}
+          />
+          {/* シート */}
+          <div
+            className="absolute bottom-0 left-0 right-0 max-h-[82vh] overflow-y-auto rounded-t-2xl pb-safe"
+            style={{
+              background: "linear-gradient(180deg, rgba(13,16,36,0.98) 0%, rgba(5,6,13,0.98) 100%)",
+              borderTop: "1px solid var(--color-accent)",
+              boxShadow: "0 -8px 40px rgba(0,240,255,0.25)",
+            }}
+          >
+            {/* ハンドル + ヘッダ */}
+            <div className="sticky top-0 z-10 px-4 pt-3 pb-2" style={{ background: "rgba(8,10,22,0.96)", backdropFilter: "blur(8px)", borderBottom: "1px solid var(--color-border)" }}>
+              <div className="mx-auto mb-2 h-1 w-10 rounded-full" style={{ background: "var(--color-border)" }} />
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-[var(--color-accent)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  MENU
+                </span>
+                <button
+                  onClick={() => setMenuOpen(false)}
+                  className="text-[var(--color-text-secondary)] text-xl leading-none px-2 py-1 min-h-[36px]"
+                  aria-label="閉じる"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="px-3 py-3 space-y-4">
+              {grouped.map((sec) => (
+                <div key={sec.group}>
+                  <div className="px-1 pb-1.5 text-[10px] uppercase tracking-[0.2em] text-[var(--color-text-secondary)]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                    {GROUP_TITLE[sec.group] ?? sec.group}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {sec.items.map((item) => {
+                      if (seen.has(item.href)) return null;
+                      seen.add(item.href);
+                      const isActive = currentPath === item.href;
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center px-3 min-h-[48px] rounded-lg border text-sm transition-colors-custom"
+                          style={{
+                            borderColor: isActive ? "var(--color-accent)" : "var(--color-border)",
+                            background: isActive ? "rgba(0,240,255,0.08)" : "var(--bg-card)",
+                            color: isActive ? "var(--color-accent)" : "var(--color-text)",
+                          }}
+                        >
+                          <span className="leading-tight">{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

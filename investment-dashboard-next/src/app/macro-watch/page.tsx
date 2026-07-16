@@ -60,6 +60,39 @@ interface Snapshot {
   brent: FredObs | null;
   copper: FredObs | null;
   ironOre: FredObs | null;
+  semiProduction: FredObs | null;
+  semiPPI: FredObs | null;
+  jpCallRate: FredObs | null;
+  jpCpi: FredObs | null;
+  jpUnemployment: FredObs | null;
+  jpJgb10y: FredObs | null;
+}
+
+interface BojPolicy {
+  currentRate: number | null;
+  recentChangeBps: number | null;
+  cpiYoY: number | null;
+  unemploymentRate: number | null;
+  jgb10y: number | null;
+  jgb10yChange3m: number | null;
+  usdJpy: number | null;
+  probRateCut: number;
+  probRateHold: number;
+  probRateHike: number;
+  rationale: string[];
+}
+
+interface SemiCycle {
+  productionIndex: number | null;
+  productionYoY: number | null;
+  ppi: number | null;
+  ppiYoY: number | null;
+  smhPrice: number | null;
+  smhChange3m: number | null;
+  smhChange1y: number | null;
+  cycleStage: "boom" | "expansion" | "peak" | "contraction" | "trough" | "neutral";
+  cycleScore: number;
+  signals: string[];
 }
 
 interface Oil {
@@ -94,6 +127,8 @@ interface Response {
   fx: Fx;
   oil: Oil;
   china: China;
+  semi: SemiCycle;
+  bojPolicy: BojPolicy;
   computedAtIso: string;
   elapsedMs: number;
   error?: string;
@@ -137,10 +172,10 @@ export default function MacroWatchPage() {
       {/* ヘッダ */}
       <div className="flex items-end justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-xl font-bold text-[var(--color-accent)]" style={MONO}>
+          <h1 className="text-[26px] font-bold text-[var(--color-text)] tracking-tight">
             🌍 マクロ予兆ダッシュボード
           </h1>
-          <p className="text-sm text-[var(--color-text)] mt-1" style={MONO}>
+          <p className="text-[14px] text-[var(--color-text-secondary)] mt-1.5 leading-relaxed">
             米FRB政策方向・景気後退確率・為替動向 (Source: FRED / St. Louis Fed)
           </p>
         </div>
@@ -174,10 +209,12 @@ export default function MacroWatchPage() {
       ) : data ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <FedPolicyCard fp={data.fedPolicy} snapshot={data.snapshot} />
+          {data.bojPolicy && <BojPolicyCard bp={data.bojPolicy} snapshot={data.snapshot} />}
           <RecessionCard rc={data.recession} snapshot={data.snapshot} />
           <FxCard fx={data.fx} snapshot={data.snapshot} />
           <OilCard oil={data.oil} snapshot={data.snapshot} />
           <ChinaCard china={data.china} snapshot={data.snapshot} />
+          {data.semi && <SemiCycleCard semi={data.semi} snapshot={data.snapshot} />}
         </div>
       ) : null}
     </div>
@@ -242,6 +279,68 @@ function FedPolicyCard({ fp, snapshot }: { fp: FedPolicy; snapshot: Snapshot }) 
         {dominant === fp.probRateCut ? "💡 利下げ寄り: ハイテク・グロース株追い風、銀行・保険は利ザヤ縮小注意" :
          dominant === fp.probRateHike ? "💡 利上げ寄り: 銀行株追い風、長期保有グロース注意、ドル高傾向で輸出株観察" :
          "💡 据置寄り: 大きな変化なし、銘柄選別の方が重要"}
+      </div>
+    </div>
+  );
+}
+
+function BojPolicyCard({ bp, snapshot }: { bp: BojPolicy; snapshot: Snapshot }) {
+  const cutColor = color(bp.probRateCut);
+  const holdColor = "#7fffd4";
+  const hikeColor = color(bp.probRateHike);
+  const dominant = Math.max(bp.probRateCut, bp.probRateHold, bp.probRateHike);
+  const dominantLabel = dominant === bp.probRateCut ? "🟢 緩和寄り" : dominant === bp.probRateHike ? "🔴 利上げ寄り" : "🟡 据置";
+  const dominantColor = dominant === bp.probRateCut ? cutColor : dominant === bp.probRateHike ? hikeColor : holdColor;
+  return (
+    <div
+      className="p-5 border space-y-4"
+      style={{ borderColor: dominantColor, background: `${dominantColor}10`, boxShadow: `0 0 16px ${dominantColor}25` }}
+    >
+      <div>
+        <div className="text-sm font-bold text-[var(--color-text)]" style={MONO}>🇯🇵 BOJ 政策方向</div>
+        <div className="text-3xl font-black mt-1" style={{ color: dominantColor }}>{dominantLabel}</div>
+        <div className="text-xs text-[var(--color-text)] mt-1" style={MONO}>
+          短期金利 (3M Interbank) <span className="font-black text-base text-[var(--color-text)]">{bp.currentRate !== null ? `${bp.currentRate.toFixed(2)}%` : "—"}</span>
+          {bp.recentChangeBps !== null && bp.recentChangeBps !== 0 && (
+            <span style={{ marginLeft: 8, color: bp.recentChangeBps > 0 ? "#fb923c" : "#7fffd4" }}>
+              直近12M {bp.recentChangeBps > 0 ? "+" : ""}{bp.recentChangeBps}bps
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <ProbBlock label="🟢 緩和" pct={bp.probRateCut} color={cutColor} />
+        <ProbBlock label="🟡 据置" pct={bp.probRateHold} color={holdColor} />
+        <ProbBlock label="🔴 利上げ" pct={bp.probRateHike} color={hikeColor} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-xs" style={MONO}>
+        <MetricStat label="日本CPI YoY" value={bp.cpiYoY !== null ? `${bp.cpiYoY.toFixed(2)}%` : "—"} note={snapshot.jpCpi?.date} />
+        <MetricStat label="日本失業率" value={bp.unemploymentRate !== null ? `${bp.unemploymentRate.toFixed(1)}%` : "—"} note={snapshot.jpUnemployment?.date} />
+        <MetricStat
+          label="10年JGB"
+          value={bp.jgb10y !== null ? `${bp.jgb10y.toFixed(2)}%` : "—"}
+          note={bp.jgb10yChange3m !== null ? `3M ${bp.jgb10yChange3m > 0 ? "+" : ""}${bp.jgb10yChange3m}bps` : snapshot.jpJgb10y?.date}
+        />
+        <MetricStat label="USD/JPY" value={bp.usdJpy !== null ? bp.usdJpy.toFixed(1) : "—"} note="円安は利上げ圧力" />
+      </div>
+
+      {bp.rationale.length > 0 && (
+        <div className="pt-3 border-t border-[var(--color-border)]">
+          <div className="text-xs font-bold text-[var(--color-text)] mb-2" style={MONO}>📊 判定根拠</div>
+          <ul className="space-y-1 text-xs text-[var(--color-text)]" style={MONO}>
+            {bp.rationale.map((r, i) => <li key={i}>▸ {r}</li>)}
+          </ul>
+        </div>
+      )}
+
+      <div className="text-xs p-2 border-l-4 text-[var(--color-text)]" style={{ ...MONO, borderColor: dominantColor, background: `${dominantColor}10` }}>
+        {dominant === bp.probRateHike
+          ? "💡 利上げ寄り: 銀行 (三菱UFJ/三井住友) ・保険 (東京海上/T&D) に追い風、不動産 (三井不動産/住友不動産) ・建設・ハイテクグロースに注意"
+          : dominant === bp.probRateCut
+          ? "💡 緩和寄り: 不動産・建設・REITに追い風、銀行・保険に逆風"
+          : "💡 据置: 大きなテーマ性なし、円相場と日米金利差で個別判断"}
       </div>
     </div>
   );
@@ -467,6 +566,88 @@ function ChinaCard({ china, snapshot }: { china: China; snapshot: Snapshot }) {
           : china.demandLabel === "contraction"
           ? "💡 中国需要鈍化: 商社・機械・化学・海運に逆風、輸出依存度高い銘柄は要観察"
           : "💡 中立: 中国依存度の高い銘柄は他要因で判断"}
+      </div>
+    </div>
+  );
+}
+
+function SemiCycleCard({ semi, snapshot }: { semi: SemiCycle; snapshot: Snapshot }) {
+  const stageColor =
+    semi.cycleStage === "boom" ? "#7fffd4" :
+    semi.cycleStage === "expansion" ? "#86efac" :
+    semi.cycleStage === "peak" ? "#facc15" :
+    semi.cycleStage === "contraction" ? "#fb923c" :
+    semi.cycleStage === "trough" ? "#a78bfa" :
+    "#94a3b8";
+  const stageLabel =
+    semi.cycleStage === "boom" ? "🟢 ブーム (絶頂)" :
+    semi.cycleStage === "expansion" ? "🟢 拡大" :
+    semi.cycleStage === "peak" ? "🟡 ピーク懸念" :
+    semi.cycleStage === "contraction" ? "🟠 縮小" :
+    semi.cycleStage === "trough" ? "🟣 底入れ" :
+    "🟡 中立";
+  // cycleScore は -100〜+100 → 0-100
+  const visScore = Math.max(0, Math.min(100, Math.round((semi.cycleScore + 100) / 2)));
+  return (
+    <div
+      className="p-5 border space-y-4"
+      style={{ borderColor: stageColor, background: `${stageColor}10`, boxShadow: `0 0 16px ${stageColor}25` }}
+    >
+      <div>
+        <div className="text-sm font-bold text-[var(--color-text)]" style={MONO}>🔬 半導体サイクル</div>
+        <div className="flex items-baseline gap-3 mt-1">
+          <div className="text-6xl font-black leading-none" style={{ color: stageColor, ...MONO }}>
+            {visScore}
+          </div>
+          <div className="text-base font-bold text-[var(--color-text)]" style={MONO}>/100</div>
+        </div>
+        <div className="text-xs text-[var(--color-text)] mt-1" style={MONO}>
+          {stageLabel} · SMH ETF + 米半導体生産指数 + PPI から推計
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-xs" style={MONO}>
+        <MetricStat
+          label="SMH ETF"
+          value={semi.smhPrice !== null ? `$${semi.smhPrice.toFixed(1)}` : "—"}
+          note={semi.smhChange1y !== null ? `1Y ${semi.smhChange1y > 0 ? "+" : ""}${semi.smhChange1y.toFixed(1)}%` : undefined}
+        />
+        <MetricStat
+          label="3Mモメンタム"
+          value={semi.smhChange3m !== null ? `${semi.smhChange3m > 0 ? "+" : ""}${semi.smhChange3m.toFixed(1)}%` : "—"}
+          note="SMH 3ヶ月変化"
+        />
+        <MetricStat
+          label="米半導体生産"
+          value={semi.productionIndex !== null ? semi.productionIndex.toFixed(1) : "—"}
+          note={semi.productionYoY !== null ? `YoY ${semi.productionYoY > 0 ? "+" : ""}${semi.productionYoY.toFixed(1)}%` : snapshot.semiProduction?.date}
+        />
+        <MetricStat
+          label="半導体PPI"
+          value={semi.ppi !== null ? semi.ppi.toFixed(1) : "—"}
+          note={semi.ppiYoY !== null ? `YoY ${semi.ppiYoY > 0 ? "+" : ""}${semi.ppiYoY.toFixed(1)}%` : snapshot.semiPPI?.date}
+        />
+      </div>
+
+      {semi.signals.length > 0 && (
+        <div className="pt-3 border-t border-[var(--color-border)]">
+          <div className="text-xs font-bold text-[var(--color-text)] mb-2" style={MONO}>📊 シグナル</div>
+          <ul className="space-y-1 text-xs text-[var(--color-text)]" style={MONO}>
+            {semi.signals.map((s, i) => <li key={i}>▸ {s}</li>)}
+          </ul>
+        </div>
+      )}
+
+      <div className="text-xs p-2 border-l-4 text-[var(--color-text)]" style={{ ...MONO, borderColor: stageColor, background: `${stageColor}10` }}>
+        {semi.cycleStage === "boom" || semi.cycleStage === "expansion"
+          ? "💡 拡大局面: 東京エレク・SCREEN・アドバンテスト・信越化学・SUMCO・レーザーテック・ディスコに追い風、車載半導体含む電機にも波及"
+          : semi.cycleStage === "peak"
+          ? "💡 ピーク懸念: 半導体株は利益確定の動き出やすい、新規買いは慎重に、決算で在庫増/見通し下方修正を警戒"
+          : semi.cycleStage === "contraction"
+          ? "💡 縮小局面: 半導体製造装置・素材銘柄に逆風、在庫調整完了サイン待ち"
+          : semi.cycleStage === "trough"
+          ? "💡 底入れ局面: 半導体株の先回り買いの好機、業績悪化のうちが仕込み時"
+          : "💡 中立: 個別決算と地政学リスクで判断"}
       </div>
     </div>
   );

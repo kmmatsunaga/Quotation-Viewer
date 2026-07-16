@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import PortfolioHealthPanel from "./PortfolioHealthPanel";
+import PortfolioIntel from "./PortfolioIntel";
 import {
   getHoldings,
   addHolding,
@@ -23,6 +24,7 @@ import {
   type Transaction,
   type OtherAsset,
 } from "@/lib/firestore";
+import { syncRakutenMail } from "@/lib/rakuten-sync";
 import {
   getPortfolioSnapshots,
   savePortfolioSnapshot,
@@ -126,6 +128,8 @@ export default function PortfolioPage() {
 
   // パターン検出
   const [tickerPatterns, setTickerPatterns] = useState<Record<string, Record<string, PatternData[]>>>({});
+  // 次回決算日 (ticker → {date, daysToNext})。「知らずに決算を跨ぐ」事故を防ぐ
+  const [earningsMap, setEarningsMap] = useState<Record<string, { date: string | null; daysToNext: number | null }>>({});
   const [patternsLoading, setPatternsLoading] = useState(false);
 
   // オートコンプリート
@@ -389,6 +393,32 @@ export default function PortfolioPage() {
     loadData();
   }, [loadData]);
 
+  // ── 楽天約定メール → 保有に自動反映 ──
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [autoSynced, setAutoSynced] = useState(false);
+
+  const syncMail = useCallback(async (silent = false) => {
+    if (!user || syncing) return;
+    setSyncing(true);
+    if (!silent) setSyncMsg("メールを確認中…");
+    try {
+      const r = await syncRakutenMail(user);
+      if (!r.ok) { setSyncMsg(r.message); return; }
+      if (r.changed > 0) { setSyncMsg(r.message); await loadData(); }
+      else setSyncMsg(silent ? null : r.message);
+    } finally {
+      setSyncing(false);
+    }
+  }, [user, syncing, loadData]);
+
+  useEffect(() => {
+    if (user && !loading && !autoSynced) {
+      setAutoSynced(true);
+      syncMail(true);
+    }
+  }, [user, loading, autoSynced, syncMail]);
+
   // holdingsが変わったら価格取得 + パターン検出
   useEffect(() => {
     if (holdings.length > 0) {
@@ -396,6 +426,16 @@ export default function PortfolioPage() {
       fetchPatterns(holdings);
     }
   }, [holdings, fetchPrices, fetchPatterns]);
+
+  // 次回決算日 (JP銘柄のみバッチ取得)
+  useEffect(() => {
+    const jp = Array.from(new Set(holdings.filter((h) => /^\d{3,4}[A-Z0-9]?$/.test(h.ticker)).map((h) => h.ticker)));
+    if (jp.length === 0) return;
+    fetch(`/api/stocks/next-earnings?tickers=${jp.join(",")}`)
+      .then((r) => r.json())
+      .then((d) => setEarningsMap(d.earnings ?? {}))
+      .catch(() => {});
+  }, [holdings]);
 
   // 投資信託の基準価額を取得
   useEffect(() => {
@@ -787,18 +827,32 @@ export default function PortfolioPage() {
     <div className="space-y-6">
       {/* ヘッダ */}
       <div className="flex items-center justify-between">
-        <h1
-          className="text-sm uppercase tracking-[0.2em] text-[var(--color-accent)]"
-          style={MONO}
-        >
-          // Portfolio
+        <h1 className="text-[26px] font-bold text-[var(--color-text)] tracking-tight">
+          📊 資産 <span className="text-[12px] text-[var(--color-accent)] font-normal align-middle" style={MONO}>// PORTFOLIO</span>
         </h1>
-        {usdJpy && (
-          <span className="text-xs text-[var(--color-text-secondary)]" style={MONO}>
-            USD/JPY {usdJpy.toFixed(2)}
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => syncMail(false)}
+            disabled={syncing}
+            className="px-3 py-1.5 text-xs min-h-[36px] disabled:opacity-50"
+            style={{ border: "1px solid var(--color-up)", color: "var(--color-up)", background: "transparent", ...MONO }}
+            title="楽天証券の約定メールから保有を自動反映"
+          >
+            {syncing ? "同期中…" : "✉ 約定を同期"}
+          </button>
+          {usdJpy && (
+            <span className="text-xs text-[var(--color-text-secondary)]" style={MONO}>
+              USD/JPY {usdJpy.toFixed(2)}
+            </span>
+          )}
+        </div>
       </div>
+
+      {syncMsg && (
+        <div className="text-xs px-3 py-2" style={{ border: "1px solid var(--color-border)", color: "var(--color-text-secondary)", background: "var(--bg-card)", ...MONO }}>
+          {syncMsg}
+        </div>
+      )}
 
       {/* === 統合サマリーカード === */}
       <div
@@ -944,6 +998,19 @@ export default function PortfolioPage() {
       {/* ============ TAB: 保有銘柄 ============ */}
       {activeTab === "holdings" && (
         <>
+          {/* ⚠🧭 保有銘柄インテリジェンス (警告 + マクロ感応度) */}
+          {tickerGroups.length > 0 && (
+            <PortfolioIntel
+              groups={tickerGroups.map((g) => ({
+                ticker: g.ticker,
+                name: g.name,
+                valueJpy: g.totalMarketValueJpy ?? g.totalCostBasisJpy,
+                pnlPct: g.totalPnlPct,
+                oldestPurchaseDate: g.lots[0]?.purchaseDate ?? null,
+              }))}
+            />
+          )}
+
           {/* 🔮 保有銘柄の将来性ヘルス */}
           {tickerGroups.length > 0 && (
             <PortfolioHealthPanel
@@ -1207,7 +1274,7 @@ export default function PortfolioPage() {
               const hasMultipleLots = g.lots.length > 1;
 
               return (
-                <div key={g.ticker} className="border-b border-[var(--color-border)] last:border-b-0">
+                <div key={g.ticker} data-ticker={g.ticker} className="border-b border-[var(--color-border)] last:border-b-0">
                   {/* モバイル サマリー行 */}
                   <div className="md:hidden p-3 space-y-2">
                     <div className="flex justify-between items-start">
@@ -1223,6 +1290,7 @@ export default function PortfolioPage() {
                           <span className="text-[10px] text-[var(--color-accent)] tracking-[0.1em]" style={MONO}>{g.ticker}</span>
                         </div>
                         <div className="text-sm font-medium mt-0.5">{g.name}</div>
+                        <EarningsBadge e={earningsMap[g.ticker]} />
                         {tickerPatterns[g.ticker] && (
                           <div className="mt-1"><PatternBadgeGroup patterns={tickerPatterns[g.ticker]} size="sm" /></div>
                         )}
@@ -1290,6 +1358,7 @@ export default function PortfolioPage() {
                           <span className="text-[10px] text-[var(--color-accent)] tracking-[0.1em]" style={MONO}>{g.ticker}</span>
                         </div>
                         <div className="text-sm mt-0.5">{g.name}</div>
+                        <EarningsBadge e={earningsMap[g.ticker]} />
                         {tickerPatterns[g.ticker] && (
                           <div className="mt-1"><PatternBadgeGroup patterns={tickerPatterns[g.ticker]} size="sm" /></div>
                         )}
@@ -2652,5 +2721,23 @@ function PortfolioChart({ snapshots }: { snapshots: PortfolioSnapshot[] }) {
         />
       )}
     </svg>
+  );
+}
+
+/** 次回決算バッジ: 7日以内=赤 (危険)、14日以内=黄 (注意)、それ以外=控えめ表示 */
+function EarningsBadge({ e }: { e?: { date: string | null; daysToNext: number | null } }) {
+  if (!e || e.daysToNext === null || e.daysToNext < 0 || e.daysToNext > 45) return null;
+  const d = e.daysToNext;
+  const color = d <= 7 ? "#ef4444" : d <= 14 ? "#facc15" : "var(--color-text-secondary)";
+  const border = d <= 7 ? "rgba(239,68,68,0.5)" : d <= 14 ? "rgba(250,204,21,0.4)" : "var(--color-border)";
+  const dateStr = e.date ? `${Number(e.date.slice(5, 7))}/${Number(e.date.slice(8, 10))}` : "";
+  return (
+    <span
+      className="inline-block text-[10px] px-1.5 py-0.5 mt-1 border"
+      style={{ color, borderColor: border, fontFamily: "'JetBrains Mono', monospace" }}
+      title="次回決算予定日"
+    >
+      🗓 決算 {dateStr} ({d === 0 ? "本日!" : `${d}日後`})
+    </span>
   );
 }

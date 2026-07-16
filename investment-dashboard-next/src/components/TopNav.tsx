@@ -10,6 +10,7 @@ interface NavItem {
   label: string;
   shortLabel: string;
   icon: string;
+  group?: string;
 }
 
 interface TopNavProps {
@@ -55,38 +56,76 @@ export function TopNav({ navItems, currentPath }: TopNavProps) {
         <Logo size={26} />
       </div>
 
-      {/* Nav links — 改行禁止 + 横スクロール (ホイール→水平、スクロールバー薄表示) */}
-      <div
-        className="flex items-center gap-0.5 flex-1 mx-3 overflow-x-auto nav-scroll min-w-0"
-        style={{ flexWrap: "nowrap" }}
-        onWheel={(e) => {
-          // 縦スクロールを横にリダイレクト (デスクトップでマウスホイールで横スクロール可能に)
-          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-            e.currentTarget.scrollLeft += e.deltaY;
-          }
-        }}
-      >
-        {navItems.map((item) => {
+      {/* Nav — グループはドロップダウンに畳む (トップバーは5項目だけ) */}
+      <div className="flex items-center gap-1 flex-1 mx-3 min-w-0">
+        {/* 単独項目 (group なし) */}
+        {navItems.filter((i) => !i.group).map((item) => {
           const isActive = currentPath === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
-              title={item.label}
-              className={`shrink-0 px-2 lg:px-3 py-2 text-xs lg:text-sm font-medium rounded-t transition-colors-custom relative ${
-                isActive
-                  ? "text-[var(--color-accent)]"
-                  : "text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
+              className={`shrink-0 px-3 py-2 text-sm font-medium relative transition-colors-custom ${
+                isActive ? "text-[var(--color-accent)]" : "text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
               }`}
-              style={{ whiteSpace: "nowrap", wordBreak: "keep-all" }}
+              style={{ whiteSpace: "nowrap" }}
             >
-              {/* 1536px(2xl)以上は label, 未満は shortLabel */}
-              <span className="hidden 2xl:inline">{item.label}</span>
-              <span className="inline 2xl:hidden">{item.shortLabel}</span>
-              {isActive && (
-                <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-[var(--color-accent)] rounded-t" />
-              )}
+              {item.label}
+              {isActive && <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-[var(--color-accent)] rounded-t" />}
             </Link>
+          );
+        })}
+
+        {/* グループ (ホバーで展開) */}
+        {Array.from(new Set(navItems.map((i) => i.group).filter(Boolean))).map((group) => {
+          const items = navItems.filter((i) => i.group === group);
+          const groupActive = items.some((i) => i.href === currentPath);
+          return (
+            <div key={group} className="relative group/nav shrink-0">
+              <button
+                className={`px-3 py-2 text-sm font-medium flex items-center gap-1 transition-colors-custom relative ${
+                  groupActive ? "text-[var(--color-accent)]" : "text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
+                }`}
+                style={{ whiteSpace: "nowrap" }}
+              >
+                {group}
+                <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+                {groupActive && <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-[var(--color-accent)] rounded-t" />}
+              </button>
+              {/* ドロップダウン */}
+              <div
+                className="absolute left-0 top-full pt-1 w-56 opacity-0 invisible group-hover/nav:opacity-100 group-hover/nav:visible transition-all duration-150 z-50"
+              >
+                <div
+                  className="border rounded-lg overflow-hidden py-1"
+                  style={{
+                    background: "rgba(10,13,28,0.97)",
+                    borderColor: "var(--color-border)",
+                    boxShadow: "0 8px 28px rgba(0,0,0,0.6), 0 0 16px rgba(0,240,255,0.08)",
+                    backdropFilter: "blur(8px)",
+                  }}
+                >
+                  {items.map((item) => {
+                    const isActive = currentPath === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`block px-4 py-2 text-sm transition-colors ${
+                          isActive
+                            ? "text-[var(--color-accent)] bg-[rgba(0,240,255,0.08)]"
+                            : "text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[rgba(255,255,255,0.04)]"
+                        }`}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           );
         })}
       </div>

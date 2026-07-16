@@ -7,6 +7,9 @@ import {
   estimateFxOutlook,
   estimateOilOutlook,
   estimateChinaOutlook,
+  estimateSemiCycleOutlook,
+  estimateBojPolicyOutlook,
+  fetchSmhMonthly,
 } from "@/lib/fred";
 
 /**
@@ -38,6 +41,14 @@ const SERIES_IDS = [
   "DCOILBRENTEU", // Brent 原油価格 (Daily)
   "PCOPPUSDM",    // 銅価格 (Monthly, 中国需要バロメーター)
   "PIORECRUSDM",  // 鉄鉱石価格 (Monthly, 中国建設バロメーター)
+  // Phase C
+  "IPG3344S",         // 半導体製造業 生産指数 (Monthly)
+  "PCU3344133441",    // 半導体製造業 PPI (Monthly)
+  // Phase D - 日本マクロ (BOJ 政策方向)
+  "IR3TIB01JPM156N",  // 日本 3M Interbank Rate (BOJ政策金利の代理) (Monthly)
+  "JPNCPIALLMINMEI",  // 日本 CPI All Items (Monthly)
+  "LRHUTTTTJPM156S",  // 日本 失業率 (Monthly)
+  "IRLTLT01JPM156N",  // 日本 10年JGB利回り (Monthly)
 ];
 
 export async function GET(req: NextRequest) {
@@ -92,6 +103,19 @@ export async function GET(req: NextRequest) {
     const oil = estimateOilOutlook(bulk.DCOILWTICO ?? null, bulk.DCOILBRENTEU ?? null);
     const china = estimateChinaOutlook(bulk.PCOPPUSDM ?? null, bulk.PIORECRUSDM ?? null);
 
+    // 半導体サイクル: FRED + Yahoo SMH ETF
+    const smh = await fetchSmhMonthly();
+    const semi = estimateSemiCycleOutlook(bulk.IPG3344S ?? null, bulk.PCU3344133441 ?? null, smh);
+
+    // BOJ 政策方向 (日本マクロ)
+    const bojPolicy = estimateBojPolicyOutlook(
+      bulk.IR3TIB01JPM156N ?? null,
+      bulk.JPNCPIALLMINMEI ?? null,
+      bulk.LRHUTTTTJPM156S ?? null,
+      bulk.IRLTLT01JPM156N ?? null,
+      bulk.DEXJPUS?.latest?.value ?? null
+    );
+
     // 主要指標のスナップショット
     const snapshot = {
       fedFundsRate: bulk.FEDFUNDS?.latest ?? null,
@@ -107,6 +131,12 @@ export async function GET(req: NextRequest) {
       brent: bulk.DCOILBRENTEU?.latest ?? null,
       copper: bulk.PCOPPUSDM?.latest ?? null,
       ironOre: bulk.PIORECRUSDM?.latest ?? null,
+      semiProduction: bulk.IPG3344S?.latest ?? null,
+      semiPPI: bulk.PCU3344133441?.latest ?? null,
+      jpCallRate: bulk.IR3TIB01JPM156N?.latest ?? null,
+      jpCpi: bulk.JPNCPIALLMINMEI?.latest ?? null,
+      jpUnemployment: bulk.LRHUTTTTJPM156S?.latest ?? null,
+      jpJgb10y: bulk.IRLTLT01JPM156N?.latest ?? null,
     };
 
     const result = {
@@ -116,6 +146,8 @@ export async function GET(req: NextRequest) {
       fx,
       oil,
       china,
+      semi,
+      bojPolicy,
       computedAtIso: new Date().toISOString(),
       elapsedMs: Date.now() - startedAt,
     };

@@ -47,7 +47,7 @@ export interface IndexData {
 }
 
 export function fetchIndicesUrl(): string {
-  return `${BASE_URL}/indices`;
+  return `${BASE_URL}/market/indices`;
 }
 
 export function fetchIndexBarUrl(symbol: string, timeframe: string): string {
@@ -66,11 +66,11 @@ export interface StockData {
 }
 
 export function fetchJPStocksUrl(): string {
-  return `${BASE_URL}/stocks/jp`;
+  return `${BASE_URL}/market/stocks/jp`;
 }
 
 export function fetchUSStocksUrl(): string {
-  return `${BASE_URL}/stocks/us`;
+  return `${BASE_URL}/market/stocks/us`;
 }
 
 // --- News ---
@@ -84,11 +84,12 @@ export interface NewsItem {
 }
 
 export function fetchMarketNewsUrl(): string {
-  return `${BASE_URL}/news/market`;
+  return `${BASE_URL}/market/news?limit=10`;
 }
 
 export function fetchPortfolioNewsUrl(): string {
-  return `${BASE_URL}/news/portfolio`;
+  // ポートフォリオ関連ニュースもひとまず市場ニュースと同じソースで
+  return `${BASE_URL}/market/news?limit=10`;
 }
 
 // --- Favorites ---

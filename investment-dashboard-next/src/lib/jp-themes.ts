@@ -71,7 +71,7 @@ const INDUSTRIES: SectorDef[] = [
     category: "industry",
     description: "半導体製造装置・素材・デバイス",
     tickers: ["8035", "6857", "6920", "6963", "6981", "6526", "4063", "3436", "6754", "6753"],
-    macroDrivers: ["china_demand", "fed_cut", "fx_weak_yen"],
+    macroDrivers: ["semi_cycle_up", "china_demand", "fed_cut", "fx_weak_yen"],
   },
   {
     id: "electronics",
@@ -80,7 +80,7 @@ const INDUSTRIES: SectorDef[] = [
     category: "industry",
     description: "電子部品、家電、産業用電機",
     tickers: ["6758", "6981", "6762", "6971", "6594", "6501", "6502", "6701", "6098", "6504"],
-    macroDrivers: ["fx_weak_yen", "china_demand"],
+    macroDrivers: ["semi_cycle_up", "fx_weak_yen", "china_demand"],
   },
   {
     id: "telecom",
@@ -188,7 +188,7 @@ const INDUSTRIES: SectorDef[] = [
     category: "industry",
     description: "工作機械、産業機械",
     tickers: ["6301", "6326", "6273", "6361", "6367", "6273", "6954"],
-    macroDrivers: ["china_demand", "fx_weak_yen"],
+    macroDrivers: ["semi_cycle_up", "china_demand", "fx_weak_yen"],
   },
 ];
 
@@ -204,7 +204,7 @@ const THEMES: SectorDef[] = [
     category: "theme",
     description: "AI 開発・基盤・応用",
     tickers: ["9984", "4307", "6098", "3655", "3902", "4475", "6526", "6920"],
-    macroDrivers: ["fed_cut"],
+    macroDrivers: ["semi_cycle_up", "fed_cut"],
   },
   {
     id: "defense",
@@ -289,4 +289,5 @@ export const MACRO_DRIVER_LABELS: Record<string, string> = {
   recession_low: "📈 景気拡大追風",
   inbound: "✈ インバウンド追風",
   consumer_strong: "🛒 消費堅調追風",
+  semi_cycle_up: "🔬 半導体サイクル追風",
 };

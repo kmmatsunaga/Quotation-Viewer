@@ -3,15 +3,16 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import { NIKKEI225 } from "@/lib/nikkei225";
 import { STOCK_LIST } from "@/lib/stock-list";
 import { SP500 } from "@/lib/sp500";
+import { getCronOrigin } from "@/lib/cron-origin";
 
 /**
  * GET /api/cron/score-rankings
  *
- * 日経225 + 米国主要銘柄 (約265銘柄) をスキャンして
+ * 日経225 + 米国 S&P500 (約731銘柄) をスキャンして
  * 短期/中期/長期 スコアを取得、Firestore meta/score_rankings_{YYYYMMDD} に保存。
  *
  * 1日1回 JST 01:00 (= UTC 16:00) に実行。
- * 270銘柄 / 5並列 = 54バッチ × ~2秒 = ~110秒。Vercel 300秒制限内。
+ * 731銘柄 / 10並列 = 74バッチ × ~1.2秒 = ~90秒目安。Vercel 300秒制限内。
  *
  * 認証: Vercel Cron は Authorization: Bearer ${CRON_SECRET} を送ってくる。
  */
@@ -46,9 +47,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const host = req.headers.get("host") ?? "localhost:3000";
-  const proto = host.includes("localhost") ? "http" : "https";
-  const origin = `${proto}://${host}`;
+  const origin = getCronOrigin(req);
 
   const startedAt = Date.now();
 
@@ -68,7 +67,7 @@ export async function GET(req: NextRequest) {
 
   const entries: RankingEntry[] = [];
   let errors = 0;
-  const batchSize = 5;
+  const batchSize = 10;
   const TIMEOUT_MS = 25_000;
 
   for (let i = 0; i < universe.length; i += batchSize) {

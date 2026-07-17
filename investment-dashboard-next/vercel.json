@@ -72,6 +72,22 @@
     {
       "path": "/api/cron/why-snapshot",
       "schedule": "45 7 * * 1-5"
+    },
+    {
+      "path": "/api/cron/crash-sentinel",
+      "schedule": "0 23 * * 1-5"
+    },
+    {
+      "path": "/api/cron/crash-sentinel",
+      "schedule": "30 0 * * 1-5"
+    },
+    {
+      "path": "/api/cron/crash-sentinel",
+      "schedule": "0 3 * * 1-5"
+    },
+    {
+      "path": "/api/cron/crash-sentinel",
+      "schedule": "0 5 * * 1-5"
     }
   ]
 }

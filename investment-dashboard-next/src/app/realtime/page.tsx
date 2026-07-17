@@ -351,6 +351,7 @@ function SignalColumn({
           {items.slice(0, 20).map((r) => (
             <button
               key={r.ticker}
+              data-ticker={r.ticker}
               onClick={() => onClick(r.ticker)}
               className="w-full text-left p-2 transition-all hover:brightness-125"
               style={{

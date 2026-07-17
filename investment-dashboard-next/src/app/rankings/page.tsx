@@ -283,6 +283,7 @@ function RankRow({
 
   return (
     <button
+      data-ticker={entry.ticker}
       onClick={onClick}
       className="w-full text-left p-2.5 flex items-center gap-3 transition-all hover:brightness-125"
       style={{

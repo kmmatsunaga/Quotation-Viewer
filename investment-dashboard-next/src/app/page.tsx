@@ -7,6 +7,7 @@ import { IndexDetailChart } from "@/components/IndexDetailChart";
 import { NewsCard } from "@/components/NewsCard";
 import { StockRow } from "@/components/StockRow";
 import AgentPanels from "./AgentPanels";
+import CrashAlertBanner from "@/components/CrashAlertBanner";
 import {
   fetcher,
   fetchIndicesUrl,
@@ -162,6 +163,9 @@ export default function MarketOverview() {
 
   return (
     <div className="space-y-6">
+      {/* 🚨 暴落緊急警報 (ポートフォリオに重大な下落サインがある時だけ最上部に出る) */}
+      <CrashAlertBanner />
+
       {/* 🤖 AIエージェント (ウォッチドッグ + おすすめ) */}
       <AgentPanels />
 

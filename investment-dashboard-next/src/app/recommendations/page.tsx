@@ -46,12 +46,30 @@ function extractScores(r: Recommendation): { short: number; mid: number; long: n
   return { short: r.score, mid: r.score, long: r.score };
 }
 
+interface HorizonPick {
+  ticker: string;
+  name: string;
+  market: string;
+  price: number | null;
+  score: number;
+  reasons: string[];
+  caution: string | null;
+}
+
 interface DailyRec {
   id: string;
   date: string;
   recommendations: Recommendation[];
+  /** v2: 時間軸ごとに選定ロジックが異なる別リスト */
+  horizons?: { short: HorizonPick[]; mid: HorizonPick[]; long: HorizonPick[] };
   generatedAt?: { _seconds?: number; seconds?: number } | string;
 }
+
+const HORIZON_DESC: Record<"short" | "mid" | "long", string> = {
+  short: "数日 — 全銘柄スキャンから出来高×初動×相対強さで選定。宝くじ地形・低流動性は除外",
+  mid: "数週〜数ヶ月 — 続いている20日トレンド×中期スコア。決算7日前以内は除外",
+  long: "数ヶ月〜 — Future Score 5因子×安定地形。バリュートラップは除外",
+};
 
 export default function RecommendationsPage() {
   const router = useRouter();
@@ -94,13 +112,17 @@ export default function RecommendationsPage() {
     load();
   }, [load]);
 
-  const generate = async (n: number) => {
-    if (!user?.email) return;
+  const generate = async () => {
+    if (!user) return;
     setGenerating(true);
     try {
-      const res = await fetch(`/api/agent/daily-recommend?email=${encodeURIComponent(user.email)}&n=${n}`, {
+      // Firebase ID トークン認証 (API キーのクライアント埋め込みは廃止)
+      const { auth } = await import("@/lib/firebase");
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) return;
+      const res = await fetch(`/api/agent/daily-recommend`, {
         method: "POST",
-        headers: { "x-api-key": "fe4f125d965940e2a98d4d948e5099b48bb22db8b41276c2b3c73ac839f94774" },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
       if (json.ok) await load();
@@ -120,25 +142,17 @@ export default function RecommendationsPage() {
             🌟 おすすめ銘柄
           </h1>
           <p className="text-xs text-[var(--color-text-secondary)] mt-1" style={MONO}>
-            AI エージェントが日経225 + お気に入りを分析、中期スコア上位を提示。
+            短期=全銘柄スキャン / 中期=トレンド持続 / 長期=事業の質 — 時間軸ごとに別ロジックで選定。根拠つき。
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <button
-            onClick={() => generate(30)}
+            onClick={generate}
             disabled={generating}
             className="px-3 py-1.5 text-xs"
             style={{ border: "1px solid var(--color-accent)", color: "var(--color-accent)", ...MONO }}
           >
-            {generating ? "AIが分析中..." : "🤖 標準スキャン (30銘柄)"}
-          </button>
-          <button
-            onClick={() => generate(60)}
-            disabled={generating}
-            className="px-3 py-1.5 text-xs"
-            style={{ border: "1px solid var(--color-accent-magenta)", color: "var(--color-accent-magenta)", ...MONO }}
-          >
-            {generating ? "..." : "🚀 深掘りスキャン (60銘柄, 2分)"}
+            {generating ? "AIが分析中..." : "🤖 いま再スキャン"}
           </button>
         </div>
       </div>
@@ -182,72 +196,146 @@ export default function RecommendationsPage() {
           </div>
 
           {/* 選択日の詳細 */}
-          {selected && (
-            <div className="space-y-2">
-              {/* 時間軸タブ */}
-              <div className="flex gap-1 flex-wrap pb-1 border-b border-[var(--color-border)]">
-                {(Object.keys(TIMEFRAME_LABELS) as Timeframe[]).map((tf) => {
-                  const info = TIMEFRAME_LABELS[tf];
-                  const isActive = timeframe === tf;
-                  return (
-                    <button
-                      key={tf}
-                      onClick={() => setTimeframe(tf)}
-                      title={info.description}
-                      className="px-3 py-1.5 text-xs whitespace-nowrap transition-all"
-                      style={{
-                        borderBottom: `2px solid ${isActive ? "var(--color-accent)" : "transparent"}`,
-                        color: isActive ? "var(--color-accent)" : "var(--color-text-secondary)",
-                        ...MONO,
-                      }}
-                    >
-                      {info.icon} {info.label}
-                    </button>
-                  );
-                })}
-              </div>
+          {selected && (() => {
+            const hasHorizons = !!selected.horizons;
+            // v2 は時間軸ごとに別リストなので「総合」タブは出さない
+            const tabs: Timeframe[] = hasHorizons
+              ? (["short", "mid", "long"] as Timeframe[])
+              : (Object.keys(TIMEFRAME_LABELS) as Timeframe[]);
+            const effTf: Timeframe = hasHorizons && timeframe === "overall" ? "short" : timeframe;
+            const horizonList =
+              hasHorizons && effTf !== "overall" ? selected.horizons![effTf as "short" | "mid" | "long"] ?? [] : [];
 
-              <div className="text-[10px] text-[var(--color-text-secondary)]" style={MONO}>
-                {selected.date} のおすすめ {selected.recommendations.length} 銘柄
-                ({TIMEFRAME_LABELS[timeframe].label}スコア順)
-                {timeframe !== "overall" && (
-                  <span className="ml-2 text-[var(--color-accent)]">
-                    ※ {TIMEFRAME_LABELS[timeframe].description}
-                  </span>
+            return (
+              <div className="space-y-2">
+                {/* 時間軸タブ */}
+                <div className="flex gap-1 flex-wrap pb-1 border-b border-[var(--color-border)]">
+                  {tabs.map((tf) => {
+                    const info = TIMEFRAME_LABELS[tf];
+                    const isActive = effTf === tf;
+                    return (
+                      <button
+                        key={tf}
+                        onClick={() => setTimeframe(tf)}
+                        title={info.description}
+                        className="px-3 py-1.5 text-xs whitespace-nowrap transition-all"
+                        style={{
+                          borderBottom: `2px solid ${isActive ? "var(--color-accent)" : "transparent"}`,
+                          color: isActive ? "var(--color-accent)" : "var(--color-text-secondary)",
+                          ...MONO,
+                        }}
+                      >
+                        {info.icon} {info.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {hasHorizons && effTf !== "overall" ? (
+                  <>
+                    <div className="text-[10px] text-[var(--color-text-secondary)]" style={MONO}>
+                      {selected.date} — {HORIZON_DESC[effTf as "short" | "mid" | "long"]}
+                    </div>
+                    {horizonList.length === 0 ? (
+                      <div className="text-center py-8 text-xs text-[var(--color-text-secondary)]" style={MONO}>
+                        この時間軸では条件を満たす銘柄がありませんでした (無理に挙げない仕様です)。
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {horizonList.map((r, idx) => (
+                          <HorizonCard key={r.ticker} rank={idx + 1} pick={r} onClick={() => router.push(`/stock/${r.ticker}`)} />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="text-[10px] text-[var(--color-text-secondary)]" style={MONO}>
+                      {selected.date} のおすすめ {selected.recommendations.length} 銘柄
+                      ({TIMEFRAME_LABELS[effTf].label}スコア順)
+                    </div>
+                    {selected.recommendations.length === 0 ? (
+                      <div className="text-center py-8 text-xs text-[var(--color-text-secondary)]" style={MONO}>
+                        この日のスキャンでは推奨閾値を超える銘柄が見つかりませんでした。
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {(() => {
+                          const sorted = [...selected.recommendations].sort((a, b) => {
+                            if (effTf === "overall") return b.score - a.score;
+                            const sa = extractScores(a);
+                            const sb = extractScores(b);
+                            return sb[effTf] - sa[effTf];
+                          });
+                          return sorted.map((r, idx) => (
+                            <RecCard
+                              key={r.ticker}
+                              rank={idx + 1}
+                              rec={r}
+                              timeframe={effTf}
+                              onClick={() => router.push(`/stock/${r.ticker}`)}
+                            />
+                          ));
+                        })()}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
-
-              {selected.recommendations.length === 0 ? (
-                <div className="text-center py-8 text-xs text-[var(--color-text-secondary)]" style={MONO}>
-                  この日のスキャンでは推奨閾値 (スコア55) を超える銘柄が見つかりませんでした。
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {(() => {
-                    // 時間軸別ソート
-                    const sorted = [...selected.recommendations].sort((a, b) => {
-                      if (timeframe === "overall") return b.score - a.score;
-                      const sa = extractScores(a);
-                      const sb = extractScores(b);
-                      return sb[timeframe] - sa[timeframe];
-                    });
-                    return sorted.map((r, idx) => (
-                      <RecCard
-                        key={r.ticker}
-                        rank={idx + 1}
-                        rec={r}
-                        timeframe={timeframe}
-                        onClick={() => router.push(`/stock/${r.ticker}`)}
-                      />
-                    ));
-                  })()}
-                </div>
-              )}
-            </div>
-          )}
+            );
+          })()}
         </>
       )}
     </div>
+  );
+}
+
+/** v2: 時間軸別 pick のカード (根拠を主役に) */
+function HorizonCard({ rank, pick, onClick }: { rank: number; pick: HorizonPick; onClick: () => void }) {
+  const scoreColor = pick.score >= 80 ? "#22c55e" : pick.score >= 65 ? "#fbbf24" : "var(--color-accent)";
+  const rankColor = rank <= 3 ? "#fbbf24" : "var(--color-text-secondary)";
+  return (
+    <button
+      data-ticker={pick.ticker}
+      onClick={onClick}
+      className="text-left p-3 rounded transition-all hover:brightness-125"
+      style={{ background: "rgba(0,240,255,0.04)", border: "1px solid rgba(0,240,255,0.2)" }}
+    >
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs font-bold shrink-0" style={{ color: rankColor, ...MONO }}>#{rank}</span>
+          <span
+            className="text-[10px] px-1.5 py-0.5 shrink-0"
+            style={{
+              background: pick.market === "US" ? "rgba(255,43,214,0.15)" : "rgba(0,240,255,0.15)",
+              color: pick.market === "US" ? "var(--color-accent-2)" : "var(--color-accent)",
+              ...MONO,
+            }}
+          >
+            {pick.market}
+          </span>
+          <span className="text-xs font-bold text-[var(--color-accent)]" style={MONO}>{pick.ticker}</span>
+          <span className="text-xs text-[var(--color-text)] truncate">{pick.name}</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[10px] px-1.5 py-0.5 font-bold" style={{ background: `${scoreColor}20`, color: scoreColor, ...MONO }}>
+            {pick.score}/100
+          </span>
+          {pick.price != null && <span className="text-xs" style={MONO}>¥{pick.price.toLocaleString()}</span>}
+        </div>
+      </div>
+      {/* 根拠 (なぜこのタブに挙がったか) */}
+      <div className="space-y-0.5">
+        {pick.reasons.map((reason, i) => (
+          <div key={i} className="text-[10px] text-[var(--color-text)]" style={MONO}>✓ {reason}</div>
+        ))}
+      </div>
+      {pick.caution && (
+        <div className="text-[10px] mt-1.5 pt-1.5 border-t border-[var(--color-border)]" style={{ color: "#fbbf24", ...MONO }}>
+          {pick.caution}
+        </div>
+      )}
+    </button>
   );
 }
 

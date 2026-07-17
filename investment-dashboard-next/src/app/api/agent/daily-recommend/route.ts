@@ -1,22 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
+import { BigQuery } from "@google-cloud/bigquery";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { getAdminAuth } from "@/lib/firebase-admin";
-import { NIKKEI225 } from "@/lib/nikkei225";
 import { getCachedJpStocks } from "@/lib/jp-stocks-cache";
+import {
+  buildShortList,
+  buildMidList,
+  buildLongList,
+  type FeatureRow,
+  type RankEntry,
+  type LongEnrichment,
+  type HorizonPick,
+} from "@/lib/horizon-recommend";
 
 /**
- * POST /api/agent/daily-recommend?email=user@example.com&n=20
+ * POST /api/agent/daily-recommend?email=user@example.com
  * Header: x-api-key: <MCP_API_KEY>
  *
- * 日経225+お気に入りから「今日のおすすめ」を自動生成。
- * 各銘柄を insights API で評価 → 中期スコア上位5を保存。
+ * v2 (2026-07-17): 時間軸別おすすめ。
+ *  ⚡短期 = BQ daily_features 全銘柄スキャン (出来高×初動×相対強さ)
+ *  🌱中期 = score_rankings_latest (毎晩731銘柄) × 20日トレンド精査 + 決算接近フィルタ
+ *  🏔長期 = score_rankings_latest × Future Score 5因子 (バリュートラップ除外) × 安定地形
+ * 旧版の「お気に入り無条件保証 + ランダム12銘柄」はメンツ固定化の原因だったため廃止。
+ * 全 pick に根拠 (reasons) を付けて保存する。
  *
- * 全銘柄分析するとコスト高いので、サンプリングして n 銘柄を分析。
- *
- * GET 版は最新の保存済みおすすめを返す。
+ * GET 版は最新の保存済みおすすめを返す (変更なし)。
  */
 
 const API_KEY = process.env.MCP_API_KEY;
+const BQ_PROJECT = "booking-data-388605";
+const BQ_DATASET = "cavka";
+
+export const maxDuration = 300;
+
+function getBq(): BigQuery {
+  const raw = process.env.BQ_SERVICE_ACCOUNT_JSON;
+  if (!raw) throw new Error("BQ_SERVICE_ACCOUNT_JSON is not set");
+  return new BigQuery({ projectId: BQ_PROJECT, credentials: JSON.parse(raw) });
+}
 
 export async function GET(req: NextRequest) {
   // 認証
@@ -71,154 +92,153 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ ok: true, recommendation: { id: snap.id, ...snap.data() } });
 }
 
-interface Insight {
-  ticker: string;
-  name: string;
-  currentPrice: number | null;
-  short: { score: number; signals: { direction: string; weight: number; source: string; message: string }[]; action: string };
-  mid: { score: number; signals: { direction: string; weight: number; source: string; message: string }[]; action: string };
-  long: { score: number; signals: { direction: string; weight: number; source: string; message: string }[]; action: string };
-  suggestedScenario: { entry: number | null; target: number | null; stopLoss: number | null };
-}
-
 export async function POST(req: NextRequest) {
-  if (!API_KEY || req.headers.get("x-api-key") !== API_KEY) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // 認証: cron からは x-api-key、画面からは Firebase ID トークン
+  // (旧実装はクライアントに API キーをハードコードしていた — セキュリティ修正)
+  let uid: string | null = null;
+  const apiKey = req.headers.get("x-api-key");
+  const authHeader = req.headers.get("authorization");
+  if (apiKey && API_KEY && apiKey === API_KEY) {
+    const email = req.nextUrl.searchParams.get("email");
+    if (email) {
+      try { uid = (await getAdminAuth().getUserByEmail(email)).uid; } catch {}
+    }
+  } else if (authHeader?.startsWith("Bearer ")) {
+    try { uid = (await getAdminAuth().verifyIdToken(authHeader.slice(7))).uid; } catch {}
   }
+  if (!uid) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const email = req.nextUrl.searchParams.get("email");
-  if (!email) return NextResponse.json({ error: "email required" }, { status: 400 });
-
-  let uid: string;
-  try {
-    uid = (await getAdminAuth().getUserByEmail(email)).uid;
-  } catch {
-    return NextResponse.json({ error: "user not found" }, { status: 404 });
-  }
-
-  const sampleSize = Math.min(Number(req.nextUrl.searchParams.get("n") ?? "30"), 80);
   const db = getAdminDb();
 
-  // お気に入り取得
-  const wlSnap = await db.collection("users").doc(uid).collection("watchlist").get();
-  const watchlistTickers = wlSnap.docs.map((d) => d.data().ticker as string);
-
-  // 保有銘柄 (既保有は除外)
+  // 保有銘柄 (既保有は全時間軸で除外 — 「新しく買う候補」を出す装置なので)
   const holdSnap = await db.collection("users").doc(uid).collection("holdings").get();
-  const heldTickers = new Set(holdSnap.docs.map((d) => d.data().ticker as string));
-
-  // 候補プール: scope=full なら立花マスタ(全銘柄), 既定は日経225
-  const scope = req.nextUrl.searchParams.get("scope") ?? "nikkei225";
-  let basePool: string[];
-  if (scope === "full") {
-    const masterStocks = await getCachedJpStocks();
-    basePool = masterStocks.length > 0 ? masterStocks.map((s) => s.ticker) : NIKKEI225.map((s) => s.ticker);
-  } else {
-    basePool = NIKKEI225.map((s) => s.ticker);
-  }
-  const allCandidates = [...new Set([
-    ...basePool,
-    ...watchlistTickers,
-  ])].filter((t) => !heldTickers.has(t));  // 既保有は除外
-
-  // ランダムサンプリング + お気に入りは全部含める
-  const guaranteed = watchlistTickers.filter((t) => !heldTickers.has(t));
-  const remainingPool = allCandidates.filter((t) => !guaranteed.includes(t));
-  const shuffled = [...remainingPool].sort(() => Math.random() - 0.5);
-  const sampled = [...guaranteed, ...shuffled].slice(0, sampleSize);
+  const excluded = new Set(holdSnap.docs.map((d) => d.data().ticker as string));
 
   const host = req.headers.get("host") ?? "localhost:3000";
   const proto = host.includes("localhost") ? "http" : "https";
   const origin = `${proto}://${host}`;
 
-  // 各銘柄を analyze (並列、5銘柄ずつバッチ)
-  const insights: Insight[] = [];
-  const batchSize = 5;
-  for (let i = 0; i < sampled.length; i += batchSize) {
-    const batch = sampled.slice(i, i + batchSize);
-    const batchResults = await Promise.all(
-      batch.map(async (t) => {
-        try {
-          const res = await fetch(`${origin}/api/stocks/insights?ticker=${t}`);
-          if (!res.ok) return null;
-          return (await res.json()) as Insight;
-        } catch {
-          return null;
-        }
-      })
-    );
-    for (const r of batchResults) if (r) insights.push(r);
+  // ── 1. BQ: daily_features 最新日の全銘柄スキャン (短期候補 + 中長期の精査材料) ──
+  let features: FeatureRow[] = [];
+  try {
+    const bq = getBq();
+    const [rows] = await bq.query({
+      query: `
+        WITH latest AS (
+          SELECT MAX(date) AS d FROM \`${BQ_PROJECT}.${BQ_DATASET}.daily_features\`
+        )
+        SELECT ticker, close, dayChangePct, volumeRatio, turnover, streak,
+               isHigh20, isHigh60, ret5dPct, ret20dPct, rsi14, atrPct14,
+               vsNikkeiPct, vsSectorPct, sector
+        FROM \`${BQ_PROJECT}.${BQ_DATASET}.daily_features\`, latest
+        WHERE date = latest.d AND turnover >= 5e7 AND close >= 100
+      `,
+    });
+    features = rows as FeatureRow[];
+  } catch (e) {
+    console.error("[daily-recommend] BQ features fetch failed:", e);
   }
+  const featuresMap = new Map(features.map((f) => [f.ticker, f]));
 
-  // 中期スコア順にソート + シグナル数で同点処理
-  const scored = insights
-    .filter((i) => i.mid?.score !== undefined)
-    .map((i) => {
-      const midSignals = i.mid.signals.filter((s) => s.direction === "bullish");
-      const longBullSignals = i.long.signals.filter((s) => s.direction === "bullish");
-      const totalScore = (i.short.score + i.mid.score * 2 + i.long.score * 1.5) / 4.5;
-      return {
-        insight: i,
-        overallScore: Math.round(totalScore),
-        midBullCount: midSignals.length,
-        longBullCount: longBullSignals.length,
-      };
-    })
-    .filter((x) => x.overallScore >= 55)  // 一定スコア以上のみ
-    .sort((a, b) => b.overallScore - a.overallScore || b.midBullCount - a.midBullCount);
+  // ── 2. 時間軸別スコアランキング (毎晩731銘柄を insights で採点済み) ──
+  const rankSnap = await db.collection("meta").doc("score_rankings_latest").get();
+  const rankEntries: RankEntry[] = (rankSnap.data()?.entries as RankEntry[]) ?? [];
+  const ranksMap = new Map(rankEntries.map((e) => [e.ticker, e]));
 
-  // 全候補を保存 (上位から並び順)
-  const topN = scored.slice(0, 20);
+  // 銘柄名の解決 (features 由来の銘柄はランキング外のことがある)
+  let master: { ticker: string; name: string }[] = [];
+  try { master = await getCachedJpStocks(); } catch {}
+  const masterMap = new Map(master.map((s) => [s.ticker, s.name]));
+  const nameOf = (t: string) => masterMap.get(t) ?? t;
 
-  const recommendations = topN.map((s) => {
-    const i = s.insight;
-    // 推奨理由を生成 (各時間軸からBull/重み上位を取得)
-    const reasons: string[] = [];
-    const allSignals = [...i.short.signals, ...i.mid.signals, ...i.long.signals];
-    const bullSignals = allSignals
-      .filter((sig) => sig.direction === "bullish")
-      .sort((a, b) => b.weight - a.weight)
-      .slice(0, 5);
-    for (const sig of bullSignals) {
-      reasons.push(sig.message);
+  // ── 3. ⚡短期: 全銘柄スキャンから出来高×初動×相対強さ ──
+  const shortList = buildShortList(features, ranksMap, nameOf, excluded, 8);
+
+  // ── 4. 🌱中期: ランキング × 20日トレンド精査 → 決算接近フィルタ ──
+  let midList = buildMidList(rankEntries, featuresMap, excluded, 12);
+  try {
+    const jpMid = midList.filter((p) => p.market === "JP").map((p) => p.ticker);
+    if (jpMid.length > 0) {
+      const res = await fetch(`${origin}/api/stocks/next-earnings?tickers=${jpMid.join(",")}`);
+      if (res.ok) {
+        const j = (await res.json()) as { earnings?: Record<string, { daysToNext: number | null }> };
+        midList = midList.filter((p) => {
+          const d = j.earnings?.[p.ticker]?.daysToNext;
+          if (d != null && d >= 0 && d <= 7) return false; // 決算直前は中期エントリーに向かない
+          if (d != null && d >= 8 && d <= 14) p.caution = `⚠ 決算が${d}日後 — またぐ前提かを決めてから`;
+          return true;
+        });
+      }
     }
+  } catch {}
+  midList = midList.slice(0, 8);
 
-    // changePct: insights API には含まれないので 0 でフォールバック
-    return {
-      ticker: i.ticker,
-      name: i.name,
-      market: /^\d{3,4}[A-Z]?$/.test(i.ticker) ? "JP" : "US",
-      score: s.overallScore,
-      // 個別時間軸スコア (時間軸別タブ用に追加)
-      shortScore: i.short.score,
-      midScore: i.mid.score,
-      longScore: i.long.score,
-      shortAction: i.short.action,
-      midAction: i.mid.action,
-      longAction: i.long.action,
-      summary: `${i.mid.action} | スコア ${s.overallScore} (短${i.short.score}/中${i.mid.score}/長${i.long.score})`,
-      reasons,
-      currentPrice: i.currentPrice ?? 0,
-      changePct: 0,
-      suggestedAction: i.suggestedScenario.entry
-        ? `エントリー¥${i.suggestedScenario.entry} / 目標¥${i.suggestedScenario.target} / 損切り¥${i.suggestedScenario.stopLoss}`
-        : "",
-    };
-  });
+  // ── 5. 🏔長期: ランキング上位を Future Score で精査 (バリュートラップ除外) ──
+  const longCandidates = rankEntries
+    .filter((e) => !excluded.has(e.ticker) && e.long >= 58)
+    .sort((a, b) => b.long - a.long)
+    .slice(0, 14);
+  const enrich = new Map<string, LongEnrichment>();
+  const FACTOR_LABELS: Record<string, string> = {
+    value: "割安度", growth: "成長性", profitability: "収益力", momentum: "値動き", epsRevisions: "業績修正",
+  };
+  for (let i = 0; i < longCandidates.length; i += 5) {
+    const batch = longCandidates.slice(i, i + 5);
+    await Promise.all(batch.map(async (e) => {
+      try {
+        const res = await fetch(`${origin}/api/stocks/future-score/${encodeURIComponent(e.ticker)}`);
+        if (!res.ok) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const fs = (await res.json()) as any;
+        const goodGrades = new Set(["A+", "A", "B+"]);
+        const topFactors = Object.entries(fs.factors ?? {})
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .filter(([, v]: [string, any]) => goodGrades.has(v?.grade))
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map(([k, v]: [string, any]) => `${FACTOR_LABELS[k] ?? k} ${v.grade}`)
+          .slice(0, 3);
+        enrich.set(e.ticker, {
+          overallRaw: fs.overall?.raw ?? null,
+          verdict: fs.overall?.verdict ?? null,
+          summary: fs.overall?.summary ?? null,
+          valueTrap: fs.flags?.valueTrap ?? false,
+          valueTrapReason: fs.flags?.valueTrapReason ?? null,
+          topFactors,
+          upsidePct: fs.analyst?.upsidePct ?? null,
+        });
+      } catch {}
+    }));
+  }
+  const longList = buildLongList(longCandidates, featuresMap, enrich, excluded, 8);
+
+  // ── 6. 保存 (horizons が本体。recommendations は旧UI互換で中期リストを写す) ──
+  const legacy = midList.map((p) => ({
+    ticker: p.ticker, name: p.name, market: p.market,
+    score: p.score, summary: p.reasons[0] ?? "", reasons: p.reasons,
+    currentPrice: p.price ?? 0, changePct: 0, suggestedAction: "",
+  }));
 
   const today = new Date().toISOString().slice(0, 10);
+  const horizons: Record<string, HorizonPick[]> = { short: shortList, mid: midList, long: longList };
   await db.collection("users").doc(uid).collection("dailyRecommendations").doc(today).set({
     date: today,
-    recommendations,
+    version: 2,
+    horizons,
+    recommendations: legacy,
     generatedAt: new Date(),
+    meta: {
+      featuresScanned: features.length,
+      rankUniverse: rankEntries.length,
+      longEnriched: enrich.size,
+    },
   });
 
   return NextResponse.json({
     ok: true,
     date: today,
-    analyzed: insights.length,
-    qualified: scored.length,
-    recommended: recommendations.length,
-    recommendations,
+    counts: { short: shortList.length, mid: midList.length, long: longList.length },
+    featuresScanned: features.length,
+    rankUniverse: rankEntries.length,
+    horizons,
   });
 }

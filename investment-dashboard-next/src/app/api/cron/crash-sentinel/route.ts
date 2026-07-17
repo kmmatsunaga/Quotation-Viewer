@@ -7,6 +7,7 @@ import {
   buildCrashLineMessage,
   type HoldingQuote,
   type MarketContext,
+  type StrikeHistory,
 } from "@/lib/crash-sentinel";
 
 /**
@@ -191,8 +192,16 @@ export async function GET(req: NextRequest) {
           return { ...rest, weight: totalValue > 0 ? (q.price * shares) / totalValue : 0 };
         });
 
+        // ── ストライク履歴 (段階エスカレーションの記憶) を読み込み ──
+        const strikesRef = db.collection("users").doc(uid).collection("alerts").doc("crash_strikes");
+        const strikesSnap = await strikesRef.get();
+        const strikes = (strikesSnap.exists ? (strikesSnap.data()?.strikes as StrikeHistory) : {}) ?? {};
+
         // ── 判定 ──
-        const assessment = assessCrashRisk(holdings, market);
+        const assessment = assessCrashRisk(holdings, market, { strikes });
+
+        // 更新されたストライク履歴を保存
+        await strikesRef.set({ strikes: assessment.strikesOut, updatedAt: new Date().toISOString() });
 
         // 現在の警報を Firestore に書き込む (トップページのバナーが購読)
         const alertRef = db.collection("users").doc(uid).collection("alerts").doc("crash_current");

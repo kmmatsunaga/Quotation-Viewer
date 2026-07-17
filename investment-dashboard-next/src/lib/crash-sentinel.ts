@@ -53,6 +53,8 @@ export interface CrashSignal {
   reactive: boolean;          // true=リアルタイム暴落, false=予兆
   ticker?: string;
   text: string;
+  /** 個別急落/投げ売りのエスカレーション段階 (⚡1=初動 🔥2=連鎖 🚨3=本警報) */
+  stage?: 1 | 2 | 3;
 }
 
 export interface CrashAssessment {
@@ -62,16 +64,27 @@ export interface CrashAssessment {
   advice: string;             // 規律的な行動 (慌てて投げない等)
   signals: CrashSignal[];
   affectedTickers: string[];
-  /** 通知重複排除用の署名 (level + 種別 + 対象) */
+  /** 通知重複排除用の署名 (level + 種別 + 対象 + 段階)。段階が上がると変わる = LINE 再送 */
   signature: string;
+  /** 更新後のストライク履歴 (呼び出し側が永続化する) */
+  strikesOut: StrikeHistory;
 }
+
+/**
+ * ストライク履歴: 銘柄ごとの「急落を検知した日 (JST YYYYMMDD)」のリスト。
+ * 高ボラ株の段階的エスカレーション (⚡→🔥→🚨) の記憶。cron が Firestore に永続化。
+ */
+export type StrikeHistory = Record<string, string[]>;
 
 // ── 閾値 (重大時のみ = 高め) ──
 const TH = {
-  plungePct: -7,             // 個別急落
-  plungeCriticalPct: -10,
-  capitulationPct: -5,       // 投げ売り (出来高2倍以上と併用)
+  plungePct: -7,             // 個別急落 (ストライク=段階カウントの1票)
+  capitulationPct: -5,       // 投げ売り (出来高2倍以上と併用、これもストライク)
   capitulationVol: 2.0,
+  stage2SinglePct: -12,      // 単日これ以下なら一撃で🔥第2報
+  stage3SinglePct: -15,      // 単日これ以下なら一撃で🚨本警報
+  stage3DrawdownPct: -25,    // 2票目 + 20日高値からこれ以下なら🚨
+  strikeWindowDays: 10,      // ストライクの記憶期間 (暦日) ≒ 7営業日
   marketSelloffPct: -3,      // 地合い総崩れ
   marketCrashPct: -5,
   portfolioDropPct: -5,      // ポート全体
@@ -84,29 +97,89 @@ const TH = {
 
 const pct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
 
-export function assessCrashRisk(holdings: HoldingQuote[], market: MarketContext): CrashAssessment {
+function jstDateKey(d: Date): string {
+  const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  return `${jst.getUTCFullYear()}${String(jst.getUTCMonth() + 1).padStart(2, "0")}${String(jst.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** dateKey (YYYYMMDD) が基準日から windowDays 以内か */
+function withinWindow(dateKey: string, todayKey: string, windowDays: number): boolean {
+  const p = (k: string) => Date.UTC(+k.slice(0, 4), +k.slice(4, 6) - 1, +k.slice(6, 8));
+  const diff = (p(todayKey) - p(dateKey)) / 86400000;
+  return diff >= 0 && diff <= windowDays;
+}
+
+export function assessCrashRisk(
+  holdings: HoldingQuote[],
+  market: MarketContext,
+  opts?: { strikes?: StrikeHistory; todayKey?: string }
+): CrashAssessment {
   const signals: CrashSignal[] = [];
   const affected = new Set<string>();
+  const todayKey = opts?.todayKey ?? jstDateKey(new Date());
+  const strikesIn: StrikeHistory = opts?.strikes ?? {};
+  const strikesOut: StrikeHistory = {};
 
-  // ── リアルタイム: 個別急落 / 投げ売り / 分配売り / トレンド割れ (per holding) ──
+  // ── リアルタイム: 個別急落 / 投げ売り (段階エスカレーション) + 予兆 (per holding) ──
   for (const h of holdings) {
-    // 個別急落
-    if (h.changePct <= TH.plungePct) {
-      const critical = h.changePct <= TH.plungeCriticalPct;
+    // 窓内の過去ストライク (今日を除く)
+    const past = (strikesIn[h.ticker] ?? []).filter(
+      (d) => d !== todayKey && withinWindow(d, todayKey, TH.strikeWindowDays)
+    );
+
+    // 今日のストライク判定 (急落 or 出来高急増を伴う投げ売り)
+    const isPlunge = h.changePct <= TH.plungePct;
+    const isCapitulation =
+      !isPlunge && h.volRatio != null && h.volRatio >= TH.capitulationVol && h.changePct <= TH.capitulationPct;
+    const struckToday = isPlunge || isCapitulation;
+
+    if (struckToday) {
+      // -15%級の一撃は2票として記録 → 翌日以降も段階が下がらない (単調エスカレーション)
+      const deepBlow = h.changePct <= TH.stage3SinglePct;
+      strikesOut[h.ticker] = deepBlow ? [...past, todayKey, todayKey] : [...past, todayKey];
+      const count = past.length + (deepBlow ? 2 : 1);
+      const drawdown20 = h.high20 && h.high20 > 0 ? ((h.price - h.high20) / h.high20) * 100 : null;
+
+      // 段階判定: 回数 (7営業日窓) + 一撃の深さ + 累積ドローダウン
+      let stage: 1 | 2 | 3;
+      if (
+        count >= 3 ||
+        h.changePct <= TH.stage3SinglePct ||
+        (count >= 2 && drawdown20 != null && drawdown20 <= TH.stage3DrawdownPct)
+      ) {
+        stage = 3;
+      } else if (count === 2 || h.changePct <= TH.stage2SinglePct) {
+        stage = 2;
+      } else {
+        stage = 1;
+      }
+
+      const gapNote = h.openPct != null && h.openPct <= -3 ? ` (寄りから ${pct(h.openPct)} のギャップダウン)` : "";
+      const volNote = isCapitulation && h.volRatio != null ? ` 出来高${h.volRatio.toFixed(1)}倍の投げ売りを伴う。` : "";
+      const ddNote = drawdown20 != null && drawdown20 <= -15 ? ` 直近高値から累積 ${pct(drawdown20)}。` : "";
+      // 表示上の回数は実日数 (deepBlow の2票は内部の重み付けのみ)
+      const daysCount = new Set([...past, todayKey]).size;
+
+      const text =
+        stage === 1
+          ? `⚡ 第1報: ${h.name}(${h.ticker}) が ${pct(h.changePct)} の急落${gapNote}。${volNote}この銘柄では珍しくない振れの可能性もあるが、初動として警戒。`
+          : stage === 2
+          ? `🔥 第2報: ${h.name}(${h.ticker}) が ${pct(h.changePct)}${gapNote}。直近7営業日で${daysCount}回目${daysCount === 1 ? " (一撃で深い)" : ""} — 単発のブレではなく、崩れの連鎖の可能性。${volNote}${ddNote}`
+          : `🚨 第3報 (本警報): ${h.name}(${h.ticker}) が ${pct(h.changePct)}${gapNote}。直近7営業日で${daysCount}回目${daysCount === 1 ? " (一撃で本警報級)" : ""}。${volNote}${ddNote}地形が崩れている。決めたルールに基づく判断を。`;
+
       signals.push({
-        scope: "holding", kind: "holding_plunge", reactive: true,
-        level: critical ? "critical" : "warning", ticker: h.ticker,
-        text: `${h.name}(${h.ticker}) が急落中 ${pct(h.changePct)}${h.openPct != null && h.openPct <= -3 ? ` (寄りから ${pct(h.openPct)} のギャップダウン)` : ""}。`,
+        scope: "holding",
+        kind: isCapitulation ? "capitulation" : "holding_plunge",
+        reactive: true,
+        level: stage >= 2 ? "critical" : "warning",
+        ticker: h.ticker,
+        stage,
+        text,
       });
       affected.add(h.ticker);
-    }
-    // 投げ売り (出来高急増を伴う下落)
-    else if (h.volRatio != null && h.volRatio >= TH.capitulationVol && h.changePct <= TH.capitulationPct) {
-      signals.push({
-        scope: "holding", kind: "capitulation", reactive: true, level: "warning", ticker: h.ticker,
-        text: `${h.name}(${h.ticker}) が出来高${h.volRatio.toFixed(1)}倍の急増を伴って ${pct(h.changePct)}。投げ売り (キャピチュレーション) の様相。`,
-      });
-      affected.add(h.ticker);
+    } else if (past.length > 0) {
+      // 今日は落ちていないが、記憶は窓内で持ち越す
+      strikesOut[h.ticker] = past;
     }
 
     // 予兆: 天井圏からの分配売り
@@ -199,16 +272,24 @@ export function assessCrashRisk(holdings: HoldingQuote[], market: MarketContext)
     advice = "";
   }
 
-  // 署名 (通知重複排除用): level + 種別+対象 をソートして連結
+  // 署名 (通知重複排除用): level + 種別+対象+段階。
+  // 段階付き (個別の急落) は日付入り = 急落した営業日ごとに1回 LINE。
+  // 同日内は段階が上がった時だけ再送 (⚡09:30 → 🔥14:00 なら再度鳴る)。
   const signature = [
     level,
-    ...signals.map((s) => `${s.kind}:${s.ticker ?? "_"}`).sort(),
+    ...signals
+      .map((s) => {
+        const stagePart = s.stage ? `@s${s.stage}:${todayKey}` : "";
+        return `${s.kind}:${s.ticker ?? "_"}${stagePart}`;
+      })
+      .sort(),
   ].join("|");
 
   return {
     level, headline, summary, advice, signals,
     affectedTickers: Array.from(affected),
     signature,
+    strikesOut,
   };
 }
 

@@ -62,6 +62,77 @@ function terrainHint(atrPct: number | null): string | null {
 }
 
 // ────────────────────────────────────────────
+// 統制群 (control): 「同じ関門を通ったが、順位付けでは選ばれなかった銘柄」
+//
+// なぜ必要か: pick が市場に勝っても「関門を通った銘柄なら何でも良かった」を否定できない。
+// ロジックの価値 = pick超過 − 統制群超過 で初めて測れる。
+// 必ず生成時に保存すること (後から再構築すると当時のプールを再現できず必ずバイアスが入る)。
+// ────────────────────────────────────────────
+export interface ControlEntry { ticker: string; price: number | null; market: "JP" | "US" }
+
+/** プールから picks を除いてランダム n 件。rand は呼び出し側から注入 (テスト容易性) */
+export function sampleControls(
+  pool: ControlEntry[],
+  picked: Set<string>,
+  n: number,
+  rand: () => number = Math.random,
+): ControlEntry[] {
+  const rest = pool.filter((p) => !picked.has(p.ticker));
+  // Fisher-Yates で先頭 n 件だけシャッフル
+  const a = [...rest];
+  const take = Math.min(n, a.length);
+  for (let i = 0; i < take; i++) {
+    const j = i + Math.floor(rand() * (a.length - i));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, take);
+}
+
+/** ⚡短期の関門だけを通した「候補プール」(順位付けはしない) */
+export function shortGatePool(features: FeatureRow[], excluded: Set<string>): ControlEntry[] {
+  return features
+    .filter((f) => {
+      if (excluded.has(f.ticker)) return false;
+      if ((f.turnover ?? 0) < 2e8) return false;
+      if (f.close < 100) return false;
+      if (f.rsi14 == null || f.rsi14 < 40 || f.rsi14 > 74) return false;
+      if (f.atrPct14 != null && f.atrPct14 > 8) return false;
+      if ((f.dayChangePct ?? 0) < -1) return false;
+      if ((f.dayChangePct ?? 0) > 9) return false;
+      return true;
+    })
+    .map((f) => ({ ticker: f.ticker, price: f.close, market: "JP" as const }));
+}
+
+/** 🌱中期の関門プール */
+export function midGatePool(
+  rankEntries: RankEntry[],
+  featuresMap: Map<string, FeatureRow>,
+  excluded: Set<string>,
+): ControlEntry[] {
+  return rankEntries
+    .filter((e) => {
+      if (excluded.has(e.ticker)) return false;
+      if (e.mid < 58) return false;
+      const f = featuresMap.get(e.ticker);
+      if (f) {
+        if (f.atrPct14 != null && f.atrPct14 > 8) return false;
+        if ((f.ret20dPct ?? 0) < -5) return false;
+        if (f.rsi14 != null && f.rsi14 > 75) return false;
+      }
+      return true;
+    })
+    .map((e) => ({ ticker: e.ticker, price: e.price, market: e.market }));
+}
+
+/** 🏔長期の関門プール (Future Score 精査前 = 素の長期スコア関門のみ) */
+export function longGatePool(rankEntries: RankEntry[], excluded: Set<string>): ControlEntry[] {
+  return rankEntries
+    .filter((e) => !excluded.has(e.ticker) && e.long >= 58)
+    .map((e) => ({ ticker: e.ticker, price: e.price, market: e.market }));
+}
+
+// ────────────────────────────────────────────
 // ⚡ 短期 (数日): 出来高を伴う初動・ブレイク・相対強さ
 // ────────────────────────────────────────────
 export function buildShortList(

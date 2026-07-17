@@ -7,10 +7,15 @@ import {
   buildShortList,
   buildMidList,
   buildLongList,
+  sampleControls,
+  shortGatePool,
+  midGatePool,
+  longGatePool,
   type FeatureRow,
   type RankEntry,
   type LongEnrichment,
   type HorizonPick,
+  type ControlEntry,
 } from "@/lib/horizon-recommend";
 
 /**
@@ -211,7 +216,16 @@ export async function POST(req: NextRequest) {
   }
   const longList = buildLongList(longCandidates, featuresMap, enrich, excluded, 8);
 
-  // ── 6. 保存 (horizons が本体。recommendations は旧UI互換で中期リストを写す) ──
+  // ── 6. 統制群 (答え合わせループ用) ──
+  // 「同じ関門を通ったがロジックが選ばなかった銘柄」をランダム8件、生成時に確定して保存。
+  // これが無いと「関門の価値」と「順位付けの価値」を分離できない。後から再構築は不可能。
+  const controls: Record<string, ControlEntry[]> = {
+    short: sampleControls(shortGatePool(features, excluded), new Set(shortList.map((p) => p.ticker)), 8),
+    mid: sampleControls(midGatePool(rankEntries, featuresMap, excluded), new Set(midList.map((p) => p.ticker)), 8),
+    long: sampleControls(longGatePool(rankEntries, excluded), new Set(longList.map((p) => p.ticker)), 8),
+  };
+
+  // ── 7. 保存 (horizons が本体。recommendations は旧UI互換で中期リストを写す) ──
   const legacy = midList.map((p) => ({
     ticker: p.ticker, name: p.name, market: p.market,
     score: p.score, summary: p.reasons[0] ?? "", reasons: p.reasons,
@@ -224,12 +238,18 @@ export async function POST(req: NextRequest) {
     date: today,
     version: 2,
     horizons,
+    controls,
     recommendations: legacy,
     generatedAt: new Date(),
     meta: {
       featuresScanned: features.length,
       rankUniverse: rankEntries.length,
       longEnriched: enrich.size,
+      poolSizes: {
+        short: shortGatePool(features, excluded).length,
+        mid: midGatePool(rankEntries, featuresMap, excluded).length,
+        long: longGatePool(rankEntries, excluded).length,
+      },
     },
   });
 
@@ -237,6 +257,7 @@ export async function POST(req: NextRequest) {
     ok: true,
     date: today,
     counts: { short: shortList.length, mid: midList.length, long: longList.length },
+    controls: { short: controls.short.length, mid: controls.mid.length, long: controls.long.length },
     featuresScanned: features.length,
     rankUniverse: rankEntries.length,
     horizons,

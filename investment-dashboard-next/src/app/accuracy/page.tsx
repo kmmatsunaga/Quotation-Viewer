@@ -80,8 +80,43 @@ function hitColor(rate: number | null): string {
   return "#ef4444";
 }
 
+interface RecoSummary {
+  horizon: "short" | "mid" | "long";
+  evaluatedDays: number;
+  maturingDays: number;
+  meanPickExcess: number | null;
+  medianPickExcess: number | null;
+  meanControlExcess: number | null;
+  meanEdge: number | null;
+  edgeT: number | null;
+  gateT: number | null;
+  winRate: number | null;
+  ready: boolean;
+  verdict: "logic_works" | "gate_only" | "no_edge" | "pending";
+  message: string;
+}
+interface RecoResp {
+  ok: boolean;
+  windows: Record<string, number>;
+  summaries: RecoSummary[];
+}
+
+const H_META: Record<string, { label: string; icon: string }> = {
+  short: { label: "短期", icon: "⚡" },
+  mid: { label: "中期", icon: "🌱" },
+  long: { label: "長期", icon: "🏔" },
+};
+
+const VERDICT_META: Record<RecoSummary["verdict"], { color: string; label: string }> = {
+  logic_works: { color: "#22c55e", label: "✅ 順位付けに価値あり" },
+  gate_only: { color: "#facc15", label: "⚠ 関門のみ有効" },
+  no_edge: { color: "#fb923c", label: "❌ 優位を確認できず" },
+  pending: { color: "#6b7280", label: "⏳ 判定不能 (熟成中)" },
+};
+
 export default function AccuracyPage() {
   const [data, setData] = useState<AccResp | null>(null);
+  const [reco, setReco] = useState<RecoResp | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -89,6 +124,18 @@ export default function AccuracyPage() {
       .then((r) => r.json())
       .then((j: AccResp) => { setData(j); setLoading(false); })
       .catch(() => setLoading(false));
+
+    // おすすめv2 の答え合わせ (認証必要)
+    (async () => {
+      try {
+        const { auth } = await import("@/lib/firebase");
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) return;
+        const res = await fetch("/api/recommend-accuracy", { headers: { Authorization: `Bearer ${token}` } });
+        const j = (await res.json()) as RecoResp;
+        if (j.ok) setReco(j);
+      } catch {}
+    })();
   }, []);
 
   if (loading) {
@@ -126,6 +173,58 @@ export default function AccuracyPage() {
         <div className="p-3 border text-xs" style={{ borderColor: "#facc15", background: "rgba(250,204,21,0.06)", color: "var(--color-text)", ...MONO }}>
           ⚠ 収集{data.evalDays}日分。サンプルが少ないうちの勝率は偶然に左右されます。30日分たまるまでは参考程度に。
         </div>
+      )}
+
+      {/* 🌟 おすすめv2 の答え合わせ (時間軸ごとに選定ロジックが効いているか) */}
+      {reco && (
+        <section className="space-y-2">
+          <h2 className="text-[17px] font-bold text-[var(--color-text)]">
+            🌟 おすすめの答え合わせ <span className="opacity-60 font-normal">(推薦日の寄りで買い、満期の引けで売った場合)</span>
+          </h2>
+          <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed" style={MONO}>
+            主指標は「市場 (日経/S&P500) を何%上回ったか」= 超過リターン。上げ相場で全部上がるのを的中と呼ばないため。<br />
+            さらに<strong className="text-[var(--color-text)]">統制群</strong> (同じ関門を通ったランダム銘柄) と比べる。
+            これが無いと「関門を通れば何でも良かった」を否定できない。<br />
+            統計単位は<strong className="text-[var(--color-text)]">営業日</strong> (同じ日の8銘柄は同じ地合いを共有していて独立ではないため)。
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            {reco.summaries.map((s) => {
+              const m = H_META[s.horizon];
+              const v = VERDICT_META[s.verdict];
+              return (
+                <div key={s.horizon} className="p-3 border space-y-2" style={{ borderColor: v.color + "66", background: "var(--bg-card)" }}>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-[14px] font-bold text-[var(--color-text)]">
+                      {m.icon} {m.label}
+                    </span>
+                    <span className="text-[10px] text-[var(--color-text-secondary)]" style={MONO}>
+                      +{reco.windows[s.horizon]}営業日で判定
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-bold" style={{ color: v.color, ...MONO }}>{v.label}</div>
+
+                  {s.ready ? (
+                    <div className="space-y-1" style={MONO}>
+                      <Row label="ロジックの価値 (対統制群)" value={s.meanEdge != null ? `${s.meanEdge >= 0 ? "+" : ""}${s.meanEdge}%` : "—"} strong color={s.meanEdge != null && s.meanEdge > 0 ? "#22c55e" : "#fb923c"} />
+                      <Row label="　t値 (2以上で有意)" value={s.edgeT != null ? `${s.edgeT}` : "—"} />
+                      <Row label="おすすめの超過 (対市場)" value={s.meanPickExcess != null ? `${s.meanPickExcess >= 0 ? "+" : ""}${s.meanPickExcess}%` : "—"} />
+                      <Row label="統制群の超過 (対市場)" value={s.meanControlExcess != null ? `${s.meanControlExcess >= 0 ? "+" : ""}${s.meanControlExcess}%` : "—"} />
+                      <Row label="市場に勝った割合" value={s.winRate != null ? `${s.winRate}%` : "—"} />
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-[var(--color-text-secondary)] leading-relaxed">
+                      評価済み <strong className="text-[var(--color-text)]">{s.evaluatedDays}営業日</strong> / 熟成中 {s.maturingDays}日
+                    </div>
+                  )}
+
+                  <div className="text-[10px] text-[var(--color-text-secondary)] leading-relaxed pt-1.5 border-t border-[var(--color-border)]">
+                    {s.message}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {/* デイトレ候補の答え合わせ (朝の候補は実際どう動いたか) */}
@@ -270,6 +369,21 @@ function AccuracyGrid({ rows, labels }: { rows: AccRow[]; labels: Record<string,
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** おすすめ答え合わせカードの1行 */
+function Row({ label, value, strong, color }: { label: string; value: string; strong?: boolean; color?: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-[10px] text-[var(--color-text-secondary)]">{label}</span>
+      <span
+        className={strong ? "text-[13px] font-black" : "text-[11px]"}
+        style={{ color: color ?? "var(--color-text)" }}
+      >
+        {value}
+      </span>
     </div>
   );
 }

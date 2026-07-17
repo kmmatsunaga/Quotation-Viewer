@@ -88,6 +88,10 @@
     {
       "path": "/api/cron/crash-sentinel",
       "schedule": "0 5 * * 1-5"
+    },
+    {
+      "path": "/api/cron/recommend-eval",
+      "schedule": "30 8 * * 1-5"
     }
   ]
 }

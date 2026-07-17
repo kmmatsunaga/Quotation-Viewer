@@ -21,6 +21,7 @@ export type SignalKind =
   | "distribution"         // 天井圏からの分配売り
   | "trend_break"          // 200日線割れ
   | "death_cross"          // デッドクロス
+  | "overnight_gap"        // 前夜の米市況 (SOX等) による寄りギャップ警戒
   | "macro_recession";     // マクロ景気後退確率上昇
 
 export interface HoldingQuote {
@@ -38,12 +39,16 @@ export interface HoldingQuote {
   volRatio: number | null;    // 当日出来高 / 直近20日平均出来高
   /** ポートフォリオ内の時価ウェイト 0..1 */
   weight: number;
+  /** 半導体関連銘柄か (前夜の米SOXギャップ警戒に使う) */
+  isSemiconductor?: boolean;
 }
 
 export interface MarketContext {
   nikkeiChangePct: number | null;
   /** マクロ: 12ヶ月以内の景気後退確率 (%) — 無ければ null */
   recessionProb: number | null;
+  /** 前夜の米フィラデルフィア半導体指数 (SOX) の騰落率 (%)。寄り前チェック用。無ければ null */
+  soxChangePct?: number | null;
 }
 
 export interface CrashSignal {
@@ -93,6 +98,8 @@ const TH = {
   distributionVol: 2.0,
   distributionRecentHighDays: 5, // 直近5日以内に20日高値
   recessionProb: 55,         // マクロ景気後退確率
+  soxGapPct: -3,             // 前夜の米SOX急落 (半導体保有の寄りギャップ警戒)
+  soxGapHeavyPct: -4.5,
 };
 
 const pct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
@@ -213,6 +220,21 @@ export function assessCrashRisk(
         text: `${h.name}(${h.ticker}) は20日線が50日線を割り込むデッドクロス圏。中期の勢いが下向きに転換。`,
       });
       affected.add(h.ticker);
+    }
+  }
+
+  // ── 予兆: 前夜の米SOX急落 → 保有半導体の寄りギャップ警戒 (主に寄り前チェックで有効) ──
+  // 既に急落済み (affected) の銘柄は holding_plunge が語るのでここでは挙げない
+  if (market.soxChangePct != null && market.soxChangePct <= TH.soxGapPct) {
+    const semis = holdings.filter((h) => h.isSemiconductor && !affected.has(h.ticker));
+    if (semis.length > 0) {
+      const names = semis.map((h) => `${h.name}(${h.ticker})`).join("、");
+      const heavy = market.soxChangePct <= TH.soxGapHeavyPct;
+      signals.push({
+        scope: "market", kind: "overnight_gap", reactive: false, level: "warning",
+        text: `前夜の米フィラデルフィア半導体指数 (SOX) が ${pct(market.soxChangePct)}${heavy ? " と大幅安" : ""}。保有の半導体関連 (${names}) は、寄りで大きく下げて始まる可能性。寄り成りでの狼狽売り・ナンピンは危険。`,
+      });
+      semis.forEach((h) => affected.add(h.ticker));
     }
   }
 

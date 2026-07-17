@@ -23,6 +23,23 @@ export interface PlanInputs {
   riskPct: number;      // 1トレードの最大リスク (総資産比 %) 例 1.5
   maxPosPct: number;    // 1銘柄の最大投資額 (総資産比 %) 例 25
   lotSize: 1 | 100;     // 1=かぶミニ / 100=単元
+  /**
+   * 脆弱地形スコア 0..100 (fragile-terrain.ts)。渡すとサイジングが地形連動になる。
+   * 根拠: 地形が脆いほど「損切りがギャップで飛び越される」= 想定損失が額面どおりにならない。
+   * よってリスク予算そのものを割り引く (ATR由来の損切り幅だけでは足りない補正)。
+   */
+  terrainScore?: number | null;
+}
+
+/** 地形スコア → リスク予算・投資上限の割引率 */
+export function terrainSizingAdjust(score: number | null | undefined): {
+  riskMul: number; posMul: number; label: string | null;
+} {
+  if (score == null) return { riskMul: 1, posMul: 1, label: null };
+  if (score >= 65) return { riskMul: 0.35, posMul: 0.4, label: "🚨 極めて脆弱" };
+  if (score >= 45) return { riskMul: 0.6, posMul: 0.65, label: "⚠ 高ボラ地形" };
+  if (score >= 25) return { riskMul: 0.85, posMul: 0.85, label: "〜 やや荒い" };
+  return { riskMul: 1, posMul: 1, label: null };
 }
 
 export interface PlanEntry {
@@ -79,8 +96,20 @@ export function computePositionPlan(inp: PlanInputs): PositionPlanCalc {
   // ── 2. 損切り: 最深エントリーの下 1.2ATR。60日安値を明確に割る位置なら「構造崩壊」として妥当 ──
   const stop = roundTick(e3 - 1.2 * atr);
 
+  // ── 地形連動の割引 (脆い地形ほど「損切りが機能しない」前提で枚数を絞る) ──
+  const adj = terrainSizingAdjust(inp.terrainScore);
+  const effRiskPct = riskPct * adj.riskMul;
+  const effMaxPosPct = maxPosPct * adj.posMul;
+  if (adj.label) {
+    notes.push(
+      `${adj.label} (地形リスク ${inp.terrainScore}) のため、リスク予算を ${riskPct}% → ${Math.round(effRiskPct * 100) / 100}%、` +
+      `投資上限を ${maxPosPct}% → ${Math.round(effMaxPosPct * 10) / 10}% に自動縮小。` +
+      `理由: この地形では寄りギャップで損切りを飛び越されやすく、想定損失が額面どおりにならないため。`
+    );
+  }
+
   // ── 3. 予算: 1銘柄上限 と 現金 の小さい方 ──
-  const budgetCap = Math.min((maxPosPct / 100) * totalAssets, cash);
+  const budgetCap = Math.min((effMaxPosPct / 100) * totalAssets, cash);
   if (budgetCap < price * lotSize) {
     return {
       ok: false,
@@ -92,7 +121,7 @@ export function computePositionPlan(inp: PlanInputs): PositionPlanCalc {
   }
 
   // ── 4. 3分割の株数設計 (各ロットほぼ均等) → リスク上限で縮小 ──
-  const riskBudget = (riskPct / 100) * totalAssets;
+  const riskBudget = (effRiskPct / 100) * totalAssets;
   const zones = [
     { label: "1段目 (現値)", price: e1 },
     { label: "2段目 (押し目 -1ATR)", price: e2 },
@@ -102,14 +131,33 @@ export function computePositionPlan(inp: PlanInputs): PositionPlanCalc {
   const uniq = zones.filter((z, i) => i === 0 || z.price < zones[i - 1].price - 0.0001);
   if (uniq.length < zones.length) notes.push("値幅が狭いためエントリーを統合しました");
 
-  const perLotBudget = budgetCap / uniq.length;
-  let entries: PlanEntry[] = uniq.map((z) => {
-    const shares = floorTo(perLotBudget / z.price, lotSize);
-    return { label: z.label, price: z.price, shares, amount: Math.round(shares * z.price) };
-  }).filter((e) => e.shares >= lotSize);
+  // 分割数のフォールバック: 3分割で1ロットも組めないなら2分割→1本に落とす
+  // (高価格株や、地形縮小で予算が絞られた時に「設計不可」で終わらせない)
+  let entries: PlanEntry[] = [];
+  for (let n = uniq.length; n >= 1; n--) {
+    const zones = uniq.slice(0, n); // 浅い方 (現値寄り) から使う = 約定しない指値で終わらせない
+    const perLotBudget = budgetCap / n;
+    const cand = zones.map((z) => {
+      const shares = floorTo(perLotBudget / z.price, lotSize);
+      return { label: n === 1 ? "一括 (現値)" : z.label, price: z.price, shares, amount: Math.round(shares * z.price) };
+    });
+    if (cand.every((e) => e.shares >= lotSize)) {
+      entries = cand;
+      if (n < uniq.length) notes.push(`予算内に収めるためエントリーを${n}回に集約しました (1ロットあたりの金額を確保)`);
+      break;
+    }
+  }
 
   if (entries.length === 0) {
-    return { ok: false, reason: "予算を分割すると1ロットも組めません。かぶミニへの切替を検討してください", entries: [], totalShares: 0, totalAmount: 0, avgEntry: 0, stop, stopPct: 0, target: 0, riskAmount: 0, riskPctOfAssets: 0, rrr: 0, positionPctOfAssets: 0, notes };
+    const terrainNote = adj.label
+      ? `${adj.label}のため投資上限が ¥${Math.round(budgetCap).toLocaleString()} に絞られており、`
+      : `予算 ¥${Math.round(budgetCap).toLocaleString()} では`;
+    return {
+      ok: false,
+      reason: `${terrainNote}${lotSize === 100 ? "1単元 (100株)" : "1株"} (¥${Math.round(price * lotSize).toLocaleString()}) すら組めません。` +
+        (adj.label ? "この銘柄は、今の資産規模に対して1枚が重すぎます。見送りが妥当です。" : "対象を見直してください。"),
+      entries: [], totalShares: 0, totalAmount: 0, avgEntry: 0, stop, stopPct: 0, target: 0, riskAmount: 0, riskPctOfAssets: 0, rrr: 0, positionPctOfAssets: 0, notes,
+    };
   }
 
   // リスク超過なら全ロットを等比縮小
@@ -122,9 +170,19 @@ export function computePositionPlan(inp: PlanInputs): PositionPlanCalc {
       return { ...e, shares, amount: Math.round(shares * e.price) };
     }).filter((e) => e.shares >= lotSize);
     risk = calcRisk(entries);
-    notes.push(`リスク上限 (総資産の${riskPct}% = ¥${Math.round(riskBudget).toLocaleString()}) に合わせて株数を縮小`);
+    notes.push(`リスク上限 (総資産の${Math.round(effRiskPct * 100) / 100}% = ¥${Math.round(riskBudget).toLocaleString()}) に合わせて株数を縮小`);
     if (entries.length === 0) {
-      return { ok: false, reason: `リスク上限 ¥${Math.round(riskBudget).toLocaleString()} 内では${lotSize === 100 ? "1単元も" : "1株も"}組めません (損切り幅が広すぎる)。かぶミニ切替か損切りの近い設計を検討`, entries: [], totalShares: 0, totalAmount: 0, avgEntry: 0, stop, stopPct: 0, target: 0, riskAmount: 0, riskPctOfAssets: 0, rrr: 0, positionPctOfAssets: 0, notes };
+      const why = adj.label
+        ? `${adj.label} (地形リスク ${inp.terrainScore}) でリスク予算が ¥${Math.round(riskBudget).toLocaleString()} に絞られており、`
+        : `リスク上限 ¥${Math.round(riskBudget).toLocaleString()} 内では`;
+      return {
+        ok: false,
+        reason: `${why}${lotSize === 100 ? "1単元も" : "1株も"}組めません (損切りまでの幅が広すぎる)。` +
+          (adj.label
+            ? "この地形・この資産規模では、規律を保ったまま買う方法がありません = 見送りが妥当です。"
+            : `${lotSize === 100 ? "かぶミニ切替か、" : ""}損切りの近い設計を検討してください。`),
+        entries: [], totalShares: 0, totalAmount: 0, avgEntry: 0, stop, stopPct: 0, target: 0, riskAmount: 0, riskPctOfAssets: 0, rrr: 0, positionPctOfAssets: 0, notes,
+      };
     }
   }
 

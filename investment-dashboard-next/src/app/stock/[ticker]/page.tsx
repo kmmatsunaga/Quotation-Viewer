@@ -22,6 +22,7 @@ import EarningsPatternPanel from "./EarningsPatternPanel";
 import { TachibanaSnapshotProvider } from "./TachibanaSnapshotContext";
 import CommentaryPanel from "@/components/CommentaryPanel";
 import { assessTechnical } from "@/lib/technical-assess";
+import { assessTerrain } from "@/lib/fragile-terrain";
 import {
   getWatchlistGroups,
   addToWatchlist,
@@ -800,6 +801,15 @@ export default function StockDetailPage({
 
       {/* 📈 テクニカル */}
       <div className={detailTab === "technical" ? "space-y-6" : "hidden"}>
+        {/* 🌪 地形リスク (買う前に「どれだけ振られる地形か」を見る) */}
+        {(() => {
+          const terrain = assessTerrain({
+            price: data.price,
+            bars: data.candles.map((c) => ({ high: c.high, low: c.low, close: c.close })),
+            sma: data.indicators.sma20 ?? null,
+          });
+          return terrain ? <CommentaryPanel title="地形リスク" c={terrain.commentary} /> : null;
+        })()}
         <div className="p-5 rounded" style={{ border: "1px solid var(--color-border)", background: "var(--bg-card)" }}>
           <span className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-secondary)] block mb-4" style={MONO}>Technical Indicators</span>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">

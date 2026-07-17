@@ -29,6 +29,41 @@ const YF_HEADERS = {
 
 export const maxDuration = 300;
 
+// 半導体関連 (前夜の米SOXギャップ警戒の対象)。主要どころをカバー
+const SEMI_TICKERS = new Set([
+  "285A", // キオクシア
+  "8035", // 東京エレクトロン
+  "6857", // アドバンテスト
+  "6146", // ディスコ
+  "6920", // レーザーテック
+  "3436", // SUMCO
+  "4063", // 信越化学
+  "6963", // ローム
+  "7735", // SCREEN
+  "6526", // ソシオネクスト
+  "6754", // アンリツ
+  "6971", // 京セラ
+  "6723", // ルネサス
+]);
+
+/** 前夜の米SOX (^SOX) の騰落率 (%) を取得 */
+async function fetchSoxChangePct(): Promise<number | null> {
+  try {
+    const url = "https://query1.finance.yahoo.com/v8/finance/chart/%5ESOX?range=5d&interval=1d";
+    const res = await fetch(url, { headers: YF_HEADERS, next: { revalidate: 300 } });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const meta = json.chart?.result?.[0]?.meta;
+    if (!meta) return null;
+    const price = meta.regularMarketPrice;
+    const prev = meta.chartPreviousClose ?? meta.previousClose;
+    if (!price || !prev) return null;
+    return Math.round(((price - prev) / prev) * 1000) / 10;
+  } catch {
+    return null;
+  }
+}
+
 function sma(arr: number[], n: number): number | null {
   if (arr.length < n) return null;
   const slice = arr.slice(-n);
@@ -112,7 +147,7 @@ export async function GET(req: NextRequest) {
   const emails = emailsRaw.split(",").map((e) => e.trim()).filter(Boolean);
 
   // ── 市場コンテキスト (全ユーザー共通) ──
-  const market: MarketContext = { nikkeiChangePct: null, recessionProb: null };
+  const market: MarketContext = { nikkeiChangePct: null, recessionProb: null, soxChangePct: null };
   try {
     const res = await fetch(`${origin}/api/market/indices`, { next: { revalidate: 60 } });
     if (res.ok) {
@@ -121,6 +156,7 @@ export async function GET(req: NextRequest) {
       if (nikkei) market.nikkeiChangePct = nikkei.change_pct;
     }
   } catch {}
+  market.soxChangePct = await fetchSoxChangePct();
   try {
     const res = await fetch(`${origin}/api/macro/fred-watch`, { next: { revalidate: 3600 } });
     if (res.ok) {
@@ -189,7 +225,11 @@ export async function GET(req: NextRequest) {
         const totalValue = quotes.reduce((s, q) => s + q.price * q.shares, 0);
         const holdings: HoldingQuote[] = quotes.map((q) => {
           const { shares, ...rest } = q;
-          return { ...rest, weight: totalValue > 0 ? (q.price * shares) / totalValue : 0 };
+          return {
+            ...rest,
+            weight: totalValue > 0 ? (q.price * shares) / totalValue : 0,
+            isSemiconductor: SEMI_TICKERS.has(q.ticker),
+          };
         });
 
         // ── ストライク履歴 (段階エスカレーションの記憶) を読み込み ──

@@ -18,7 +18,8 @@ import {
   type PositionPlan,
 } from "@/lib/firestore";
 import { computePositionPlan, type PositionPlanCalc } from "@/lib/position-plan";
-import { GlossaryBox } from "@/components/CommentaryPanel";
+import CommentaryPanel, { GlossaryBox } from "@/components/CommentaryPanel";
+import type { Commentary } from "@/lib/commentary";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 const UP = "var(--color-up)";
@@ -27,6 +28,7 @@ const DANGER = "#ef4444";
 interface PlanInputsResp {
   ticker: string; name: string; price: number;
   atr: number; atrPct: number; low20: number; low60: number;
+  terrain?: { score: number; tier: string; commentary: Commentary } | null;
   error?: string;
 }
 
@@ -119,6 +121,7 @@ export default function BuyPlanPage() {
       riskPct: Number(riskPct) || 1.5,
       maxPosPct: Number(maxPosPct) || 25,
       lotSize,
+      terrainScore: inputs.terrain?.score ?? null,
     });
   }, [inputs, totalAssets, cash, riskPct, maxPosPct, lotSize]);
 
@@ -218,6 +221,11 @@ export default function BuyPlanPage() {
               現在値 ¥{inputs.price.toLocaleString()} / ATR ¥{inputs.atr} ({inputs.atrPct}%)
             </span>
           </div>
+
+          {/* 🌪 地形リスク: 「買う前に、どれだけ振られる地形か」を最上部で突きつける */}
+          {inputs.terrain && (inputs.terrain.tier === "fragile" || inputs.terrain.tier === "volatile") && (
+            <CommentaryPanel title="地形リスク" c={inputs.terrain.commentary} defaultOpen={inputs.terrain.tier === "fragile"} />
+          )}
 
           {/* 決算接近の警告 — 「上がってて良さそうと思ったら決算直前」事故の防止 */}
           {earnings?.daysToNext !== null && earnings?.daysToNext !== undefined && earnings.daysToNext >= 0 && earnings.daysToNext <= 21 && (

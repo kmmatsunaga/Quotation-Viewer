@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCachedJpStocks } from "@/lib/jp-stocks-cache";
+import { assessTerrain } from "@/lib/fragile-terrain";
 
 /**
  * GET /api/stocks/plan-inputs?ticker=7203
@@ -59,12 +60,19 @@ export async function GET(req: NextRequest) {
       name = master.find((s) => s.ticker === ticker)?.name ?? ticker;
     } catch {}
 
+    // 🌪 脆弱地形スコア (買う前の「どれだけ振られる地形か」)
+    const terrain = assessTerrain({
+      price: last.c,
+      bars: bars.map((b) => ({ high: b.h, low: b.l, close: b.c })),
+    });
+
     return NextResponse.json({
       ticker, name,
       price: last.c,
       atr: Math.round(atr * 10) / 10,
       atrPct: Math.round((atr / last.c) * 1000) / 10,
       low20, low60,
+      terrain: terrain ? { score: terrain.score, tier: terrain.tier, commentary: terrain.commentary } : null,
     });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

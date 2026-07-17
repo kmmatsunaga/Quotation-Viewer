@@ -7,6 +7,8 @@ import { TopNav } from "@/components/TopNav";
 import { BottomNav } from "@/components/BottomNav";
 import QuickNote from "@/components/QuickNote";
 import TickerContextMenu from "@/components/TickerContextMenu";
+import CrashAlertGuard from "@/components/CrashAlertGuard";
+import { CrashAlertProvider } from "@/lib/crash-alert-context";
 
 // ナビ構造: ☀玄関 → ⚔戦場 (場中) → 🔬研究所 (分析) → 📊資産と記録
 // group が前項と変わる位置に区切りとグループ見出しが入る (TopNav)
@@ -75,7 +77,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   if (!user) return null;
 
   return (
-    <>
+    <CrashAlertProvider>
       <TopNav navItems={navItems} currentPath={pathname} />
       <main className="pt-0 md:pt-20 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom,0px))] md:pb-0">
         <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-12 py-5">
@@ -85,7 +87,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       <BottomNav navItems={navItems} currentPath={pathname} />
       <QuickNote />
       <TickerContextMenu />
-    </>
+      <CrashAlertGuard />
+    </CrashAlertProvider>
   );
 }
 

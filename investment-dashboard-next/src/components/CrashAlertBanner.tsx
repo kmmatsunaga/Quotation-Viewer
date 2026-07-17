@@ -1,58 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useAuth } from "@/lib/auth-context";
-import type { CrashLevel, CrashSignal } from "@/lib/crash-sentinel";
+import { useCrashAlert, type CrashAlertDoc } from "@/lib/crash-alert-context";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
-// 警報が古くなったら自動で消す (場中の警報が翌日まで残らないように)
-const STALE_HOURS = 8;
-
-export interface CrashAlertDoc {
-  level: CrashLevel;
-  headline: string;
-  summary: string;
-  advice: string;
-  signals: CrashSignal[];
-  affectedTickers: string[];
-  signature: string;
-  nikkeiChangePct: number | null;
-  updatedAt: string; // ISO
-}
+export type { CrashAlertDoc };
 
 /**
  * トップページ最上部の暴落緊急警報バナー。
- * Firestore users/{uid}/alerts/crash_current を購読し、level != none かつ
- * 直近 STALE_HOURS 以内・未 dismiss の時だけ表示する。
+ * CrashAlertProvider (鮮度・level 判定済み) から警報を受け取り、未 dismiss の時だけ表示。
  */
 export default function CrashAlertBanner() {
-  const { user } = useAuth();
-  const [alert, setAlert] = useState<CrashAlertDoc | null>(null);
+  const { alert } = useCrashAlert();
   const [dismissedSig, setDismissedSig] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
-    const ref = doc(db, "users", user.uid, "alerts", "crash_current");
-    const unsub = onSnapshot(
-      ref,
-      (snap) => setAlert(snap.exists() ? (snap.data() as CrashAlertDoc) : null),
-      () => setAlert(null)
-    );
     // dismiss 状態は localStorage (端末ローカルで十分)
     try {
       setDismissedSig(localStorage.getItem("cavka_crash_dismissed") ?? null);
     } catch {}
-    return () => unsub();
-  }, [user]);
+  }, []);
 
-  if (!alert || alert.level === "none") return null;
-
-  // 鮮度チェック
-  const ageMs = Date.now() - new Date(alert.updatedAt).getTime();
-  if (!(ageMs >= 0) || ageMs > STALE_HOURS * 3600 * 1000) return null;
+  if (!alert) return null;
 
   // dismiss 済み (同じ署名) は非表示。署名が変われば再表示。
   if (dismissedSig === alert.signature) return null;

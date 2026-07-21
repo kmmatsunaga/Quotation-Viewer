@@ -37,6 +37,7 @@ const navItems = [
   { href: "/news", label: "ニュース", shortLabel: "ニュース", icon: "newspaper", group: "🔬研究所" },
   { href: "/scenarios", label: "シナリオ", shortLabel: "シナリオ", icon: "clipboard", group: "🔬研究所" },
   { href: "/backtest", label: "検証", shortLabel: "🔬", icon: "chart", group: "🔬研究所" },
+  { href: "/intraday-laws", label: "場中の法則 (板圧・成行)", shortLabel: "🔬場中", icon: "chart", group: "🔬研究所" },
   // 📊 資産と記録 — 自分のもの
   { href: "/portfolio", label: "ポートフォリオ", shortLabel: "資産", icon: "wallet", group: "📊資産" },
   { href: "/buyplan", label: "買い方の設計 (プラン)", shortLabel: "🧭", icon: "clipboard", group: "📊資産" },

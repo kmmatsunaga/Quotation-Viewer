@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import TerrainBadge from "@/components/TerrainBadge";
+import { useTerrainLatest } from "@/lib/use-terrain-latest";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -39,6 +41,7 @@ interface RankingsResponse {
 
 export default function RankingsPage() {
   const router = useRouter();
+  const terrain = useTerrainLatest();
   const [data, setData] = useState<RankingsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -221,6 +224,7 @@ export default function RankingsPage() {
                 entry={e}
                 timeframe={timeframe}
                 onClick={() => router.push(`/stock/${e.ticker}`)}
+                terrainScore={terrain.scoreOf(e.ticker)}
               />
             ))}
           </div>
@@ -250,11 +254,13 @@ function RankRow({
   entry,
   timeframe,
   onClick,
+  terrainScore,
 }: {
   rank: number;
   entry: Entry;
   timeframe: Timeframe;
   onClick: () => void;
+  terrainScore: number | null;
 }) {
   const displayScore = entry[timeframe];
   const scoreColor =
@@ -311,7 +317,10 @@ function RankRow({
       <span className="text-xs font-bold text-[var(--color-accent)] shrink-0" style={MONO}>
         {entry.ticker}
       </span>
-      <span className="text-xs text-[var(--color-text)] truncate flex-1">{entry.name}</span>
+      <span className="text-xs text-[var(--color-text)] truncate flex-1 flex items-center gap-1.5">
+        <span className="truncate">{entry.name}</span>
+        <TerrainBadge score={terrainScore} size="xs" />
+      </span>
       <div className="flex gap-1 shrink-0">
         {tfBadge("短", entry.short, timeframe === "short")}
         {tfBadge("中", entry.mid, timeframe === "mid")}

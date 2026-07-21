@@ -4,6 +4,7 @@ import { NIKKEI225 } from "@/lib/nikkei225";
 import { STOCK_LIST } from "@/lib/stock-list";
 import { getCachedJpStocks } from "@/lib/jp-stocks-cache";
 import { getSectorsForTicker } from "@/lib/jp-themes";
+import { getAdminDb } from "@/lib/firebase-admin";
 import {
   computeDailyFeatures,
   fillRelativeFeatures,
@@ -132,6 +133,23 @@ export async function GET(req: NextRequest) {
       writeStream.on("error", (e: Error) => reject(e));
       Readable.from([ndjson]).pipe(writeStream);
     });
+
+    // 全銘柄の最新地形スコアを Firestore に保存 (スクリーナー/ランキング/候補が安価に読む用)
+    // 4,000銘柄でも {ticker: score} は ~60KB で 1MB 制限内。score>=25 のみ保存 (安定はバッジ不要)
+    try {
+      const scores: Record<string, number> = {};
+      for (const r of dayRows) {
+        if (r.terrainScore != null && r.terrainScore >= 25) scores[r.ticker] = r.terrainScore;
+      }
+      await getAdminDb().collection("meta").doc("terrain_latest").set({
+        date: targetDate,
+        scores,
+        count: Object.keys(scores).length,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.error("[daily-features] terrain_latest save failed:", e);
+    }
   }
 
   return NextResponse.json({

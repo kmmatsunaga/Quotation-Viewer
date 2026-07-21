@@ -10,6 +10,8 @@
  * 毎晩の cron (/api/cron/daily-features) の両方から使う。
  */
 
+import { scoreTerrainMetrics } from "./fragile-terrain";
+
 export interface DailyBar {
   date: string;   // YYYY-MM-DD (JST)
   open: number;
@@ -44,6 +46,7 @@ export interface DailyFeatureRow {
   // ── テクニカル状態 ──
   rsi14: number | null;
   atrPct14: number | null;        // ATR14 / 終値 % (その銘柄のノイズ幅)
+  terrainScore: number | null;    // 脆弱地形スコア 0..100 (どれだけ振られる地面か)
   // ── 相対 (地合い・セクター) — パイプライン後段で埋める ──
   nikkeiChangePct: number | null;
   vsNikkeiPct: number | null;
@@ -119,6 +122,24 @@ export function computeDailyFeatures(
     const range = b.high - b.low;
     const rsiDen = avgGain + avgLoss;
 
+    // ── 脆弱地形スコア (採点は scoreTerrainMetrics に委譲 = 二重実装回避) ──
+    // 既存の bars から地形メトリクスを直接計算 (当日を含む直近窓)
+    const last20chg: number[] = [];
+    for (let j = Math.max(1, i - 19); j <= i; j++) {
+      if (bars[j - 1].close > 0) last20chg.push((bars[j].close / bars[j - 1].close - 1) * 100);
+    }
+    const high60 = closes60.length > 0 ? Math.max(...closes60.map((_, k) => bars[i - 60 + k].high), b.high) : b.high;
+    const sma25 = i >= 25 ? bars.slice(i - 24, i + 1).reduce((s, x) => s + x.close, 0) / 25 : null;
+    const terrainScore = b.close > 0 && last20chg.length >= 10
+      ? scoreTerrainMetrics({
+          atrPct: round2((atr / b.close) * 100),
+          bigDayRate: last20chg.filter((c) => Math.abs(c) >= 7).length / last20chg.length,
+          worstDrop20: Math.min(...last20chg),
+          drawdownFromHigh: high60 > 0 ? (b.close / high60 - 1) * 100 : null,
+          extensionPct: sma25 && sma25 > 0 ? (b.close / sma25 - 1) * 100 : null,
+        }).score
+      : null;
+
     rows.push({
       date: b.date,
       ticker,
@@ -140,6 +161,7 @@ export function computeDailyFeatures(
       ret20dPct: i >= 20 ? pct(b.close, bars[i - 20].close) : null,
       rsi14: rsiDen > 0 ? round2((avgGain / rsiDen) * 100) : null,
       atrPct14: b.close > 0 ? round2((atr / b.close) * 100) : null,
+      terrainScore,
       nikkeiChangePct: null,
       vsNikkeiPct: null,
       sectorChangePct: null,

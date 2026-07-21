@@ -62,6 +62,11 @@ export interface TerrainMetrics {
   marginRatio?: number | null;      // 信用倍率 (任意)
 }
 
+/** スコア → tier (閾値の唯一の定義) */
+export function tierOf(score: number): TerrainTier {
+  return score >= 65 ? "fragile" : score >= 45 ? "volatile" : score >= 25 ? "choppy" : "stable";
+}
+
 /** 地形メトリクス → 0..100 のスコアと tier (採点の唯一の実装) */
 export function scoreTerrainMetrics(m: TerrainMetrics): { score: number; tier: TerrainTier } {
   let score = 0;
@@ -80,9 +85,7 @@ export function scoreTerrainMetrics(m: TerrainMetrics): { score: number; tier: T
     score += Math.min(8, (m.marginRatio - 8) * 0.5);
   }
   score = Math.round(Math.min(100, score));
-  const tier: TerrainTier =
-    score >= 65 ? "fragile" : score >= 45 ? "volatile" : score >= 25 ? "choppy" : "stable";
-  return { score, tier };
+  return { score, tier: tierOf(score) };
 }
 
 /** 日足から地形メトリクスを計算 */

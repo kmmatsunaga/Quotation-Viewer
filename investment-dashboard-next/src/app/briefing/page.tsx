@@ -9,6 +9,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import TerrainBadge from "@/components/TerrainBadge";
+import { useTerrainLatest } from "@/lib/use-terrain-latest";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -360,6 +362,7 @@ function CandidateCard({ c, inWarroom, onSend, onOpen }: {
   onSend: () => void;
   onOpen: () => void;
 }) {
+  const terrain = useTerrainLatest();
   const isLong = c.hint === "long";
   const hintColor = isLong ? "var(--color-up)" : c.hint === "short" ? "var(--color-down)" : "#facc15";
   const lowConsistency = c.consistency < 60;
@@ -375,6 +378,7 @@ function CandidateCard({ c, inWarroom, onSend, onOpen }: {
       <button onClick={onOpen} className="flex items-baseline gap-2 w-full text-left min-w-0">
         <span className="text-sm font-bold text-[var(--color-text)] truncate">{c.name || c.ticker}</span>
         <span className="text-[10px] text-[var(--color-accent)] shrink-0" style={MONO}>{c.ticker}</span>
+        <TerrainBadge score={terrain.scoreOf(c.ticker)} size="xs" />
       </button>
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-[9px] px-1.5 py-0.5" style={{ ...MONO, border: `1px solid ${hintColor}`, color: hintColor }}>

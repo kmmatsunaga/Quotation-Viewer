@@ -6,6 +6,8 @@ import { useAuth } from "@/lib/auth-context";
 import { NIKKEI225 } from "@/lib/nikkei225";
 import type { FundamentalData } from "@/app/api/stocks/fundamentals/route";
 import MomentumScreenerPanel from "./MomentumScreenerPanel";
+import TerrainBadge from "@/components/TerrainBadge";
+import { useTerrainLatest } from "@/lib/use-terrain-latest";
 
 type ScreenerMode = "fundamental" | "momentum";
 const SS_MODE = "cavka_screener_mode";
@@ -175,6 +177,8 @@ export default function ScreenerPage() {
   const [sortKey, setSortKey] = useState<SortKey>("roe");
   const [sortAsc, setSortAsc] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
+  const [excludeFragile, setExcludeFragile] = useState(false);
+  const terrain = useTerrainLatest();
   const abortRef = useRef(false);
   const [cacheInfo, setCacheInfo] = useState<{ updatedAt: string | null; source: "session" | "firestore" | "fresh" } | null>(null);
 
@@ -321,6 +325,11 @@ export default function ScreenerPage() {
     if (filter.dividendYieldMin !== null && (d.dividendYield === null || d.dividendYield < filter.dividendYieldMin)) return false;
     if (filter.payoutRatioMin !== null && (d.payoutRatio === null || d.payoutRatio < filter.payoutRatioMin)) return false;
     if (filter.payoutRatioMax !== null && (d.payoutRatio !== null && d.payoutRatio > filter.payoutRatioMax)) return false;
+    // 脆弱地形の除外 (score>=65)
+    if (excludeFragile) {
+      const s = terrain.scoreOf(d.ticker);
+      if (s != null && s >= 65) return false;
+    }
     return true;
   });
 
@@ -405,6 +414,12 @@ export default function ScreenerPage() {
           🔍 スクリーナー <span className="text-[12px] text-[var(--color-accent)] font-normal align-middle" style={MONO}>// FUNDAMENTAL</span>
         </h1>
         <div className="flex items-center gap-2 flex-wrap">
+          {terrain.ready && terrain.date && (
+            <label className="flex items-center gap-1 text-[11px] cursor-pointer" style={MONO} title="脆弱地形スコア65以上を除外">
+              <input type="checkbox" checked={excludeFragile} onChange={(e) => setExcludeFragile(e.target.checked)} className="w-3 h-3 accent-[#ef4444]" />
+              <span className="text-[var(--color-text-secondary)]">🚨脆弱地形を除外</span>
+            </label>
+          )}
           {scannedAll && (
             <span className="text-xs text-[var(--color-text-secondary)]" style={MONO}>
               {filtered.length} / {allResults.length} 銘柄
@@ -617,8 +632,9 @@ export default function ScreenerPage() {
                         <div className="flex items-center gap-2">
                           <span className="text-[9px] px-1 py-0.5" style={{ background: d.market === "US" ? "rgba(255,43,214,0.15)" : "rgba(0,240,255,0.15)", color: d.market === "US" ? "var(--color-accent-2)" : "var(--color-accent)" }}>{d.market}</span>
                           <div className="min-w-0">
-                            <div className="text-sm text-[var(--color-text)] font-medium leading-tight max-w-[200px] truncate" title={d.name}>
-                              {d.name && d.name !== d.ticker ? d.name : "（社名未取得）"}
+                            <div className="text-sm text-[var(--color-text)] font-medium leading-tight max-w-[200px] truncate flex items-center gap-1.5" title={d.name}>
+                              <span className="truncate">{d.name && d.name !== d.ticker ? d.name : "（社名未取得）"}</span>
+                              <TerrainBadge score={terrain.scoreOf(d.ticker)} size="xs" />
                             </div>
                             <div className="text-[10px] text-[var(--color-accent)] tracking-wide">{d.ticker}</div>
                           </div>

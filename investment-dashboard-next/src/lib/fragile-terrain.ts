@@ -149,6 +149,73 @@ export const TIER_META: Record<
   },
 };
 
+// ────────────────────────────────────────────
+// ポートフォリオ地形サマリ: 「資産の◯%が脆弱地形の上に乗っているか」
+// ────────────────────────────────────────────
+export interface HoldingTerrain {
+  ticker: string;
+  name: string;
+  value: number;          // 時価評価額 (加重の重み)
+  score: number | null;   // null = データ不足で評価不能
+  tier: TerrainTier | null;
+}
+
+export interface PortfolioTerrainSummary {
+  totalValue: number;
+  evaluatedValue: number;              // 地形を評価できた分の時価
+  /** tier ごとの時価シェア (%) */
+  shares: Record<TerrainTier, number>;
+  /** 時価加重の平均地形スコア */
+  weightedScore: number | null;
+  /** 脆弱+高ボラ の時価シェア (%) — 見出しに使う */
+  riskyShare: number;
+  headline: string;
+  tone: "pos" | "neutral" | "warn";
+  /** 荒い順の内訳 (脆弱・高ボラのみ) */
+  hotspots: HoldingTerrain[];
+}
+
+export function summarizePortfolioTerrain(holdings: HoldingTerrain[]): PortfolioTerrainSummary {
+  const totalValue = holdings.reduce((s, h) => s + h.value, 0);
+  const evaluated = holdings.filter((h) => h.tier != null && h.score != null);
+  const evaluatedValue = evaluated.reduce((s, h) => s + h.value, 0);
+
+  const shares: Record<TerrainTier, number> = { fragile: 0, volatile: 0, choppy: 0, stable: 0 };
+  let wSum = 0;
+  for (const h of evaluated) {
+    shares[h.tier!] += h.value;
+    wSum += h.value * h.score!;
+  }
+  const base = evaluatedValue > 0 ? evaluatedValue : 1;
+  (Object.keys(shares) as TerrainTier[]).forEach((k) => {
+    shares[k] = Math.round((shares[k] / base) * 1000) / 10;
+  });
+  const weightedScore = evaluatedValue > 0 ? Math.round((wSum / evaluatedValue)) : null;
+  const riskyShare = Math.round((shares.fragile + shares.volatile) * 10) / 10;
+
+  let headline: string;
+  let tone: PortfolioTerrainSummary["tone"];
+  if (shares.fragile >= 30) {
+    tone = "warn";
+    headline = `資産の ${shares.fragile}% が🚨脆弱地形の上。1銘柄の急落で全体が大きく振られる構成です。`;
+  } else if (riskyShare >= 40) {
+    tone = "warn";
+    headline = `資産の ${riskyShare}% が荒い地形 (脆弱+高ボラ)。値動きの激しいポートフォリオです。`;
+  } else if (riskyShare >= 15) {
+    tone = "neutral";
+    headline = `資産の ${riskyShare}% が荒い地形。大半は落ち着いていますが、一部にボラの高い銘柄があります。`;
+  } else {
+    tone = "pos";
+    headline = `資産の ${Math.round((shares.stable + shares.choppy) * 10) / 10}% が穏やかな地形。地に足のついた構成です。`;
+  }
+
+  const hotspots = evaluated
+    .filter((h) => h.tier === "fragile" || h.tier === "volatile")
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+  return { totalValue, evaluatedValue, shares, weightedScore, riskyShare, headline, tone, hotspots };
+}
+
 export function assessTerrain(input: TerrainInput): TerrainResult | null {
   const { price, bars } = input;
   const metrics = computeTerrainMetrics(input);

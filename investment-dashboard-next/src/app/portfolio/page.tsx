@@ -36,6 +36,7 @@ import {
 } from "@/lib/stock-search";
 import { PatternBadgeGroup, type PatternData } from "@/components/PatternBadge";
 import HoldingChart from "./HoldingChart";
+import { TIER_META, type PortfolioTerrainSummary } from "@/lib/fragile-terrain";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -125,6 +126,9 @@ export default function PortfolioPage() {
   const [prices, setPrices] = useState<Record<string, PriceInfo>>({});
   const [usdJpy, setUsdJpy] = useState<number | null>(null);
   const [pricesLoading, setPricesLoading] = useState(false);
+
+  // 🌪 地形サマリ (資産の何%が脆弱地形か)
+  const [terrainSummary, setTerrainSummary] = useState<PortfolioTerrainSummary | null>(null);
 
   // パターン検出
   const [tickerPatterns, setTickerPatterns] = useState<Record<string, Record<string, PatternData[]>>>({});
@@ -392,6 +396,31 @@ export default function PortfolioPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // ── 🌪 ポートフォリオ地形サマリ (資産の何%が脆弱地形か) ──
+  useEffect(() => {
+    // ticker ごとに時価集約 (JP のみ地形評価、価格が取れているもの)
+    const byTicker = new Map<string, { ticker: string; name: string; value: number }>();
+    for (const h of holdings) {
+      const price = prices[h.ticker]?.price;
+      if (price == null) continue;
+      const value = h.shares * price;
+      const ex = byTicker.get(h.ticker);
+      if (ex) ex.value += value;
+      else byTicker.set(h.ticker, { ticker: h.ticker, name: h.name, value });
+    }
+    const list = Array.from(byTicker.values());
+    if (list.length === 0) { setTerrainSummary(null); return; }
+    let cancelled = false;
+    fetch("/api/portfolio-terrain", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ holdings: list }),
+    })
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled && j.ok) setTerrainSummary(j.summary); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [holdings, prices]);
 
   // ── 楽天約定メール → 保有に自動反映 ──
   const [syncing, setSyncing] = useState(false);
@@ -998,6 +1027,11 @@ export default function PortfolioPage() {
       {/* ============ TAB: 保有銘柄 ============ */}
       {activeTab === "holdings" && (
         <>
+          {/* 🌪 地形サマリ (資産の何%が脆弱地形の上に乗っているか) */}
+          {terrainSummary && terrainSummary.evaluatedValue > 0 && (
+            <TerrainSummaryCard summary={terrainSummary} onOpen={(t) => router.push(`/stock/${t}`)} />
+          )}
+
           {/* ⚠🧭 保有銘柄インテリジェンス (警告 + マクロ感応度) */}
           {tickerGroups.length > 0 && (
             <PortfolioIntel
@@ -2739,5 +2773,85 @@ function EarningsBadge({ e }: { e?: { date: string | null; daysToNext: number | 
     >
       🗓 決算 {dateStr} ({d === 0 ? "本日!" : `${d}日後`})
     </span>
+  );
+}
+
+// 🌪 ポートフォリオ地形サマリカード
+function TerrainSummaryCard({
+  summary,
+  onOpen,
+}: {
+  summary: PortfolioTerrainSummary;
+  onOpen: (ticker: string) => void;
+}) {
+  const MONO2 = { fontFamily: "'JetBrains Mono', monospace" };
+  const accent = summary.tone === "warn" ? "#fbbf24" : summary.tone === "neutral" ? "var(--color-accent)" : "#4ade80";
+  const order: ("fragile" | "volatile" | "choppy" | "stable")[] = ["fragile", "volatile", "choppy", "stable"];
+  return (
+    <div className="p-4 rounded space-y-3" style={{ background: "var(--bg-card)", border: `1px solid ${accent}55` }}>
+      <div className="flex items-center gap-2">
+        <span className="text-sm">🌪</span>
+        <h3 className="text-sm font-bold" style={{ color: accent, ...MONO2 }}>地形サマリ</h3>
+        {summary.weightedScore != null && (
+          <span className="text-[10px] text-[var(--color-text-secondary)]" style={MONO2}>
+            加重リスク {summary.weightedScore}
+          </span>
+        )}
+      </div>
+
+      <p className="text-[13px] text-[var(--color-text)] leading-relaxed">{summary.headline}</p>
+
+      {/* 時価シェアの帯 */}
+      <div>
+        <div className="h-3 rounded-full overflow-hidden flex" style={{ background: "rgba(255,255,255,0.05)" }}>
+          {order.map((t) => {
+            const pct = summary.shares[t];
+            if (pct <= 0) return null;
+            return <div key={t} title={`${TIER_META[t].label} ${pct}%`} style={{ width: `${pct}%`, background: TIER_META[t].color }} />;
+          })}
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+          {order.map((t) => {
+            const pct = summary.shares[t];
+            if (pct <= 0) return null;
+            return (
+              <span key={t} className="text-[10px]" style={{ color: TIER_META[t].color, ...MONO2 }}>
+                {TIER_META[t].emoji} {TIER_META[t].label} {pct}%
+              </span>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ホットスポット (荒い銘柄) */}
+      {summary.hotspots.length > 0 && (
+        <div className="pt-2 border-t border-[var(--color-border)]">
+          <div className="text-[10px] text-[var(--color-text-secondary)] mb-1.5" style={MONO2}>
+            荒い地形の保有 (急落時に効いてくる銘柄):
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {summary.hotspots.map((h) => {
+              const meta = TIER_META[h.tier!];
+              return (
+                <button
+                  key={h.ticker}
+                  data-ticker={h.ticker}
+                  onClick={() => onOpen(h.ticker)}
+                  className="text-[10px] px-2 py-1 rounded hover:brightness-125 transition-all"
+                  style={{ background: `${meta.color}18`, border: `1px solid ${meta.color}55`, color: "var(--color-text)", ...MONO2 }}
+                >
+                  {meta.emoji} {h.name}({h.ticker}) <span style={{ color: meta.color }}>{h.score}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="text-[9px] text-[var(--color-text-secondary)] leading-relaxed" style={MONO2}>
+        ※ 地形=値動きの荒さ (会社の良し悪しとは別軸)。脆弱ほど1銘柄の急落で資産全体が振られる。
+        米株・投信は評価対象外。
+      </div>
+    </div>
   );
 }

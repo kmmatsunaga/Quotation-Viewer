@@ -37,6 +37,14 @@ interface SparkEntry {
   changePct: number | null;  // 前日比%
   periodChangePct: number | null; // 期間騰落率 (先頭比)
   scores: { short: number; mid: number; long: number; overall: number } | null;
+  startTime: string | null;  // 最初の点の時刻 (JST "HH:MM")
+  endTime: string | null;    // 最後の点の時刻 (JST "HH:MM")
+}
+
+/** unix秒 → JST "HH:MM" */
+function jstHM(sec: number): string {
+  const d = new Date(sec * 1000 + 9 * 3600 * 1000);
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -79,10 +87,19 @@ export async function GET(req: NextRequest) {
         const j = await res.json();
         const r = j.chart?.result?.[0];
         const raw = (r?.indicators?.quote?.[0]?.close ?? []) as (number | null)[];
-        const closes = raw.filter((c): c is number => c !== null && Number.isFinite(c));
+        const ts = (r?.timestamp ?? []) as number[];
+        // 有効な終値だけ残し、対応するタイムスタンプも同じ添字で残す
+        const validTs: number[] = [];
+        const closes: number[] = [];
+        for (let i = 0; i < raw.length; i++) {
+          const c = raw[i];
+          if (c !== null && Number.isFinite(c)) { closes.push(c); validTs.push(ts[i] ?? 0); }
+        }
         const price = closes.length > 0 ? closes[closes.length - 1] : null;
         const prev = closes.length > 1 ? closes[closes.length - 2] : null;
         const first = closes.length > 0 ? closes[0] : null;
+        const startTime = validTs.length > 0 && validTs[0] > 0 ? jstHM(validTs[0]) : null;
+        const endTime = validTs.length > 0 && validTs[validTs.length - 1] > 0 ? jstHM(validTs[validTs.length - 1]) : null;
         // 分足は点数が多いので間引き (最大120点)
         const MAX_PTS = 120;
         const thinned =
@@ -96,9 +113,11 @@ export async function GET(req: NextRequest) {
           changePct: price !== null && prev !== null && prev !== 0 ? Math.round((price / prev - 1) * 10000) / 100 : null,
           periodChangePct: price !== null && first !== null && first !== 0 ? Math.round((price / first - 1) * 10000) / 100 : null,
           scores: scoreMap.get(ticker) ?? null,
+          startTime,
+          endTime,
         };
       } catch {
-        return { ticker, closes: [], price: null, changePct: null, periodChangePct: null, scores: scoreMap.get(ticker) ?? null };
+        return { ticker, closes: [], price: null, changePct: null, periodChangePct: null, scores: scoreMap.get(ticker) ?? null, startTime: null, endTime: null };
       }
     })
   );

@@ -61,6 +61,13 @@ export interface FundamentalData {
   // セクター
   sector: string;
   industry: string;
+
+  // ⑥ 会社概要 (summaryProfile)
+  businessSummary: string | null;  // 事業内容 (Yahoo は英語のことが多い)
+  employees: number | null;        // 従業員数
+  website: string | null;
+  city: string | null;
+  country: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -174,6 +181,13 @@ export async function GET(req: NextRequest) {
           // セクター
           sector: (sp.sector ?? "") as string,
           industry: (sp.industry ?? "") as string,
+
+          // ⑥ 会社概要
+          businessSummary: (sp.longBusinessSummary as string) || null,
+          employees: raw(sp, "fullTimeEmployees"),
+          website: (sp.website as string) || null,
+          city: (sp.city as string) || null,
+          country: (sp.country as string) || null,
         };
 
         return data;

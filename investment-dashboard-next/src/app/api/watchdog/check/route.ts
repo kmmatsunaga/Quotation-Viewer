@@ -3,8 +3,9 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import { sendLineMessage } from "@/lib/line-notify";
 
 /**
- * POST /api/watchdog/check?email=user@example.com
- * Header: x-api-key: <MCP_API_KEY>
+ * POST /api/watchdog/check
+ *   cron:   ?email=user@example.com + Header x-api-key: <MCP_API_KEY>
+ *   画面から: Header Authorization: Bearer <Firebase ID token> (email 不要)
  *
  * 指定ユーザーの保有銘柄・お気に入り・アクティブシナリオを総合的に監視。
  * 異変を検知したら watchdogEvents に記録 + LINE通知。
@@ -25,24 +26,28 @@ interface WatchdogTrigger {
 }
 
 export async function POST(req: NextRequest) {
-  if (!API_KEY || req.headers.get("x-api-key") !== API_KEY) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const email = req.nextUrl.searchParams.get("email");
-  if (!email) {
-    return NextResponse.json({ error: "email required" }, { status: 400 });
-  }
-
-  // UID解決
+  // 認証: cron は x-api-key + email、画面は Firebase ID トークン
   const { getAuth } = await import("firebase-admin/auth");
-  let uid: string;
-  try {
-    const userRecord = await getAuth().getUserByEmail(email);
-    uid = userRecord.uid;
-  } catch {
-    return NextResponse.json({ error: "user not found" }, { status: 404 });
+  const apiKey = req.headers.get("x-api-key");
+  const authHeader = req.headers.get("authorization");
+  let uid: string | null = null;
+
+  if (apiKey && API_KEY && apiKey === API_KEY) {
+    const email = req.nextUrl.searchParams.get("email");
+    if (!email) return NextResponse.json({ error: "email required" }, { status: 400 });
+    try {
+      uid = (await getAuth().getUserByEmail(email)).uid;
+    } catch {
+      return NextResponse.json({ error: "user not found" }, { status: 404 });
+    }
+  } else if (authHeader?.startsWith("Bearer ")) {
+    try {
+      uid = (await getAuth().verifyIdToken(authHeader.slice(7))).uid;
+    } catch {
+      uid = null;
+    }
   }
+  if (!uid) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const db = getAdminDb();
 
@@ -198,7 +203,7 @@ export async function POST(req: NextRequest) {
     const jpTickers = allTickers.filter((t) => /^\d{3,4}[A-Z]?$/.test(t)).slice(0, 30);
     if (jpTickers.length > 0) {
       const marginRes = await fetch(`${origin}/api/tachibana/margin?tickers=${jpTickers.join(",")}`, {
-        headers: { "x-api-key": API_KEY },
+        headers: API_KEY ? { "x-api-key": API_KEY } : undefined,
       });
       const marginData = await marginRes.json();
       for (const [ticker, info] of Object.entries(marginData.data ?? {}) as [string, Record<string, unknown>][]) {

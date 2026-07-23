@@ -116,12 +116,15 @@ function WatchdogPanel({ events, loading, onRefresh }: { events: WatchdogEvent[]
   const [checking, setChecking] = useState(false);
 
   const runCheck = async () => {
-    if (!user?.email) return;
+    if (!user) return;
     setChecking(true);
     try {
-      const res = await fetch(`/api/watchdog/check?email=${encodeURIComponent(user.email)}`, {
+      const { auth } = await import("@/lib/firebase");
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) return;
+      const res = await fetch(`/api/watchdog/check`, {
         method: "POST",
-        headers: { "x-api-key": "fe4f125d965940e2a98d4d948e5099b48bb22db8b41276c2b3c73ac839f94774" },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
       if (json.ok) await onRefresh();

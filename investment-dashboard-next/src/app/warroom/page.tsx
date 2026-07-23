@@ -163,31 +163,32 @@ function computeVerdict(e: Entry, hist: Entry["stance"][]): Verdict {
   const bad = e.stance === "bear";
   const contested = e.stance === "contested";
 
-  // 触るな: 売り圧 or 対立
-  if (bad) return { advice: "avoid", label: "🚫 手を出すな (売り圧)", color: "#00d9ff", streak, stability, sample };
-  if (contested) return { advice: "avoid", label: "🚫 見送り (シグナル対立)", color: "#a78bfa", streak, stability, sample };
+  // ── 行動は3語に統一: 🔴触るな / 🟡待て / 🟢買っていい。理由は「—」の後ろに揃える ──
 
-  // 買い方向だが... サンプル不足 or 不安定 → 待て
-  if (sample < 4) return { advice: "wait_early", label: "👀 様子見 (データ集計中)", color: "#94a3b8", streak, stability, sample };
+  // 🔴 触るな: 売り圧 or シグナル対立 (積極的に避ける = 待てとは違う)
+  if (bad) return { advice: "avoid", label: "🔴 触るな — 売りが優勢", color: "#00d9ff", streak, stability, sample };
+  if (contested) return { advice: "avoid", label: "🔴 触るな — シグナルが対立", color: "#a78bfa", streak, stability, sample };
+
+  // 🟡 待て: 買い方向だが条件が整っていない (整えば買えるかも)
+  if (sample < 4) return { advice: "wait_early", label: "🟡 待て — データ集計中", color: "#94a3b8", streak, stability, sample };
   if (strong && (streak < 3 || stability < 60)) {
-    return { advice: "wait_unstable", label: `⚡ 不安定・まだ待て (🔺${streak}回・安定${stability}%)`, color: "#fbbf24", streak, stability, sample };
+    return { advice: "wait_unstable", label: `🟡 待て — まだ不安定 (🔺${streak}回・安定${stability}%)`, color: "#fbbf24", streak, stability, sample };
   }
-  // 買い方向で安定 → 過熱チェック
   if (strong) {
     if (e.vwapDev !== null && e.vwapDev >= 1.5) {
-      return { advice: "wait_overheated", label: `⚠ 過熱・飛びつき注意 (VWAP +${e.vwapDev.toFixed(1)}%)`, color: "#fb923c", streak, stability, sample };
+      return { advice: "wait_overheated", label: `🟡 待て — 過熱、飛びつき注意 (VWAP +${e.vwapDev.toFixed(1)}%)`, color: "#fb923c", streak, stability, sample };
     }
-    // 理想: 安定した🟢 + VWAPほどよく上
+    // 🟢 買っていい: 安定した買い方向 + VWAPほどよく上
     const pos = e.rangePos !== null ? Math.round(e.rangePos * 100) : null;
     const detail = [
       e.vwapDev !== null ? `VWAP ${e.vwapDev >= 0 ? "+" : ""}${e.vwapDev.toFixed(1)}%` : null,
       pos !== null ? `値位置${pos}%` : null,
       `🔺${streak}連`,
     ].filter(Boolean).join("・");
-    return { advice: "go", label: `✅ 買い妙味 (${detail})`, color: "#ff3b6b", streak, stability, sample };
+    return { advice: "go", label: `🟢 買っていい (${detail})`, color: "#ff3b6b", streak, stability, sample };
   }
-  // neutral 安定
-  return { advice: "wait_early", label: `🟡 方向待ち (拮抗が継続)`, color: "#facc15", streak, stability, sample };
+  // neutral 安定 → 待て (方向感なし)
+  return { advice: "wait_early", label: `🟡 待て — 方向感なし (拮抗)`, color: "#facc15", streak, stability, sample };
 }
 
 /** JST の場中判定 (平日 08:55〜15:35) */
@@ -247,6 +248,7 @@ export default function WarroomPage() {
   const [stanceHist, setStanceHist] = useState<Record<string, Entry["stance"][]>>({});
   // 当日1分足ミニチャート (Yahoo、2分ごと更新 — 形を見る用。数字は立花が正)
   const [charts, setCharts] = useState<Record<string, number[]>>({});
+  const [chartTimes, setChartTimes] = useState<Record<string, { start: string | null; end: string | null }>>({});
   const marketOpen = isMarketHours();
   const running = (marketOpen || forceRun) && watchlist.length > 0;
 
@@ -556,10 +558,13 @@ export default function WarroomPage() {
         .then((r) => r.json())
         .then((j) => {
           const next: Record<string, number[]> = {};
-          for (const [t, e] of Object.entries((j.entries ?? {}) as Record<string, { closes: number[] }>)) {
+          const times: Record<string, { start: string | null; end: string | null }> = {};
+          for (const [t, e] of Object.entries((j.entries ?? {}) as Record<string, { closes: number[]; startTime?: string | null; endTime?: string | null }>)) {
             next[t] = e.closes ?? [];
+            times[t] = { start: e.startTime ?? null, end: e.endTime ?? null };
           }
           setCharts(next);
+          setChartTimes(times);
         })
         .catch(() => {});
     load();
@@ -709,6 +714,7 @@ export default function WarroomPage() {
             e={e}
             verdict={computeVerdict(e, stanceHist[e.ticker] ?? [])}
             chart={charts[e.ticker] ?? []}
+            chartTime={chartTimes[e.ticker] ?? null}
             position={positions[e.ticker] ?? null}
             onOpen={() => router.push(`/stock/${e.ticker}`)}
             onSavePosition={savePosition}
@@ -719,8 +725,8 @@ export default function WarroomPage() {
       </div>
 
       <div className="text-[10px] text-[var(--color-text-secondary)] opacity-60 leading-relaxed" style={MONO}>
-        ※ カード上部の帯 = 「買っていい / 待て / 触るな」の判断。板圧・VWAP・値位置に加え、直近3分のスタンス安定度で翻訳。一瞬の🟢に飛びつかないための装置。<br />
-        ※ 「🟢3連・安定80%」= 3回連続で買い優勢が続き、直近の8割が買い優勢だった状態。チカチカしてる間は「⚡不安定・まだ待て」と出る。<br />
+        ※ カード上部の帯は行動を3つに翻訳: <span style={{ color: "#ff3b6b" }}>🟢買っていい</span> = 条件が整った / <span style={{ color: "#fbbf24" }}>🟡待て</span> = 買い方向だがまだ早い (整えば買えるかも) / <span style={{ color: "#00d9ff" }}>🔴触るな</span> = 売り優勢か対立、手を出さない。「—」の後ろがその理由。<br />
+        ※ 「🔺3連・安定80%」= 3回連続で買い優勢、直近の8割が買い優勢。チカチカしてる間は「🟡待て — まだ不安定」と出る。<br />
         ※ 板圧 = 買い板10段合計 ÷ 売り板10段合計。1.5以上で買い優勢、0.67以下で売り優勢と判定。<br />
         ※ 通知はこのタブを開いている間だけ動きます (急変・板圧反転・VWAPクロス・高安値更新・建玉ライン)。<br />
         ※ 🚨損切りライン到達 / 🎯利確ライン到達 は低音3連打で強く鳴ります。感情でブレる前に、機械にルールを突きつけさせる装置です。<br />
@@ -737,6 +743,7 @@ function BattleCard({
   e,
   verdict,
   chart,
+  chartTime,
   position,
   onOpen,
   onSavePosition,
@@ -746,6 +753,7 @@ function BattleCard({
   e: Entry;
   verdict: Verdict;
   chart: number[];
+  chartTime: { start: string | null; end: string | null } | null;
   position: Position | null;
   onOpen: () => void;
   onSavePosition: (p: Position) => void;
@@ -802,7 +810,7 @@ function BattleCard({
       </div>
 
       {/* 当日1分足ミニチャート (形を見る用) */}
-      {chart.length >= 5 && <IntradayMiniChart closes={chart} vwap={e.vwap} />}
+      {chart.length >= 5 && <IntradayMiniChart closes={chart} vwap={e.vwap} startTime={chartTime?.start ?? null} endTime={chartTime?.end ?? null} />}
 
       {/* 建玉パネル */}
       {position ? (
@@ -1095,7 +1103,7 @@ function PositionEditor({
 }
 
 /** 当日1分足ミニチャート: 寄り値の基準線 + VWAP線 + 現在位置。色は日本式 (上=ピンク/下=シアン) */
-function IntradayMiniChart({ closes, vwap }: { closes: number[]; vwap: number | null }) {
+function IntradayMiniChart({ closes, vwap, startTime, endTime }: { closes: number[]; vwap: number | null; startTime: string | null; endTime: string | null }) {
   const W = 260, H = 48, PAD = 3;
   const all = vwap !== null ? [...closes, vwap] : closes;
   const min = Math.min(...all), max = Math.max(...all);
@@ -1106,6 +1114,7 @@ function IntradayMiniChart({ closes, vwap }: { closes: number[]; vwap: number | 
   const up = closes[closes.length - 1] >= closes[0];
   const stroke = up ? "#ff3b6b" : "#00d9ff";
   const openY = y(closes[0]);
+  const midTime = startTime && endTime ? midpointTime(startTime, endTime) : null;
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[48px]" preserveAspectRatio="none">
@@ -1118,12 +1127,29 @@ function IntradayMiniChart({ closes, vwap }: { closes: number[]; vwap: number | 
         <polyline points={pts.join(" ")} fill="none" stroke={stroke} strokeWidth="1.6" strokeLinejoin="round" />
         <circle cx={PAD + (closes.length - 1) * stepX} cy={y(closes[closes.length - 1])} r="2.2" fill={stroke} />
       </svg>
+      {/* 時刻軸 (始点 / 中間 / 終点) */}
+      {startTime && endTime && (
+        <div className="flex justify-between text-[8px] text-[var(--color-text-secondary)]" style={MONO}>
+          <span>{startTime}</span>
+          {midTime && <span className="opacity-60">{midTime}</span>}
+          <span>{endTime}</span>
+        </div>
+      )}
       <div className="flex justify-between text-[8px] text-[var(--color-text-secondary)] opacity-70" style={MONO}>
         <span>当日1分足 (Yahoo・約15分遅延)</span>
         <span>--- 寄り値 / <span style={{ color: "rgba(250,204,21,0.8)" }}>- - VWAP</span></span>
       </div>
     </div>
   );
+}
+
+/** "HH:MM" 2点の中間時刻 */
+function midpointTime(a: string, b: string): string | null {
+  const toMin = (s: string) => { const [h, m] = s.split(":").map(Number); return h * 60 + m; };
+  const ma = toMin(a), mb = toMin(b);
+  if (isNaN(ma) || isNaN(mb) || mb <= ma) return null;
+  const mid = Math.round((ma + mb) / 2);
+  return `${String(Math.floor(mid / 60)).padStart(2, "0")}:${String(mid % 60).padStart(2, "0")}`;
 }
 
 function Metric({ label, value, color }: { label: string; value: string; color?: string }) {

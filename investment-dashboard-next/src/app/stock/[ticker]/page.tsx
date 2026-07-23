@@ -17,6 +17,7 @@ import VerdictCockpit from "./VerdictCockpit";
 import WhyMovedPanel from "./WhyMovedPanel";
 import RelatedStocksPanel from "./RelatedStocksPanel";
 import FinancialsPanel from "./FinancialsPanel";
+import CompanyProfilePanel from "./CompanyProfilePanel";
 import SectorRankPanel from "./SectorRankPanel";
 import EarningsPatternPanel from "./EarningsPatternPanel";
 import { TachibanaSnapshotProvider } from "./TachibanaSnapshotContext";
@@ -865,6 +866,7 @@ export default function StockDetailPage({
 
       {/* 🔮 ファンダ */}
       <div className={detailTab === "fundamental" ? "space-y-6" : "hidden"}>
+        <CompanyProfilePanel ticker={data.ticker} />
         <FutureScorePanel ticker={data.ticker} />
         <FinancialsPanel ticker={data.ticker} />
         <EarningsPatternPanel ticker={data.ticker} />

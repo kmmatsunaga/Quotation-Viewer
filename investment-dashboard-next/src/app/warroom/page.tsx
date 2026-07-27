@@ -20,12 +20,12 @@ import { STOCK_LIST } from "@/lib/stock-list";
 import { addTrade, computeTradePnl, TRADE_REASON_TAGS } from "@/lib/firestore";
 import { syncRakutenMail } from "@/lib/rakuten-sync";
 import { GlossaryBox } from "@/components/CommentaryPanel";
+import { subscribeWarroomState, saveWarroomState } from "@/lib/warroom-state";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 const LS_WATCHLIST = "cavka_warroom_watchlist";
 const LS_POSITIONS = "cavka_warroom_positions";
-const LS_PINNED = "cavka_warroom_pinned";       // 日次リセットで残す固定銘柄
-const LS_LAST_RESET = "cavka_warroom_last_reset"; // 最終リセット日 (JST YYYY-MM-DD)
+const LS_PINNED = "cavka_warroom_pinned";       // 日次リセットで残す固定銘柄 (Firestore同期のローカルミラー)
 
 /** JST の当日キー (リセット判定用) */
 function jstDayKey(): string {
@@ -252,41 +252,66 @@ export default function WarroomPage() {
   const marketOpen = isMarketHours();
   const running = (marketOpen || forceRun) && watchlist.length > 0;
 
-  // 初回ロード: watchlist + 建玉 + 固定 を読み、日付が変わっていたら日次リセット。
-  // リセットで残すのは「固定した銘柄」と「建玉がある銘柄」のみ (保有中の見失いを防ぐ)。
+  // watchlist / pinned は Firestore で端末間同期 (positions は端末固有なので localStorage 維持)。
+  // echo loop 防止: onSnapshot は読むだけ、書き込みは下の save-effect が担う。
+  // lastSyncedRef に「最後に送受信した内容」を持ち、同一なら書き込みをスキップする。
+  const lastSyncedRef = useRef<string>("");
+  const hydratedRef = useRef(false);
+
+  // 建玉は従来どおり localStorage
   useEffect(() => {
     try {
-      const savedW: string[] = (() => { try { const a = JSON.parse(localStorage.getItem(LS_WATCHLIST) ?? "[]"); return Array.isArray(a) ? a.filter((t) => typeof t === "string") : []; } catch { return []; } })();
-      const savedPos: Record<string, Position> = (() => { try { const o = JSON.parse(localStorage.getItem(LS_POSITIONS) ?? "{}"); return o && typeof o === "object" ? o : {}; } catch { return {}; } })();
-      const savedPin: string[] = (() => { try { const a = JSON.parse(localStorage.getItem(LS_PINNED) ?? "[]"); return Array.isArray(a) ? a.filter((t) => typeof t === "string") : []; } catch { return []; } })();
-      setPositions(savedPos);
-      setPinned(savedPin);
-
-      const today = jstDayKey();
-      const lastReset = localStorage.getItem(LS_LAST_RESET);
-      if (lastReset !== today) {
-        // 日次リセット: 固定 ∪ 建玉あり だけ残す
-        const keep = new Set<string>([...savedPin, ...Object.keys(savedPos)]);
-        const next = savedW.filter((t) => keep.has(t));
-        setWatchlist(next);
-        try {
-          localStorage.setItem(LS_WATCHLIST, JSON.stringify(next));
-          localStorage.setItem(LS_LAST_RESET, today);
-        } catch {}
-      } else {
-        setWatchlist(savedW);
-      }
+      const savedPos = JSON.parse(localStorage.getItem(LS_POSITIONS) ?? "{}");
+      if (savedPos && typeof savedPos === "object") setPositions(savedPos);
     } catch {}
   }, []);
   useEffect(() => {
-    try { localStorage.setItem(LS_WATCHLIST, JSON.stringify(watchlist)); } catch {}
-  }, [watchlist]);
-  useEffect(() => {
     try { localStorage.setItem(LS_POSITIONS, JSON.stringify(positions)); } catch {}
   }, [positions]);
+
+  // Firestore 購読 (他端末の変更が即反映)。初回だけ localStorage 移行 + 日次リセット。
   useEffect(() => {
-    try { localStorage.setItem(LS_PINNED, JSON.stringify(pinned)); } catch {}
-  }, [pinned]);
+    if (!user) return;
+    const readLS = (k: string): string[] => { try { const a = JSON.parse(localStorage.getItem(k) ?? "[]"); return Array.isArray(a) ? a.filter((t) => typeof t === "string") : []; } catch { return []; } };
+    const localPositions = (() => { try { const o = JSON.parse(localStorage.getItem(LS_POSITIONS) ?? "{}"); return o && typeof o === "object" ? (o as Record<string, unknown>) : {}; } catch { return {}; } })();
+    let first = true;
+    const unsub = subscribeWarroomState(user.uid, (s) => {
+      let watchlist = s.watchlist, pinned = s.pinned, lastReset = s.lastReset;
+      if (first) {
+        first = false;
+        // 移行: Firestore が空でローカルに残っていれば引き上げる
+        if (watchlist.length === 0 && pinned.length === 0 && lastReset === null) {
+          const lw = readLS(LS_WATCHLIST), lp = readLS(LS_PINNED);
+          if (lw.length || lp.length) { watchlist = lw; pinned = lp; }
+        }
+        // 日次リセット: 固定 ∪ 建玉あり だけ残す
+        const today = jstDayKey();
+        if (lastReset !== today) {
+          const keep = new Set<string>([...pinned, ...Object.keys(localPositions)]);
+          watchlist = watchlist.filter((t) => keep.has(t));
+          lastReset = today;
+          lastSyncedRef.current = JSON.stringify({ watchlist, pinned });
+          saveWarroomState(user.uid, { watchlist, pinned, lastReset });
+        }
+      }
+      lastSyncedRef.current = JSON.stringify({ watchlist, pinned });
+      setWatchlist(watchlist);
+      setPinned(pinned);
+      hydratedRef.current = true;
+    });
+    return () => unsub();
+  }, [user]);
+
+  // watchlist / pinned が変わったら Firestore へ (初回ハイドレート後・内容が変わった時だけ)
+  useEffect(() => {
+    if (!hydratedRef.current || !user) return;
+    const key = JSON.stringify({ watchlist, pinned });
+    if (key === lastSyncedRef.current) return; // snapshot 由来の変更 = 書き戻さない
+    lastSyncedRef.current = key;
+    saveWarroomState(user.uid, { watchlist, pinned });
+    // 同一端末の即応 + オフライン用にローカルにもミラー
+    try { localStorage.setItem(LS_WATCHLIST, JSON.stringify(watchlist)); localStorage.setItem(LS_PINNED, JSON.stringify(pinned)); } catch {}
+  }, [watchlist, pinned, user]);
 
   const togglePin = (t: string) =>
     setPinned((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));

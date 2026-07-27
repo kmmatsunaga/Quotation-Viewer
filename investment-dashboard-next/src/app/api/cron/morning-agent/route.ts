@@ -3,6 +3,8 @@ import { getAdminDb, resolveUidByEmail, collectUserTickers } from "@/lib/firebas
 import { sendLineMessage } from "@/lib/line-notify";
 import { detectTransitions, type MacroSnapshot } from "@/lib/macro-transitions";
 import { getCronOrigin } from "@/lib/cron-origin";
+import { getCachedJpStocks } from "@/lib/jp-stocks-cache";
+import { NIKKEI225 } from "@/lib/nikkei225";
 
 /**
  * GET /api/cron/morning-agent — ☀ Cavka 番頭 (朝の作戦エージェント)
@@ -83,6 +85,16 @@ export async function GET(req: NextRequest) {
 
   // ── 2. 評決の変化 + 対立中 ──
   try {
+    // 銘柄名リゾルバ (評決エントリは ticker のみなので日本語名を引く)
+    const nameMap = new Map<string, string>(NIKKEI225.map((s) => [s.ticker, s.name]));
+    try {
+      for (const s of await getCachedJpStocks()) if (s.name) nameMap.set(s.ticker, s.name);
+    } catch {}
+    const labelOf = (ticker: string) => {
+      const nm = nameMap.get(ticker);
+      return nm ? `${nm}(${ticker})` : ticker;
+    };
+
     const vToday = await findLatestDoc(db, "verdict_history_", 3);
     const vPrev = vToday ? await findLatestDoc(db, "verdict_history_", 7, vToday.key) : null;
     const lines: string[] = [];
@@ -98,14 +110,14 @@ export async function GET(req: NextRequest) {
           for (const tf of ["short", "mid", "long"] as const) {
             if (p[tf]?.stance && cur[tf]?.stance && p[tf].stance !== cur[tf].stance) {
               const worse = ["bear", "strong_bear"].includes(cur[tf].stance);
-              lines.push(`${worse ? "🚨" : "🔄"} ${cur.ticker}: ${TF_JA[tf]}が ${STANCE_JA[p[tf].stance]}→${STANCE_JA[cur[tf].stance]}`);
+              lines.push(`${worse ? "🚨" : "🔄"} ${labelOf(cur.ticker)}: ${TF_JA[tf]}が ${STANCE_JA[p[tf].stance]}→${STANCE_JA[cur[tf].stance]}`);
             }
           }
         }
       }
       for (const cur of entries) {
         if (["short", "mid", "long"].some((tf) => cur[tf]?.stance === "contested")) {
-          lines.push(`⚡ ${cur.ticker}: 見解対立中 — Verdict を確認`);
+          lines.push(`⚡ ${labelOf(cur.ticker)}: 見解対立中 — Verdict を確認`);
         }
       }
     }

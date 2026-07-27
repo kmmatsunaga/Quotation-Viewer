@@ -15,6 +15,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { NIKKEI225 } from "@/lib/nikkei225";
 import { STOCK_LIST } from "@/lib/stock-list";
+import { useAuth } from "@/lib/auth-context";
+import { addToWarroomWatchlist } from "@/lib/warroom-state";
 
 const NAME_MAP = new Map<string, string>([
   ...NIKKEI225.map((s) => [s.ticker, s.name] as const),
@@ -27,8 +29,20 @@ const LS_WARROOM_PINNED = "cavka_warroom_pinned";
 interface MenuAction {
   key: string;
   label: (ticker: string) => string;
-  run: (ticker: string, ctx: { router: ReturnType<typeof useRouter> }) => void;
+  run: (ticker: string, ctx: { router: ReturnType<typeof useRouter>; uid: string | null }) => void;
   toast?: (ticker: string) => string;
+}
+
+/** localStorage にも即書き (同一端末で即反映)。Firestore は onSnapshot で他端末へ伝わる */
+function localAdd(ticker: string, pin: boolean) {
+  try {
+    const w: string[] = JSON.parse(localStorage.getItem(LS_WARROOM_WATCHLIST) ?? "[]");
+    if (!w.includes(ticker)) localStorage.setItem(LS_WARROOM_WATCHLIST, JSON.stringify([...w, ticker]));
+    if (pin) {
+      const p: string[] = JSON.parse(localStorage.getItem(LS_WARROOM_PINNED) ?? "[]");
+      if (!p.includes(ticker)) localStorage.setItem(LS_WARROOM_PINNED, JSON.stringify([...p, ticker]));
+    }
+  } catch {}
 }
 
 // ── アクション定義 (ここに1行足すだけで機能追加) ──
@@ -37,24 +51,18 @@ const ACTIONS: MenuAction[] = [
     key: "warroom",
     label: () => "⚔ ウォールームへ送る",
     toast: (t) => `${NAME_MAP.get(t) ?? t} をウォールームへ`,
-    run: (t) => {
-      try {
-        const saved: string[] = JSON.parse(localStorage.getItem(LS_WARROOM_WATCHLIST) ?? "[]");
-        if (!saved.includes(t)) localStorage.setItem(LS_WARROOM_WATCHLIST, JSON.stringify([...saved, t]));
-      } catch {}
+    run: (t, { uid }) => {
+      localAdd(t, false);
+      if (uid) addToWarroomWatchlist(uid, t); // 端末間同期
     },
   },
   {
     key: "warroom-pin",
     label: () => "📌 ウォールームに固定",
     toast: (t) => `${NAME_MAP.get(t) ?? t} を固定 (翌日も残る)`,
-    run: (t) => {
-      try {
-        const w: string[] = JSON.parse(localStorage.getItem(LS_WARROOM_WATCHLIST) ?? "[]");
-        if (!w.includes(t)) localStorage.setItem(LS_WARROOM_WATCHLIST, JSON.stringify([...w, t]));
-        const p: string[] = JSON.parse(localStorage.getItem(LS_WARROOM_PINNED) ?? "[]");
-        if (!p.includes(t)) localStorage.setItem(LS_WARROOM_PINNED, JSON.stringify([...p, t]));
-      } catch {}
+    run: (t, { uid }) => {
+      localAdd(t, true);
+      if (uid) addToWarroomWatchlist(uid, t, { pin: true });
     },
   },
   {
@@ -71,6 +79,7 @@ const ACTIONS: MenuAction[] = [
 
 export default function TickerContextMenu() {
   const router = useRouter();
+  const { user } = useAuth();
   const [menu, setMenu] = useState<{ x: number; y: number; ticker: string } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -137,7 +146,7 @@ export default function TickerContextMenu() {
   const close = () => setMenu(null);
   const runAction = (a: MenuAction) => {
     if (!menu) return;
-    a.run(menu.ticker, { router });
+    a.run(menu.ticker, { router, uid: user?.uid ?? null });
     if (a.toast) { setToast(a.toast(menu.ticker)); setTimeout(() => setToast(null), 1800); }
     close();
   };

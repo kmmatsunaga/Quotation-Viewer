@@ -77,6 +77,7 @@ export default function JournalPage() {
   const [closingId, setClosingId] = useState<string | null>(null);
   const [closePrice, setClosePrice] = useState("");
   const [tagEditId, setTagEditId] = useState<string | null>(null);
+  const [memoDraft, setMemoDraft] = useState("");
 
   // フォーム
   const [form, setForm] = useState({
@@ -205,6 +206,21 @@ export default function JournalPage() {
     const tags = t.reasonTags.includes(tag) ? t.reasonTags.filter((x) => x !== tag) : [...t.reasonTags, tag];
     await updateTrade(user.uid, t.id!, { reasonTags: tags });
     setTrades((prev) => prev.map((x) => (x.id === t.id ? { ...x, reasonTags: tags } : x)));
+  };
+
+  // 根拠の編集開始 (タグ + メモ)。メモの下書きを現在値で初期化
+  const startEdit = (t: Trade) => {
+    if (tagEditId === t.id) { setTagEditId(null); return; }
+    setTagEditId(t.id!);
+    setMemoDraft(t.memo ?? "");
+  };
+  // メモ (根拠の本文) を保存
+  const saveMemo = async (t: Trade) => {
+    if (!user || t.id == null) return;
+    const memo = memoDraft.trim();
+    if (memo === (t.memo ?? "")) return; // 変化なし
+    await updateTrade(user.uid, t.id, { memo });
+    setTrades((prev) => prev.map((x) => (x.id === t.id ? { ...x, memo } : x)));
   };
 
   // ── 統計 ──
@@ -500,12 +516,25 @@ export default function JournalPage() {
                     {tag}
                   </button>
                 ))}
-                <button onClick={() => setTagEditId(tagEditId === t.id ? null : t.id!)}
+                <button onClick={() => { if (tagEditId === t.id) saveMemo(t); startEdit(t); }}
                   className="text-[9px] px-1.5 py-0.5 text-[var(--color-text-secondary)] hover:text-[var(--color-accent)]" style={MONO}>
-                  {tagEditId === t.id ? "完了" : "＋タグ"}
+                  {tagEditId === t.id ? "完了" : (t.reasonTags.length === 0 && !t.memo ? "📝 根拠を記入" : "📝 根拠を編集")}
                 </button>
-                {t.memo && <span className="text-[10px] text-[var(--color-text-secondary)] italic ml-2">{t.memo}</span>}
+                {/* 非編集時: メモ本文を表示 */}
+                {tagEditId !== t.id && t.memo && <span className="text-[10px] text-[var(--color-text-secondary)] italic ml-2">{t.memo}</span>}
               </div>
+              {/* 編集時: 根拠の本文 (なぜ買ったか) を入力 */}
+              {tagEditId === t.id && (
+                <textarea
+                  value={memoDraft}
+                  onChange={(e) => setMemoDraft(e.target.value)}
+                  onBlur={() => saveMemo(t)}
+                  placeholder="なぜ買ったか / 状況・根拠・反省 (取込トレードは後から書ける)"
+                  rows={2}
+                  className="w-full text-[11px] p-2 mt-1"
+                  style={{ background: "rgba(0,0,0,0.25)", border: "1px solid var(--color-border)", color: "var(--color-text)", ...MONO, resize: "vertical" }}
+                />
+              )}
             </div>
           ))}
         </div>

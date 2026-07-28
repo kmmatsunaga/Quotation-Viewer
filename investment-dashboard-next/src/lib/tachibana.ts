@@ -331,6 +331,9 @@ export interface TachibanaMarketQuote {
   // 成行
   marketBidQty: number | null;    // 買い成行数量
   marketAskQty: number | null;    // 売り成行数量
+  // 板の外側 (10段より上/下の総数量)。OVERが減らないブレイクはダマシ、の検証用
+  overQty: number | null;         // OVER (上値の潜在売り総量)
+  underQty: number | null;        // UNDER (下値の潜在買い総量)
 }
 
 /**
@@ -360,6 +363,8 @@ export async function getMarketQuotes(
     "pDPG",        // 現値前値比較
     "pAAV",        // 売数量(成行)
     "pAV",         // 買数量(成行)
+    "pQOV",        // OVER (板10段より上の売り総量)
+    "pQUV",        // UNDER (板10段より下の買い総量)
   ];
   // 板10段
   for (let i = 1; i <= 10; i++) {
@@ -421,6 +426,8 @@ export async function getMarketQuotes(
       asks,
       marketBidQty: num(r.pAV),
       marketAskQty: num(r.pAAV),
+      overQty: num(r.pQOV),
+      underQty: num(r.pQUV),
     };
   });
 }

@@ -37,6 +37,8 @@ export interface WarroomEntry {
   rangePos: number | null;     // 0-1
   gapPct: number | null;       // %
   marketOrderRatio: number | null;
+  overQty: number | null;      // 板10段より上の潜在売り総量 (ブレイクのダマシ検証用)
+  underQty: number | null;     // 板10段より下の潜在買い総量
   // 評決
   stance: "bull" | "bear" | "neutral" | "contested";
   score: number;               // -100 〜 +100
@@ -213,6 +215,8 @@ export function assess(q: TachibanaMarketQuote, avgVolume: number | null = null)
     rangePos: rangePos !== null ? Math.round(rangePos * 100) / 100 : null,
     gapPct: gapPct !== null ? Math.round(gapPct * 100) / 100 : null,
     marketOrderRatio: marketOrderRatio !== null ? Math.round(marketOrderRatio * 100) / 100 : null,
+    overQty: q.overQty,
+    underQty: q.underQty,
     stance,
     score,
     signals,

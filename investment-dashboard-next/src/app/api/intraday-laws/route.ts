@@ -61,6 +61,85 @@ async function obsToClose(
   }));
 }
 
+/**
+ * VWAPファーストタッチ (インフルエンサー4章の検証):
+ * 朝 (最初の12tick≒1時間) に VWAP+0.5%以上まで上昇した銘柄が、
+ * 初めて VWAP (乖離≤0.1%) に戻った瞬間 → 30分後 (6tick後) のリターン。
+ * value = タッチ時の乖離 (ほぼ0)。単一バケットで日クラスタ集計。
+ */
+async function vwapFirstTouch(bq: BigQuery): Promise<ObsRow[]> {
+  const q = `
+    WITH t AS (
+      SELECT date, ticker, price, vwap_dev,
+        ROW_NUMBER() OVER (PARTITION BY date, ticker ORDER BY ts) AS rn
+      FROM \`${BQ_PROJECT}.${BQ_DATASET}.warroom_ticks\`
+      WHERE vwap_dev IS NOT NULL AND price IS NOT NULL
+    ),
+    risen AS (
+      SELECT date, ticker, MIN(rn) AS risen_rn FROM t
+      WHERE vwap_dev >= 0.5 AND rn <= 12 GROUP BY date, ticker
+    ),
+    touch AS (
+      SELECT t.date, t.ticker, MIN(t.rn) AS touch_rn
+      FROM t JOIN risen r ON t.date=r.date AND t.ticker=r.ticker
+      WHERE t.rn > r.risen_rn AND t.vwap_dev <= 0.1
+      GROUP BY t.date, t.ticker
+    )
+    SELECT tc.date, tc.ticker, p0.vwap_dev AS value,
+      ROUND(SAFE_DIVIDE(p30.price - p0.price, p0.price) * 100, 3) AS fwd
+    FROM touch tc
+    JOIN t p0 ON p0.date=tc.date AND p0.ticker=tc.ticker AND p0.rn=tc.touch_rn
+    JOIN t p30 ON p30.date=tc.date AND p30.ticker=tc.ticker AND p30.rn=tc.touch_rn+6
+    WHERE p0.price > 0
+  `;
+  const [rows] = await bq.query(q);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (rows as any[]).map((r) => ({
+    date: dstr(r.date), ticker: r.ticker,
+    value: r.value == null ? null : Number(r.value),
+    fwdRet: r.fwd == null ? null : Number(r.fwd),
+  }));
+}
+
+/**
+ * 出来高の呼吸 (2章の5分版):
+ * 5分出来高 (累積出来高の差分) が直近3本平均の3倍以上に急増 かつ 上昇 → 30分後。
+ * 「出来高直立への追随」に優位があるかの前向き検証。
+ */
+async function volumeBreath(bq: BigQuery): Promise<ObsRow[]> {
+  const q = `
+    WITH t AS (
+      SELECT date, ticker, price, volume,
+        ROW_NUMBER() OVER (PARTITION BY date, ticker ORDER BY ts) AS rn
+      FROM \`${BQ_PROJECT}.${BQ_DATASET}.warroom_ticks\`
+      WHERE price IS NOT NULL AND volume IS NOT NULL
+    ),
+    d AS (
+      SELECT *, volume - LAG(volume) OVER w AS dv, price - LAG(price) OVER w AS dp
+      FROM t WINDOW w AS (PARTITION BY date, ticker ORDER BY rn)
+    ),
+    e AS (
+      SELECT *, AVG(dv) OVER (PARTITION BY date, ticker ORDER BY rn ROWS BETWEEN 3 PRECEDING AND 1 PRECEDING) AS avg3
+      FROM d WHERE dv IS NOT NULL AND dv >= 0
+    ),
+    ev AS (
+      SELECT date, ticker, rn, price, SAFE_DIVIDE(dv, avg3) AS value
+      FROM e WHERE avg3 > 0 AND dv >= 3*avg3 AND dp > 0
+    )
+    SELECT ev.date, ev.ticker, ev.value,
+      ROUND(SAFE_DIVIDE(f.price - ev.price, ev.price) * 100, 3) AS fwd
+    FROM ev JOIN t f ON f.date=ev.date AND f.ticker=ev.ticker AND f.rn=ev.rn+6
+    WHERE ev.price > 0
+  `;
+  const [rows] = await bq.query(q);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (rows as any[]).map((r) => ({
+    date: dstr(r.date), ticker: r.ticker,
+    value: r.value == null ? null : Number(r.value),
+    fwdRet: r.fwd == null ? null : Number(r.fwd),
+  }));
+}
+
 /** 引けの成行インバランス (15:25頃, JST) → 翌営業日の始値リターン */
 async function closeImbalanceToNextOpen(bq: BigQuery): Promise<ObsRow[]> {
   // 相関サブクエリを避け、営業日を ticker ごとに DENSE_RANK して「翌営業日 = k+1」で結合
@@ -108,11 +187,13 @@ export async function GET() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m = (meta as any[])[0] ?? {};
 
-    const [board, vwap, gap, closeImb] = await Promise.all([
+    const [board, vwap, gap, closeImb, firstTouch, breath] = await Promise.all([
       obsToClose(bq, "board_ratio", "01:00"),  // JST10:00
       obsToClose(bq, "vwap_dev", "01:00"),
       obsToClose(bq, "gap_pct", "00:05"),      // 寄り直後
       closeImbalanceToNextOpen(bq),
+      vwapFirstTouch(bq),
+      volumeBreath(bq),
     ]);
 
     const laws: LawResult[] = [
@@ -135,6 +216,18 @@ export async function GET() {
         "引け成行インバランス (15:25) → 翌日始値",
         "成行はザラ場では即約定して板に残らず、引けの板寄せでだけ数量が見える = Cavka独自データ。引けの成行の偏りが翌日の寄りを予告するか。",
         closeImb, BUCKETS.closeImbalance,
+      ),
+      analyzeLaw(
+        "VWAPファーストタッチ → 30分後",
+        "朝VWAP+0.5%以上に上昇→初めてVWAPに戻った瞬間の反発 (インフルエンサー4章の検証)。初回集計(14日)ではベースラインと差なし (t=0.4) — 前向きに蓄積して判定する。",
+        firstTouch,
+        [{ label: "タッチ発生時", lo: null, hi: null }],
+      ),
+      analyzeLaw(
+        "出来高の急増×上昇への追随 → 30分後",
+        "5分出来高が直近3本平均の3倍以上に直立+上昇した瞬間に追随した場合 (2章の5分版)。初回集計では勝率41%と追随不利の兆し — 前向きに蓄積して判定する。",
+        breath,
+        [{ label: "急増発生時", lo: null, hi: null }],
       ),
     ];
 

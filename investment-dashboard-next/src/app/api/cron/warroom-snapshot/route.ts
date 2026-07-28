@@ -128,6 +128,8 @@ export async function GET(req: NextRequest) {
           market_order_ratio: e.marketOrderRatio,
           stance: e.stance,
           score: e.score,
+          over_qty: e.overQty,     // 板10段より上の潜在売り (「OVERが減らないブレイクはダマシ」検証用)
+          under_qty: e.underQty,
           volume: e.volume,
           turnover: e.turnover,
           high: e.high,

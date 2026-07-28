@@ -21,6 +21,8 @@ import { addTrade, computeTradePnl, TRADE_REASON_TAGS } from "@/lib/firestore";
 import { syncRakutenMail } from "@/lib/rakuten-sync";
 import { GlossaryBox } from "@/components/CommentaryPanel";
 import { subscribeWarroomState, saveWarroomState } from "@/lib/warroom-state";
+import { assessGapContext, type GapContext } from "@/lib/gap-context";
+import { useTerrainLatest } from "@/lib/use-terrain-latest";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 const LS_WATCHLIST = "cavka_warroom_watchlist";
@@ -110,7 +112,7 @@ const HISTORY_LEN = 12; // 直近12回 = 約3分 (15秒 poll)
  * スタンスの安定度 (直近履歴の一貫性) + VWAP乖離 + 値位置 から翻訳する。
  * 一瞬の🟢に飛びつかないための、実戦から生まれた翻訳レイヤー。
  */
-type Advice = "go" | "wait_unstable" | "wait_overheated" | "wait_early" | "avoid";
+type Advice = "go" | "wait_unstable" | "wait_overheated" | "wait_early" | "wait_late" | "avoid";
 interface Verdict {
   advice: Advice;
   label: string;
@@ -177,6 +179,12 @@ function computeVerdict(e: Entry, hist: Entry["stance"][]): Verdict {
   if (strong) {
     if (e.vwapDev !== null && e.vwapDev >= 1.5) {
       return { advice: "wait_overheated", label: `🟡 待て — 過熱、飛びつき注意 (VWAP +${e.vwapDev.toFixed(1)}%)`, color: "#fb923c", streak, stability, sample };
+    }
+    // ⏰ 14時ルール (インフルエンサー7章、統計不要の制約): 後場14時以降の新規は
+    // 「利益を伸ばす時間が物理的に足りない」ため、条件が揃っていても🟢を出さない
+    const jstMins = (() => { const d = new Date(Date.now() + 9 * 3600 * 1000); return d.getUTCHours() * 60 + d.getUTCMinutes(); })();
+    if (jstMins >= 14 * 60 && jstMins <= 15 * 60 + 40) {
+      return { advice: "wait_late", label: "🟡 待て — ⏰14時以降は時間の優位性なし (新規インは非推奨)", color: "#fbbf24", streak, stability, sample };
     }
     // 🟢 買っていい: 安定した買い方向 + VWAPほどよく上
     const pos = e.rangePos !== null ? Math.round(e.rangePos * 100) : null;
@@ -249,6 +257,9 @@ export default function WarroomPage() {
   // 当日1分足ミニチャート (Yahoo、2分ごと更新 — 形を見る用。数字は立花が正)
   const [charts, setCharts] = useState<Record<string, number[]>>({});
   const [chartTimes, setChartTimes] = useState<Record<string, { start: string | null; end: string | null }>>({});
+  // 🌅 寄り文脈用: 前日までの5営業日リターン (日足から。当日は含めない)
+  const [ret5dPrior, setRet5dPrior] = useState<Record<string, number>>({});
+  const terrain = useTerrainLatest();
   const marketOpen = isMarketHours();
   const running = (marketOpen || forceRun) && watchlist.length > 0;
 
@@ -598,6 +609,29 @@ export default function WarroomPage() {
     return () => clearInterval(id);
   }, [watchlist, running]);
 
+  // 🌅 日足 (1ヶ月) から前日まで5営業日リターンを算出 (寄り文脈用。10分ごと)
+  useEffect(() => {
+    if (watchlist.length === 0) { setRet5dPrior({}); return; }
+    const load = () =>
+      fetch(`/api/stocks/sparkline?tickers=${watchlist.join(",")}&tf=1mo`)
+        .then((r) => r.json())
+        .then((j) => {
+          const next: Record<string, number> = {};
+          for (const [t, e] of Object.entries((j.entries ?? {}) as Record<string, { closes: number[] }>)) {
+            const c = e.closes ?? [];
+            // closes 末尾は当日 (形成中) の可能性が高いので除外し、前日終値/6営業日前終値
+            if (c.length >= 8 && c[c.length - 8] > 0) {
+              next[t] = Math.round((c[c.length - 2] / c[c.length - 8] - 1) * 1000) / 10;
+            }
+          }
+          setRet5dPrior(next);
+        })
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 600_000);
+    return () => clearInterval(id);
+  }, [watchlist, running]);
+
   const requestNotify = async () => {
     if (typeof Notification === "undefined") return;
     const perm = await Notification.requestPermission();
@@ -738,6 +772,7 @@ export default function WarroomPage() {
             key={e.ticker}
             e={e}
             verdict={computeVerdict(e, stanceHist[e.ticker] ?? [])}
+            gapCtx={assessGapContext({ gapPct: e.gapPct, ret5dPriorPct: ret5dPrior[e.ticker] ?? null, terrainScore: terrain.scoreOf(e.ticker) })}
             chart={charts[e.ticker] ?? []}
             chartTime={chartTimes[e.ticker] ?? null}
             position={positions[e.ticker] ?? null}
@@ -767,6 +802,7 @@ export default function WarroomPage() {
 function BattleCard({
   e,
   verdict,
+  gapCtx,
   chart,
   chartTime,
   position,
@@ -777,6 +813,7 @@ function BattleCard({
 }: {
   e: Entry;
   verdict: Verdict;
+  gapCtx: GapContext | null;
   chart: number[];
   chartTime: { start: string | null; end: string | null } | null;
   position: Position | null;
@@ -822,6 +859,23 @@ function BattleCard({
       >
         {verdict.label}
       </div>
+
+      {/* 🌅 寄り文脈 (Phase 0 検証済みの統計。詳細はホバー/タップで) */}
+      {gapCtx && (
+        <div
+          className="px-2.5 py-1.5 rounded text-[11px] leading-snug"
+          title={gapCtx.detail}
+          style={{
+            background: gapCtx.tone === "pos" ? "rgba(255,59,107,0.08)" : gapCtx.tone === "neg" ? "rgba(0,217,255,0.08)" : "rgba(251,191,36,0.08)",
+            border: `1px solid ${gapCtx.tone === "pos" ? "rgba(255,59,107,0.35)" : gapCtx.tone === "neg" ? "rgba(0,217,255,0.35)" : "rgba(251,191,36,0.35)"}`,
+            color: "var(--color-text)",
+            ...MONO,
+          }}
+        >
+          <div className="font-bold">{gapCtx.label}</div>
+          <div className="text-[10px] opacity-75 mt-0.5">{gapCtx.detail}</div>
+        </div>
+      )}
 
       {/* 価格 (主役) */}
       <div className="flex items-baseline gap-3" style={MONO}>

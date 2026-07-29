@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useCrashAlert, type CrashAlertDoc } from "@/lib/crash-alert-context";
+import { useRegimeGauge } from "@/components/RegimeGauge";
+import { regimeLevel, REGIME_META } from "@/lib/regime-gauge";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -35,6 +37,29 @@ export default function CrashAlertBanner() {
   };
 
   return <CrashBannerView alert={alert} onDismiss={dismiss} />;
+}
+
+/**
+ * 🎁 警報の逆面: 洗い流しが「レジーム級 (低60安値25%超)」なら、
+ * 恐怖の測定値そのものが歴史的には買い場側であることを警報の中に併記する。
+ * (2025-04-07 low60=74.6% → 60日後 +25.6% / ベースライン +5.3%)
+ */
+function RegimeFlipSide() {
+  const g = useRegimeGauge();
+  if (!g) return null;
+  const level = regimeLevel(g.low60Pct);
+  if (level !== "washing" && level !== "regime" && level !== "historic") return null;
+  const meta = REGIME_META[level];
+  return (
+    <div
+      className="mx-4 mb-2 px-3 py-2 rounded text-[12px] leading-relaxed"
+      style={{ background: "rgba(34,197,94,0.10)", color: "var(--color-text)", borderLeft: `3px solid ${meta.color}` }}
+    >
+      🎁 <b style={{ color: meta.color }}>{meta.label}</b> — 市場の {g.low60Pct}% が60日安値。
+      売却は守りとして正しい一方、歴史的にはこの深さは買い場側だった (深いほど60日後リターンが大きい実測)。
+      {meta.warChest && <> {meta.warChest}</>}
+    </div>
+  );
 }
 
 /** バナーの表示部 (Firestore 非依存・プレビュー可能)。 */
@@ -87,6 +112,9 @@ export function CrashBannerView({ alert, onDismiss }: { alert: CrashAlertDoc; on
           </li>
         ))}
       </ul>
+
+      {/* 🎁 逆面: レジーム測定器が洗い流しを示している時だけ (同じ測定でも極端では意味が反転する) */}
+      <RegimeFlipSide />
 
       {/* 行動アドバイス */}
       {alert.advice && (

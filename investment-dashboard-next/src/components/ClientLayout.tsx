@@ -27,6 +27,7 @@ const navItems = [
   // 🔬 研究所 — 夜と週末の分析
   { href: "/analysis", label: "銘柄分析", shortLabel: "分析", icon: "search", group: "🔬研究所" },
   { href: "/screener", label: "スクリーナー", shortLabel: "スクリーナー", icon: "filter", group: "🔬研究所" },
+  { href: "/net-cash", label: "🏔 ネットキャッシュ (清原式)", shortLabel: "🏔NC", icon: "filter", group: "🔬研究所" },
   { href: "/sectors", label: "業界", shortLabel: "🏭", icon: "grid", group: "🔬研究所" },
   { href: "/macro-watch", label: "予兆", shortLabel: "🔮", icon: "chart", group: "🔬研究所" },
   { href: "/macro", label: "マクロ", shortLabel: "🌐", icon: "chart", group: "🔬研究所" },

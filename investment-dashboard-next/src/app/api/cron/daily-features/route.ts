@@ -5,6 +5,7 @@ import { STOCK_LIST } from "@/lib/stock-list";
 import { getCachedJpStocks } from "@/lib/jp-stocks-cache";
 import { getSectorsForTicker } from "@/lib/jp-themes";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { computeGaugeFromRows, type RegimePoint } from "@/lib/regime-gauge";
 import {
   computeDailyFeatures,
   fillRelativeFeatures,
@@ -149,6 +150,28 @@ export async function GET(req: NextRequest) {
       });
     } catch (e) {
       console.error("[daily-features] terrain_latest save failed:", e);
+    }
+
+    // 🌊 レジーム測定器: 市場の何%が60日安値か (breadth washout) を毎晩記録
+    // 「暴落の底は予測しない、洗い流しの深さを測る」(清原『わが投資術』の翻訳)
+    try {
+      const g = computeGaugeFromRows(dayRows);
+      if (g) {
+        const ref = getAdminDb().collection("meta").doc("regime_gauge");
+        const prev = await ref.get();
+        const history: RegimePoint[] = ((prev.data()?.history as RegimePoint[]) ?? [])
+          .filter((p) => p.date !== targetDate);
+        history.push({ date: targetDate, low60Pct: g.low60Pct });
+        history.sort((a, b) => a.date.localeCompare(b.date));
+        await ref.set({
+          date: targetDate,
+          ...g,
+          history: history.slice(-130),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    } catch (e) {
+      console.error("[daily-features] regime_gauge save failed:", e);
     }
   }
 

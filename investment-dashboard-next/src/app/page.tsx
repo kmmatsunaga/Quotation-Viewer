@@ -8,6 +8,7 @@ import { NewsCard } from "@/components/NewsCard";
 import { StockRow } from "@/components/StockRow";
 import AgentPanels from "./AgentPanels";
 import CrashAlertBanner from "@/components/CrashAlertBanner";
+import RegimeGauge from "@/components/RegimeGauge";
 import {
   fetcher,
   fetchIndicesUrl,
@@ -165,6 +166,9 @@ export default function MarketOverview() {
     <div className="space-y-6">
       {/* 🚨 暴落緊急警報 (ポートフォリオに重大な下落サインがある時だけ最上部に出る) */}
       <CrashAlertBanner />
+
+      {/* 🌊 レジーム測定器 (breadth washout — 洗い流しの深さを常時測定) */}
+      <RegimeGauge />
 
       {/* 🤖 AIエージェント (ウォッチドッグ + おすすめ) */}
       <AgentPanels />

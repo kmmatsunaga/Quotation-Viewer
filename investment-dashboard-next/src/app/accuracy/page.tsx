@@ -81,7 +81,7 @@ function hitColor(rate: number | null): string {
 }
 
 interface RecoSummary {
-  horizon: "short" | "mid" | "long";
+  horizon: "short" | "mid" | "long" | "kiyohara";
   evaluatedDays: number;
   maturingDays: number;
   meanPickExcess: number | null;
@@ -105,6 +105,7 @@ const H_META: Record<string, { label: string; icon: string }> = {
   short: { label: "短期", icon: "⚡" },
   mid: { label: "中期", icon: "🌱" },
   long: { label: "長期", icon: "🏔" },
+  kiyohara: { label: "清原式 (長期レース)", icon: "🏔" },
 };
 
 const VERDICT_META: Record<RecoSummary["verdict"], { color: string; label: string }> = {

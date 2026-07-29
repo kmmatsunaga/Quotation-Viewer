@@ -1,16 +1,49 @@
 {
   "rewrites": [
-    { "source": "/api/stock/:path*", "destination": "/api/stock/:path*" },
-    { "source": "/api/stocks/:path*", "destination": "/api/stocks/:path*" },
-    { "source": "/api/stocks/prices", "destination": "/api/stocks/prices" },
-    { "source": "/api/stocks/patterns", "destination": "/api/stocks/patterns" },
-    { "source": "/api/line/:path*", "destination": "/api/line/:path*" },
-    { "source": "/api/alerts/:path*", "destination": "/api/alerts/:path*" },
-    { "source": "/api/edinet/:path*", "destination": "/api/edinet/:path*" },
-    { "source": "/api/intraday/:path*", "destination": "/api/intraday/:path*" },
-    { "source": "/api/rankings/:path*", "destination": "/api/rankings/:path*" },
-    { "source": "/api/cron/:path*", "destination": "/api/cron/:path*" },
-    { "source": "/api/(.*)", "destination": "/api/main" }
+    {
+      "source": "/api/stock/:path*",
+      "destination": "/api/stock/:path*"
+    },
+    {
+      "source": "/api/stocks/:path*",
+      "destination": "/api/stocks/:path*"
+    },
+    {
+      "source": "/api/stocks/prices",
+      "destination": "/api/stocks/prices"
+    },
+    {
+      "source": "/api/stocks/patterns",
+      "destination": "/api/stocks/patterns"
+    },
+    {
+      "source": "/api/line/:path*",
+      "destination": "/api/line/:path*"
+    },
+    {
+      "source": "/api/alerts/:path*",
+      "destination": "/api/alerts/:path*"
+    },
+    {
+      "source": "/api/edinet/:path*",
+      "destination": "/api/edinet/:path*"
+    },
+    {
+      "source": "/api/intraday/:path*",
+      "destination": "/api/intraday/:path*"
+    },
+    {
+      "source": "/api/rankings/:path*",
+      "destination": "/api/rankings/:path*"
+    },
+    {
+      "source": "/api/cron/:path*",
+      "destination": "/api/cron/:path*"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/main"
+    }
   ],
   "crons": [
     {
@@ -92,6 +125,14 @@
     {
       "path": "/api/cron/recommend-eval",
       "schedule": "30 8 * * 1-5"
+    },
+    {
+      "path": "/api/cron/market-cap",
+      "schedule": "0 21 * * 5"
+    },
+    {
+      "path": "/api/cron/net-cash",
+      "schedule": "0 23 * * 5"
     }
   ]
 }

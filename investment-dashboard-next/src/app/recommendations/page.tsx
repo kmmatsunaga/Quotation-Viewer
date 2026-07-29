@@ -24,13 +24,14 @@ interface Recommendation {
   suggestedAction?: string;
 }
 
-type Timeframe = "overall" | "short" | "mid" | "long";
+type Timeframe = "overall" | "short" | "mid" | "long" | "kiyohara";
 
 const TIMEFRAME_LABELS: Record<Timeframe, { label: string; icon: string; description: string }> = {
   overall: { label: "総合", icon: "📊", description: "短中長 加重平均" },
   short:   { label: "短期", icon: "🔥", description: "1〜4週で動きそう" },
   mid:     { label: "中期", icon: "📈", description: "1〜6か月で勝負" },
   long:    { label: "長期", icon: "🏛", description: "1年以上の保有想定" },
+  kiyohara: { label: "清原式", icon: "🏔", description: "ネットキャッシュ×実質PER (長期のレース相手)" },
 };
 
 // 既存データは summary "(短X/中Y/長Z)" から個別スコアを抽出
@@ -61,14 +62,15 @@ interface DailyRec {
   date: string;
   recommendations: Recommendation[];
   /** v2: 時間軸ごとに選定ロジックが異なる別リスト */
-  horizons?: { short: HorizonPick[]; mid: HorizonPick[]; long: HorizonPick[] };
+  horizons?: { short: HorizonPick[]; mid: HorizonPick[]; long: HorizonPick[]; kiyohara?: HorizonPick[] };
   generatedAt?: { _seconds?: number; seconds?: number } | string;
 }
 
-const HORIZON_DESC: Record<"short" | "mid" | "long", string> = {
+const HORIZON_DESC: Record<"short" | "mid" | "long" | "kiyohara", string> = {
   short: "数日 — 全銘柄スキャンから出来高×初動×相対強さで選定。宝くじ地形・低流動性は除外",
   mid: "数週〜数ヶ月 — 続いている20日トレンド×中期スコア。決算7日前以内は除外",
   long: "数ヶ月〜 — Future Score 5因子×安定地形。バリュートラップは除外",
+  kiyohara: "数ヶ月〜 — 清原式: NC比率0.5以上×黒字×実質PER安い順。🏛長期と同じ60日窓で答え合わせのレース中 (割安の測定であり上昇予測ではない)",
 };
 
 export default function RecommendationsPage() {
@@ -200,11 +202,14 @@ export default function RecommendationsPage() {
             const hasHorizons = !!selected.horizons;
             // v2 は時間軸ごとに別リストなので「総合」タブは出さない
             const tabs: Timeframe[] = hasHorizons
-              ? (["short", "mid", "long"] as Timeframe[])
-              : (Object.keys(TIMEFRAME_LABELS) as Timeframe[]);
+              ? ([
+                  "short", "mid", "long",
+                  ...((selected.horizons?.kiyohara?.length ?? 0) > 0 ? (["kiyohara"] as Timeframe[]) : []),
+                ] as Timeframe[])
+              : (Object.keys(TIMEFRAME_LABELS).filter((k) => k !== "kiyohara") as Timeframe[]);
             const effTf: Timeframe = hasHorizons && timeframe === "overall" ? "short" : timeframe;
             const horizonList =
-              hasHorizons && effTf !== "overall" ? selected.horizons![effTf as "short" | "mid" | "long"] ?? [] : [];
+              hasHorizons && effTf !== "overall" ? selected.horizons![effTf as "short" | "mid" | "long" | "kiyohara"] ?? [] : [];
 
             return (
               <div className="space-y-2">
@@ -234,7 +239,7 @@ export default function RecommendationsPage() {
                 {hasHorizons && effTf !== "overall" ? (
                   <>
                     <div className="text-[10px] text-[var(--color-text-secondary)]" style={MONO}>
-                      {selected.date} — {HORIZON_DESC[effTf as "short" | "mid" | "long"]}
+                      {selected.date} — {HORIZON_DESC[effTf as "short" | "mid" | "long" | "kiyohara"]}
                     </div>
                     {horizonList.length === 0 ? (
                       <div className="text-center py-8 text-xs text-[var(--color-text-secondary)]" style={MONO}>
@@ -263,9 +268,11 @@ export default function RecommendationsPage() {
                         {(() => {
                           const sorted = [...selected.recommendations].sort((a, b) => {
                             if (effTf === "overall") return b.score - a.score;
+                            // 旧データ (v1) に清原軸は無い → 長期スコアで代用
+                            const k = effTf === "kiyohara" ? "long" : effTf;
                             const sa = extractScores(a);
                             const sb = extractScores(b);
-                            return sb[effTf] - sa[effTf];
+                            return sb[k] - sa[k];
                           });
                           return sorted.map((r, idx) => (
                             <RecCard
@@ -352,7 +359,7 @@ function RecCard({
 }) {
   const scores = extractScores(rec);
   const displayScore =
-    timeframe === "overall" ? rec.score : scores[timeframe];
+    timeframe === "overall" ? rec.score : scores[timeframe === "kiyohara" ? "long" : timeframe];
   const scoreColor = displayScore >= 80 ? "#22c55e" : displayScore >= 65 ? "#fbbf24" : "var(--color-accent)";
   const rankColor = rank <= 3 ? "#fbbf24" : "var(--color-text-secondary)";
 

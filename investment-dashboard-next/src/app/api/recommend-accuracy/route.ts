@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
-import { summarize, EVAL_WINDOW, type DayEval, type Horizon, type HorizonSummary } from "@/lib/recommend-eval";
+import { summarize, EVAL_WINDOW, HORIZONS, type DayEval, type Horizon, type HorizonSummary } from "@/lib/recommend-eval";
 
 /**
  * GET /api/recommend-accuracy — おすすめv2 の的中率サマリ (時間軸別)
@@ -24,15 +24,15 @@ export async function GET(req: NextRequest) {
     .collection("users").doc(uid).collection("dailyRecommendations")
     .orderBy("date", "desc").limit(120).get();
 
-  const byHorizon: Record<Horizon, DayEval[]> = { short: [], mid: [], long: [] };
-  const maturing: Record<Horizon, number> = { short: 0, mid: 0, long: 0 };
+  const byHorizon: Record<Horizon, DayEval[]> = { short: [], mid: [], long: [], kiyohara: [] };
+  const maturing: Record<Horizon, number> = { short: 0, mid: 0, long: 0, kiyohara: 0 };
 
   for (const doc of snap.docs) {
     const d = doc.data() as Record<string, unknown>;
     if (d.version !== 2) continue;
     const horizons = (d.horizons ?? {}) as Record<Horizon, unknown[]>;
     const ev = (d.horizonEval ?? {}) as Record<Horizon, DayEval>;
-    for (const h of ["short", "mid", "long"] as Horizon[]) {
+    for (const h of HORIZONS) {
       const hasPicks = (horizons[h]?.length ?? 0) > 0;
       if (!hasPicks) continue;
       if (ev[h]) byHorizon[h].push(ev[h]);
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const summaries: HorizonSummary[] = (["short", "mid", "long"] as Horizon[]).map((h) =>
+  const summaries: HorizonSummary[] = HORIZONS.map((h) =>
     summarize(h, byHorizon[h], maturing[h])
   );
 
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     summaries,
     // 直近の日次系列 (グラフ・デバッグ用)
     series: Object.fromEntries(
-      (["short", "mid", "long"] as Horizon[]).map((h) => [
+      HORIZONS.map((h) => [
         h,
         byHorizon[h].slice(0, 30).map((d) => ({
           date: d.date, maturedOn: d.maturedOn,

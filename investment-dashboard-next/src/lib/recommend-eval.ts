@@ -23,10 +23,13 @@
  * 評価窓は時間軸に忠実 (短期+5 / 中期+20 / 長期+60 営業日)。焦って仮採点しない。
  */
 
-export type Horizon = "short" | "mid" | "long";
+export type Horizon = "short" | "mid" | "long" | "kiyohara";
 
-/** 時間軸ごとの評価窓 (営業日) */
-export const EVAL_WINDOW: Record<Horizon, number> = { short: 5, mid: 20, long: 60 };
+/** 全トラック (kiyohara = 清原式NCエンジン。既存🏔長期とのレース用の並走トラック) */
+export const HORIZONS: Horizon[] = ["short", "mid", "long", "kiyohara"];
+
+/** 時間軸ごとの評価窓 (営業日)。kiyohara は long と同じ土俵 (60日) で競わせる */
+export const EVAL_WINDOW: Record<Horizon, number> = { short: 5, mid: 20, long: 60, kiyohara: 60 };
 
 /** 判定を出すのに最低限必要な「評価済み営業日数」(1銘柄でなく1日が1サンプル) */
 export const MIN_EVAL_DAYS = 10;

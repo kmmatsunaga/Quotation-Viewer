@@ -161,7 +161,10 @@ export async function GET(req: NextRequest) {
     const evidence: Evidence[] = [];
     const eventTypes: string[] = []; // この銘柄の当日に付いた開示イベント種別 (蓄積用)
     try {
-      const nres = await fetch(`${origin}/api/news?ticker=${ticker}&days=3&limit=10`, { signal: AbortSignal.timeout(15_000) });
+      // /api/news は認証必須。内部呼び出しは x-api-key で通す
+      // (これ無しだと常に401 → eventTypes が永遠に空、というバグが event study を6日間壊していた)
+      const newsHeaders: Record<string, string> = process.env.MCP_API_KEY ? { "x-api-key": process.env.MCP_API_KEY } : {};
+      const nres = await fetch(`${origin}/api/news?ticker=${ticker}&days=3&limit=10`, { headers: newsHeaders, signal: AbortSignal.timeout(15_000) });
       if (nres.ok) {
         const nj = await nres.json();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

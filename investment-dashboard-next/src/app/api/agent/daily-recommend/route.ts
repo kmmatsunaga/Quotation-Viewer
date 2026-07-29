@@ -17,6 +17,7 @@ import {
   type HorizonPick,
   type ControlEntry,
 } from "@/lib/horizon-recommend";
+import { kiyoharaGate, buildKiyoharaList, type ScreenerEntry } from "@/lib/net-cash";
 
 /**
  * POST /api/agent/daily-recommend?email=user@example.com
@@ -216,6 +217,20 @@ export async function POST(req: NextRequest) {
   }
   const longList = buildLongList(longCandidates, featuresMap, enrich, excluded, 8);
 
+  // ── 5.5 🏔清原エンジン (長期のレース相手): NCスクリーナーから実質PER昇順 ──
+  // 既存🏔長期と同じ60日窓・同じ統制群方式で並走。どちらに順位付けの価値があるかをデータで決める
+  let kiyoharaList: HorizonPick[] = [];
+  let kiyoharaPool: ControlEntry[] = [];
+  try {
+    const ncDoc = await db.collection("meta").doc("net_cash_screener").get();
+    const entries = (ncDoc.data()?.entries ?? []) as ScreenerEntry[];
+    const gate = kiyoharaGate(entries, excluded);
+    kiyoharaList = buildKiyoharaList(gate, 8);
+    kiyoharaPool = gate.map((e) => ({ ticker: e.ticker, price: null, market: "JP" as const }));
+  } catch (e) {
+    console.error("[daily-recommend] kiyohara track failed:", e);
+  }
+
   // ── 6. 統制群 (答え合わせループ用) ──
   // 「同じ関門を通ったがロジックが選ばなかった銘柄」をランダム8件、生成時に確定して保存。
   // これが無いと「関門の価値」と「順位付けの価値」を分離できない。後から再構築は不可能。
@@ -223,6 +238,7 @@ export async function POST(req: NextRequest) {
     short: sampleControls(shortGatePool(features, excluded), new Set(shortList.map((p) => p.ticker)), 8),
     mid: sampleControls(midGatePool(rankEntries, featuresMap, excluded), new Set(midList.map((p) => p.ticker)), 8),
     long: sampleControls(longGatePool(rankEntries, excluded), new Set(longList.map((p) => p.ticker)), 8),
+    kiyohara: sampleControls(kiyoharaPool, new Set(kiyoharaList.map((p) => p.ticker)), 8),
   };
 
   // ── 7. 保存 (horizons が本体。recommendations は旧UI互換で中期リストを写す) ──
@@ -233,7 +249,7 @@ export async function POST(req: NextRequest) {
   }));
 
   const today = new Date().toISOString().slice(0, 10);
-  const horizons: Record<string, HorizonPick[]> = { short: shortList, mid: midList, long: longList };
+  const horizons: Record<string, HorizonPick[]> = { short: shortList, mid: midList, long: longList, kiyohara: kiyoharaList };
   await db.collection("users").doc(uid).collection("dailyRecommendations").doc(today).set({
     date: today,
     version: 2,
@@ -249,6 +265,7 @@ export async function POST(req: NextRequest) {
         short: shortGatePool(features, excluded).length,
         mid: midGatePool(rankEntries, featuresMap, excluded).length,
         long: longGatePool(rankEntries, excluded).length,
+        kiyohara: kiyoharaPool.length,
       },
     },
   });
@@ -256,8 +273,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     date: today,
-    counts: { short: shortList.length, mid: midList.length, long: longList.length },
-    controls: { short: controls.short.length, mid: controls.mid.length, long: controls.long.length },
+    counts: { short: shortList.length, mid: midList.length, long: longList.length, kiyohara: kiyoharaList.length },
+    controls: { short: controls.short.length, mid: controls.mid.length, long: controls.long.length, kiyohara: controls.kiyohara.length },
     featuresScanned: features.length,
     rankUniverse: rankEntries.length,
     horizons,

@@ -37,6 +37,7 @@ import {
 import { PatternBadgeGroup, type PatternData } from "@/components/PatternBadge";
 import HoldingChart from "./HoldingChart";
 import { TIER_META, type PortfolioTerrainSummary } from "@/lib/fragile-terrain";
+import WarChestCard from "@/components/WarChestCard";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -1027,6 +1028,9 @@ export default function PortfolioPage() {
       {/* ============ TAB: 保有銘柄 ============ */}
       {activeTab === "holdings" && (
         <>
+          {/* 💰 弾薬庫 (現金比率 × レジーム測定器の投入目安) */}
+          <WarChestCard cashJpy={cashJpyTotal} totalAssets={totalValueJpy + cashJpyTotal} />
+
           {/* 🌪 地形サマリ (資産の何%が脆弱地形の上に乗っているか) */}
           {terrainSummary && terrainSummary.evaluatedValue > 0 && (
             <TerrainSummaryCard summary={terrainSummary} onOpen={(t) => router.push(`/stock/${t}`)} />

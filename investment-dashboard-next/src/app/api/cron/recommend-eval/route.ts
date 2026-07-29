@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
       const horizonEval: Record<string, DayEval> = { ...prevEval };
       let changed = false;
 
-      for (const h of ["short", "mid", "long"] as Horizon[]) {
+      for (const h of ["short", "mid", "long", "kiyohara"] as Horizon[]) {
         if (prevEval[h]) continue; // 評価済みは再計算しない (冪等 + API節約)
         const picks = horizons[h] ?? [];
         const ctrls = controls[h] ?? [];

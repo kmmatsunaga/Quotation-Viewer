@@ -7,8 +7,6 @@
  */
 
 import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { tierOf, type TerrainTier } from "@/lib/fragile-terrain";
 
 let cache: { date: string | null; scores: Record<string, number> } | null = null;
@@ -27,9 +25,11 @@ export function useTerrainLatest(): TerrainLatest {
   useEffect(() => {
     if (cache) { setReady(true); return; }
     if (!inflight) {
-      inflight = getDoc(doc(db, "meta", "terrain_latest"))
-        .then((snap) => {
-          const d = snap.data();
+      // meta はクライアントから直接読めない (ルールが users/ 配下のみ) → API経由
+      inflight = fetch("/api/meta/terrain_latest")
+        .then((r) => r.json())
+        .then((j) => {
+          const d = j?.data;
           cache = { date: d?.date ?? null, scores: (d?.scores as Record<string, number>) ?? {} };
         })
         .catch(() => { cache = { date: null, scores: {} }; });

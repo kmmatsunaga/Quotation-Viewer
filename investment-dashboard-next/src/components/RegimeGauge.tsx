@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { regimeLevel, REGIME_META, type RegimeGaugeDoc } from "@/lib/regime-gauge";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
@@ -21,9 +19,11 @@ export function useRegimeGauge(): RegimeGaugeDoc | null {
   useEffect(() => {
     if (cache) return;
     if (!inflight) {
-      inflight = getDoc(doc(db, "meta", "regime_gauge"))
-        .then((snap) => {
-          if (snap.exists()) cache = snap.data() as RegimeGaugeDoc;
+      // meta はクライアントから直接読めない (ルールが users/ 配下のみ) → API経由
+      inflight = fetch("/api/meta/regime_gauge")
+        .then((r) => r.json())
+        .then((j) => {
+          if (j?.ok && j.data) cache = j.data as RegimeGaugeDoc;
         })
         .catch(() => {});
     }

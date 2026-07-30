@@ -94,7 +94,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ ticker: str
         `次の企業の事業説明を、日本語で分かりやすく要約してください。投資判断のためではなく「この会社が何をしているか」を理解する目的です。\n` +
         `・3〜4文、200字程度\n・専門用語は噛み砕く\n・誇張や推奨表現は入れない (事実の要約のみ)\n・「〜しています」調\n\n` +
         `企業: ${name ?? ticker}\n事業説明(原文):\n${summaryOriginal.slice(0, 2000)}`,
-        { model: "gemini-2.5-flash", temperature: 0.3, maxOutputTokens: 512 }
+        // 2.5-flash は thinking にも出力トークンを使うため 512 だと本文が切れる (金下建設で実証)
+        { model: "gemini-2.5-flash", temperature: 0.3, maxOutputTokens: 2048 }
       );
       summaryJa = r.text.trim() || null;
     } catch {

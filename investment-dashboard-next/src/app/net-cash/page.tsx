@@ -7,11 +7,10 @@
  * 「割安の測定」であり「上がる予測」ではない、を UI でも誠実に言う。
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { netCashTier, NET_CASH_TIER_META } from "@/lib/net-cash";
+import NetCashStory from "@/components/NetCashStory";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -37,14 +36,28 @@ export default function NetCashPage() {
   const router = useRouter();
   const [data, setData] = useState<ScreenerDoc | null>(null);
   const [loading, setLoading] = useState(true);
+  // 取得失敗を「0件」と混同しないための状態 (無言の空表示は最悪のバグ)
+  const [fetchError, setFetchError] = useState<string | null>(null);
   // フィルタ: 小さすぎる会社と赤字は初期状態では隠す (清原も流動性と事業の質は別途見る)
   const [minCap, setMinCap] = useState<number>(30);
   const [profitOnly, setProfitOnly] = useState(true);
   const [showGuide, setShowGuide] = useState(false);
+  const [openTicker, setOpenTicker] = useState<string | null>(null); // 行クリックで読み解きを展開
 
   useEffect(() => {
-    getDoc(doc(db, "meta", "net_cash_screener"))
-      .then((snap) => { if (snap.exists()) setData(snap.data() as ScreenerDoc); })
+    // meta はクライアントから直接読めない (ルールが users/ 配下のみ) → API経由
+    fetch("/api/meta/net_cash_screener")
+      .then(async (r) => {
+        const j = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(`API ${r.status}${j?.error ? `: ${j.error}` : ""}`);
+        if (!j?.ok) throw new Error(j?.error ?? "APIがエラーを返しました");
+        if (!j.data) throw new Error("スクリーナーのデータがまだ作られていません (週次cron未実行)");
+        setData(j.data as ScreenerDoc);
+      })
+      .catch((e) => {
+        console.error("[net-cash] スクリーナー取得失敗:", e);
+        setFetchError(e instanceof Error ? e.message : String(e));
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -119,8 +132,28 @@ export default function NetCashPage() {
       {/* テーブル */}
       {loading ? (
         <div className="text-sm text-[var(--color-text-secondary)]">読み込み中…</div>
+      ) : fetchError ? (
+        // 「データが0件」と「取得に失敗」を区別して出す (前者はフィルタ、後者は不具合)
+        <div
+          className="rounded-lg px-4 py-3 text-[12px] leading-relaxed"
+          style={{ background: "rgba(239,68,68,0.10)", border: "1px solid #ef4444" }}
+        >
+          <div className="font-bold" style={{ color: "#ef4444" }}>⚠ データの取得に失敗しました (0件ではありません)</div>
+          <div className="mt-1 text-[var(--color-text-secondary)]" style={MONO}>{fetchError}</div>
+          <button
+            onClick={() => location.reload()}
+            className="mt-2 text-[11px] px-2.5 py-1 rounded"
+            style={{ color: "#ef4444", border: "1px solid #ef4444", ...MONO }}
+          >
+            再読み込み
+          </button>
+        </div>
       ) : rows.length === 0 ? (
-        <div className="text-sm text-[var(--color-text-secondary)]">条件に合う銘柄がありません (cron 未実行の可能性)</div>
+        <div className="text-sm text-[var(--color-text-secondary)]">
+          {data
+            ? `フィルタ条件に合う銘柄がありません (全${data.count}銘柄中0件)。時価総額や黒字条件をゆるめてください`
+            : "スクリーナーのデータがありません (週次cron未実行の可能性)"}
+        </div>
       ) : (
         <div className="overflow-x-auto rounded-lg" style={{ border: "1px solid var(--color-border)" }}>
           <table className="w-full text-[12px]" style={MONO}>
@@ -141,13 +174,15 @@ export default function NetCashPage() {
                 const meta = tier ? NET_CASH_TIER_META[tier] : null;
                 const suspicious = (e.ncRatio ?? 0) >= 3;
                 const stale = e.asOfDate != null && e.asOfDate < staleCut;
+                const isOpen = openTicker === e.ticker;
                 return (
+                  <Fragment key={e.ticker}>
                   <tr
-                    key={e.ticker}
                     className="cursor-pointer hover:bg-white/[0.03] border-t border-white/5"
-                    onClick={() => router.push(`/stock/${e.ticker}`)}
+                    onClick={() => setOpenTicker(isOpen ? null : e.ticker)}
                   >
                     <td className="px-3 py-2">
+                      <span className="text-[9px] mr-1.5 text-[var(--color-accent)]">{isOpen ? "▼" : "▶"}</span>
                       <span className="text-[var(--color-text)]">{e.name}</span>
                       <span className="ml-1.5 text-[10px] text-[var(--color-text-secondary)]">{e.ticker}</span>
                       {suspicious && (
@@ -179,6 +214,23 @@ export default function NetCashPage() {
                     <td className="text-right px-3 py-2">{e.netIncomeOku != null ? `${e.netIncomeOku.toLocaleString("ja-JP")}億` : "—"}</td>
                     <td className="text-right px-3 py-2 text-[10px] text-[var(--color-text-secondary)]">{e.asOfDate ?? "—"}</td>
                   </tr>
+                  {isOpen && (
+                    <tr className="border-t border-white/5">
+                      <td colSpan={7} className="p-0" style={{ background: "rgba(0,240,255,0.02)" }}>
+                        <NetCashStory ticker={e.ticker} />
+                        <div className="px-4 pb-3">
+                          <button
+                            onClick={() => router.push(`/stock/${e.ticker}`)}
+                            className="text-[11px] px-2.5 py-1 rounded"
+                            style={{ color: "var(--color-accent)", border: "1px solid var(--color-accent)", ...MONO }}
+                          >
+                            銘柄ページで詳しく見る →
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>

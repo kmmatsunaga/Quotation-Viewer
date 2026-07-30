@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import NetCashStory from "@/components/NetCashStory";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -248,7 +249,10 @@ export default function RecommendationsPage() {
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         {horizonList.map((r, idx) => (
-                          <HorizonCard key={r.ticker} rank={idx + 1} pick={r} onClick={() => router.push(`/stock/${r.ticker}`)} />
+                          <div key={r.ticker}>
+                            <HorizonCard rank={idx + 1} pick={r} onClick={() => router.push(`/stock/${r.ticker}`)} />
+                            {effTf === "kiyohara" && <KiyoharaStoryToggle ticker={r.ticker} />}
+                          </div>
                         ))}
                       </div>
                     )}
@@ -298,6 +302,23 @@ export default function RecommendationsPage() {
 }
 
 /** v2: 時間軸別 pick のカード (根拠を主役に) */
+/** 🏔清原式カード下部の「読み解き」開閉 (開いた時だけ生成APIを呼ぶ) */
+function KiyoharaStoryToggle({ ticker }: { ticker: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-1 rounded" style={{ border: "1px solid rgba(0,240,255,0.10)", background: "var(--bg-card)" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full text-left px-3 py-1.5 text-[11px]"
+        style={{ color: "var(--color-accent)", ...MONO }}
+      >
+        {open ? "▼" : "▶"} 🏔 この銘柄の読み解き (なぜ安い?動くきっかけは?)
+      </button>
+      {open && <NetCashStory ticker={ticker} />}
+    </div>
+  );
+}
+
 function HorizonCard({ rank, pick, onClick }: { rank: number; pick: HorizonPick; onClick: () => void }) {
   const scoreColor = pick.score >= 80 ? "#22c55e" : pick.score >= 65 ? "#fbbf24" : "var(--color-accent)";
   const rankColor = rank <= 3 ? "#fbbf24" : "var(--color-text-secondary)";

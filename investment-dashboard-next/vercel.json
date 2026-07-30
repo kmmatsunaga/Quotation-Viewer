@@ -41,6 +41,10 @@
       "destination": "/api/cron/:path*"
     },
     {
+      "source": "/api/meta/:path*",
+      "destination": "/api/meta/:path*"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/main"
     }

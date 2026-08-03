@@ -12,6 +12,8 @@ import type { User } from "firebase/auth";
 import {
   getTrades, addTrade, updateTrade, computeTradePnl,
   getHoldings, addHolding, updateHolding, deleteHolding,
+  getTransactions, addTransaction, getAccountBalance, setAccountBalance,
+  getCashSyncStartAt, setCashSyncStartAt,
 } from "./firestore";
 import { pairFillsIntoTrades, computeMailHoldings, type MailHolding } from "./trade-pairing";
 import type { RakutenFill } from "./rakuten-mail";
@@ -112,7 +114,52 @@ export async function syncRakutenMail(user: User, sinceDays = 120): Promise<Raku
     }
   }
 
-  const changed = creates.length + closes.length + attaches.length + holdingsUpserted + holdingsRemoved;
+  // ── 3. 取引記録と預り金 ──
+  //
+  // 2026-08-03 修正: これまでメール取込は保有だけを作り、取引記録も現金も動かさなかった。
+  // そのため「買っても現金が減らない」→ 総資産が実態より膨らむ不具合になっていた。
+  //
+  // ただし過去分に遡って適用すると、手動で記録済みの取引と二重計上になる。
+  // そこで【基準時刻より後の約定だけ】を対象にする (初回同期時に基準時刻を now で作る)。
+  let cashTxCreated = 0;
+  try {
+    let startAt = await getCashSyncStartAt(user.uid);
+    if (!startAt) {
+      startAt = new Date().toISOString();
+      await setCashSyncStartAt(user.uid, startAt);
+    }
+    const targets = fills.filter((f) => f.executedAt > startAt!);
+    if (targets.length > 0) {
+      const existingTx = await getTransactions(user.uid);
+      const usedKeys = new Set(existingTx.map((t) => t.sourceKey).filter(Boolean) as string[]);
+      let delta = 0;
+      for (const f of targets) {
+        const key = `${f.fillKey}:${f.ticker}:${f.side}:${f.qty}@${f.price}`;
+        if (usedKeys.has(key)) continue;      // 冪等: 同じ約定は二度計上しない
+        usedKeys.add(key);
+        const amount = f.price * f.qty;        // 手数料はメールから取れないため 0 とする
+        await addTransaction(user.uid, {
+          type: f.side === "buy" ? "buy" : "sell",
+          ticker: f.ticker, name: f.name, market: "JP",
+          shares: f.qty, price: f.price,
+          amount, commission: 0, currency: "JPY",
+          date: f.executedAt.slice(0, 10),
+          memo: "楽天約定メールより自動記録",
+          sourceKey: key,
+        });
+        delta += f.side === "buy" ? -amount : amount;
+        cashTxCreated++;
+      }
+      if (delta !== 0) {
+        const bal = await getAccountBalance(user.uid);
+        await setAccountBalance(user.uid, { ...bal, cashJpy: bal.cashJpy + delta });
+      }
+    }
+  } catch (e) {
+    console.error("[rakuten-sync] 現金同期に失敗 (保有・ジャーナルは反映済み):", e);
+  }
+
+  const changed = creates.length + closes.length + attaches.length + holdingsUpserted + holdingsRemoved + cashTxCreated;
   const message =
     changed > 0
       ? `取込${imported}件 → 取引(新規${creates.length}/決済${closes.length}) 保有(更新${holdingsUpserted}/削除${holdingsRemoved})`

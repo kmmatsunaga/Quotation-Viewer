@@ -38,6 +38,8 @@ import { PatternBadgeGroup, type PatternData } from "@/components/PatternBadge";
 import HoldingChart from "./HoldingChart";
 import { TIER_META, type PortfolioTerrainSummary } from "@/lib/fragile-terrain";
 import WarChestCard from "@/components/WarChestCard";
+import PortfolioDiagnosis from "./PortfolioDiagnosis";
+import CashReconcile from "./CashReconcile";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -511,11 +513,15 @@ export default function PortfolioPage() {
       });
 
       // 預り金を減らす
-      const newBal = { ...accountBalance };
+      // ※必ず最新値を読み直してから加減算する。画面の state を使うと、
+      //   同一セッションでの連続操作 (買い→出金→入金 等) が互いを上書きして
+      //   残高が壊れる (2026-07-06 に実際に発生し、306,540円のズレを生んだ)
+      const latest = await getAccountBalance(user.uid);
+      const newBal = { ...latest };
       if (market === "US") {
-        newBal.cashUsd = Math.max(0, newBal.cashUsd - totalAmount - commission);
+        newBal.cashUsd = newBal.cashUsd - totalAmount - commission;
       } else {
-        newBal.cashJpy = Math.max(0, newBal.cashJpy - totalAmount - commission);
+        newBal.cashJpy = newBal.cashJpy - totalAmount - commission;
       }
       await setAccountBalance(user.uid, newBal);
 
@@ -614,8 +620,9 @@ export default function PortfolioPage() {
         date: sellForm.date,
       });
 
-      // 預り金を増やす
-      const newBal = { ...accountBalance };
+      // 預り金を増やす (最新値を読み直してから — 上の買付と同じ理由)
+      const latest = await getAccountBalance(user.uid);
+      const newBal = { ...latest };
       if (market === "US") {
         newBal.cashUsd += sellAmount - commission;
       } else {
@@ -652,13 +659,15 @@ export default function PortfolioPage() {
       const amount = Number(cashForm.amount) || 0;
       if (amount <= 0) return;
 
-      const newBal = { ...accountBalance };
+      // 最新値を読み直してから加減算 (state を使うと連続操作で互いを上書きする)
+      const latest = await getAccountBalance(user.uid);
+      const newBal = { ...latest };
       if (cashForm.currency === "JPY") {
         if (cashForm.type === "deposit") newBal.cashJpy += amount;
-        else newBal.cashJpy = Math.max(0, newBal.cashJpy - amount);
+        else newBal.cashJpy -= amount;
       } else {
         if (cashForm.type === "deposit") newBal.cashUsd += amount;
-        else newBal.cashUsd = Math.max(0, newBal.cashUsd - amount);
+        else newBal.cashUsd -= amount;
       }
       await setAccountBalance(user.uid, newBal);
 
@@ -1030,6 +1039,43 @@ export default function PortfolioPage() {
         <>
           {/* 💰 弾薬庫 (現金比率 × レジーム測定器の投入目安) */}
           <WarChestCard cashJpy={cashJpyTotal} totalAssets={totalValueJpy + cashJpyTotal} />
+
+          {/* 💴 預り金の検算 (食い違いがある時だけ出る) */}
+          <CashReconcile
+            balance={accountBalance}
+            transactions={transactions}
+            holdings={holdings}
+            onAdjust={async (actualCashJpy, diff) => {
+              if (!user) return;
+              // 黙って書き換えず、差額を「調整」取引として履歴に残す
+              if (Math.abs(diff) >= 1) {
+                await addTransaction(user.uid, {
+                  type: diff > 0 ? "deposit" : "withdraw",
+                  amount: Math.abs(diff),
+                  commission: 0,
+                  currency: "JPY",
+                  date: new Date().toISOString().slice(0, 10),
+                  memo: "残高調整 (証券口座の実額に合わせる)",
+                });
+              }
+              const latest = await getAccountBalance(user.uid);
+              await setAccountBalance(user.uid, { ...latest, cashJpy: actualCashJpy });
+              await loadData();
+            }}
+          />
+
+          {/* 🩺 ポートフォリオ診断 (分散の実効性・リスクの出どころ・下げ耐性) */}
+          {tickerGroups.length > 0 && (
+            <PortfolioDiagnosis
+              cashJpy={cashJpyTotal}
+              holdings={tickerGroups.map((g) => ({
+                ticker: g.ticker,
+                name: g.name,
+                value: g.totalMarketValueJpy ?? g.totalCostBasisJpy,
+                pnlPct: g.totalPnlPct,
+              }))}
+            />
+          )}
 
           {/* 🌪 地形サマリ (資産の何%が脆弱地形の上に乗っているか) */}
           {terrainSummary && terrainSummary.evaluatedValue > 0 && (

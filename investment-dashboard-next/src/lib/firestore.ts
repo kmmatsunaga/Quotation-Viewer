@@ -12,6 +12,8 @@ import {
   serverTimestamp,
   Timestamp,
   writeBatch,
+  setDoc,
+  limit as fsLimit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -281,7 +283,23 @@ export interface Transaction {
   realizedPnl?: number;      // 売却時の実現損益
   memo?: string;
   date: string;              // YYYY-MM-DD
+  /** 自動取込の重複排除キー (楽天約定メールなら fillKey)。手動入力では undefined */
+  sourceKey?: string;
   createdAt?: Timestamp;
+}
+
+/**
+ * 約定メールから現金を同期し始める基準時刻。
+ * 過去分に遡って適用すると、手動で記録済みの取引と二重計上になるため、
+ * 「この時刻より後の約定」だけを現金に反映する。初回同期時に now で作られる。
+ */
+export async function getCashSyncStartAt(uid: string): Promise<string | null> {
+  const snap = await getDoc(doc(db, "users", uid, "settings", "cashSync"));
+  return snap.exists() ? ((snap.data().startAt as string) ?? null) : null;
+}
+export async function setCashSyncStartAt(uid: string, iso: string) {
+  const { setDoc: setDocFn } = await import("firebase/firestore");
+  return setDocFn(doc(db, "users", uid, "settings", "cashSync"), { startAt: iso, updatedAt: serverTimestamp() });
 }
 
 export async function getTransactions(uid: string, limitN: number = 100): Promise<Transaction[]> {
@@ -808,4 +826,53 @@ export async function updateNote(uid: string, id: string, data: Partial<Note>) {
 
 export async function deleteNote(uid: string, id: string) {
   return deleteDoc(doc(db, "users", uid, "notes", id));
+}
+
+// ============================================================
+// 🩺 投資家問診票 (Investor Profile)
+//   users/{uid}/profile/current         — 最新の回答 (編集で上書き)
+//   users/{uid}/profileHistory/{autoId} — 保存のたびのスナップショット (心境の変化を追う)
+// ============================================================
+export interface InvestorProfileDoc {
+  answers: Record<string, unknown>;
+  scores: Record<string, number>;
+  savedAt?: Timestamp;
+  note?: string;              // 保存時の一言 (任意)
+  changedKeys?: string[];     // 前回から変わった質問ID
+}
+
+export async function getInvestorProfile(uid: string): Promise<InvestorProfileDoc | null> {
+  const snap = await getDoc(doc(db, "users", uid, "profile", "current"));
+  return snap.exists() ? (snap.data() as InvestorProfileDoc) : null;
+}
+
+/** 保存 = current の上書き + 履歴への追記 (変更があった時だけ履歴を残す) */
+export async function saveInvestorProfile(
+  uid: string,
+  answers: Record<string, unknown>,
+  scores: Record<string, number>,
+  note?: string,
+): Promise<{ changedKeys: string[]; historySaved: boolean }> {
+  const prev = await getInvestorProfile(uid);
+  const changedKeys: string[] = [];
+  const keys = new Set([...Object.keys(answers), ...Object.keys(prev?.answers ?? {})]);
+  for (const k of keys) {
+    if (JSON.stringify(answers[k] ?? null) !== JSON.stringify(prev?.answers?.[k] ?? null)) changedKeys.push(k);
+  }
+  await setDoc(doc(db, "users", uid, "profile", "current"), {
+    answers, scores, savedAt: serverTimestamp(), note: note ?? "",
+  });
+  const historySaved = changedKeys.length > 0 || !prev;
+  if (historySaved) {
+    await addDoc(userCol(uid, "profileHistory"), {
+      answers, scores, savedAt: serverTimestamp(), note: note ?? "", changedKeys,
+    });
+  }
+  return { changedKeys, historySaved };
+}
+
+export async function getProfileHistory(uid: string, limitN = 30): Promise<(InvestorProfileDoc & { id: string })[]> {
+  const q = query(userCol(uid, "profileHistory"), orderBy("savedAt", "desc"), fsLimit(limitN));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as InvestorProfileDoc) }));
 }

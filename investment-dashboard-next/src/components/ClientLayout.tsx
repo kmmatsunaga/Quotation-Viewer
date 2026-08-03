@@ -41,6 +41,7 @@ const navItems = [
   { href: "/intraday-laws", label: "場中の法則 (板圧・成行)", shortLabel: "🔬場中", icon: "chart", group: "🔬研究所" },
   // 📊 資産と記録 — 自分のもの
   { href: "/portfolio", label: "ポートフォリオ", shortLabel: "資産", icon: "wallet", group: "📊資産" },
+  { href: "/profile", label: "🩺 投資家問診票 (自分を知る)", shortLabel: "🩺問診", icon: "clipboard", group: "📊資産" },
   { href: "/buyplan", label: "買い方の設計 (プラン)", shortLabel: "🧭", icon: "clipboard", group: "📊資産" },
   { href: "/earnings-guard", label: "決算またぎ (リスク管理)", shortLabel: "🛡", icon: "calendar", group: "📊資産" },
   { href: "/favorites", label: "お気に入り", shortLabel: "お気に入り", icon: "star", group: "📊資産" },

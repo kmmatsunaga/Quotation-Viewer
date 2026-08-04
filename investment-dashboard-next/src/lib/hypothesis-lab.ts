@@ -63,10 +63,17 @@ export interface TestResult {
 }
 
 export const GATES = {
-  MIN_DAYS: 30,        // G1
-  T_ADOPT: 3.0,        // G2
-  T_CONFIRM: 1.5,      // G3 (後半での確認は緩めるが符号一致は必須)
+  MIN_DAYS: 30,        // G1 標本
+  T_ADOPT: 3.0,        // G2 統計的有意
+  T_CONFIRM: 1.5,      // G3 分割検証 (後半は緩めるが符号一致は必須)
   T_EXPLORING: 2.0,    // これ未満は問答無用で棄却
+  /**
+   * G0 効果量: 平均超過がこれ未満なら、t が幾ら大きくても棄却する。
+   * 2026-08-04 に「超過 -0.048% なのに t=-5.3」で候補入りする事例が出たため追加。
+   * 極めて小さいが一貫した測定残差は、統計的に有意でも取引の役には立たない。
+   * 売買コスト (往復で概ね0.2-0.3%) を下回るものを拾っても意味がない。
+   */
+  MIN_EFFECT_PCT: 0.5,
 };
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
@@ -121,6 +128,13 @@ export function evaluate(spec: HypothesisSpec, obs: DayObservation[]): TestResul
   const withHalves = { ...base, firstHalf, secondHalf };
 
   const t = base.t;
+  // G0: 効果量が小さすぎるものは、t に関係なく棄却 (統計的有意 ≠ 使える)
+  if (base.meanExcess != null && Math.abs(base.meanExcess) < GATES.MIN_EFFECT_PCT) {
+    return {
+      ...withHalves, verdict: "rejected",
+      reason: `平均超過 ${base.meanExcess}% は小さすぎる (最低 ${GATES.MIN_EFFECT_PCT}%)。t=${t ?? "—"} でも売買コストに埋もれる`,
+    };
+  }
   if (t == null || Math.abs(t) < GATES.T_EXPLORING) {
     return { ...withHalves, verdict: "rejected", reason: `全期間 t=${t ?? "—"} — 優位性なし。この仮説は掘っても何も出ません` };
   }

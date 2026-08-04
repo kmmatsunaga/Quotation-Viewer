@@ -26,6 +26,7 @@ import {
   type DailyFeatureRow,
 } from "../src/lib/daily-features";
 
+const RANGE = process.argv[2] ?? "5y";
 const BQ_KEY = "C:/Users/matsunaga/Documents/key/booking-data-388605@appspot.gserviceaccount.com/booking-data-388605-ec9e7af2c0e1.json";
 const BQ_PROJECT = "booking-data-388605";
 const BQ_DATASET = "cavka";
@@ -47,7 +48,10 @@ const tickers = master
 console.log(`ユニバース: マスタ ${master.length} → ETF等除外後 ${tickers.length} 銘柄`);
 
 async function fetchBars(symbol: string) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=2y&interval=1d`;
+  // 期間は引数で変更可: npx tsx scripts/daily-features-backfill-full.mts 5y
+  // 2026-08-04 に 2y→5y へ延長。仮説ラボで稀少イベント (VIX急騰・洗い流し・金利急変) が
+  // 独立30エピソードに届かず13件が判定不能だったため、標本を増やすのが最優先だった。
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${RANGE}&interval=1d`;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
@@ -141,6 +145,9 @@ const [job] = await bq.dataset(BQ_DATASET).table(TABLE).load(tmpFile, {
       { name: "ret20dPct", type: "FLOAT" },
       { name: "rsi14", type: "FLOAT" },
       { name: "atrPct14", type: "FLOAT" },
+      // 2026-08-04: 後から DailyFeatureRow に追加された列。ここに書き忘れると
+      // 全取得のあと BQ ロードだけが "No such field" で落ちる (実際に踏んだ)
+      { name: "terrainScore", type: "FLOAT" },
       { name: "nikkeiChangePct", type: "FLOAT" },
       { name: "vsNikkeiPct", type: "FLOAT" },
       { name: "sectorChangePct", type: "FLOAT" },

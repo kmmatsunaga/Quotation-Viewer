@@ -18,7 +18,8 @@ import { join } from "path";
 import { BigQuery } from "@google-cloud/bigquery";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { getSectorsForTicker } from "../src/lib/jp-themes";
+// セクターは meta/industry_map (1,846銘柄/130業種) を使う。
+// 旧 jp-themes は139銘柄しかカバーせず、セクター相対が実質機能していなかった
 import {
   computeDailyFeatures,
   fillRelativeFeatures,
@@ -46,6 +47,15 @@ const tickers = master
   .filter((s) => /^\d{3,4}[0-9A-Z]?$/.test(s.ticker) && !EXCLUDE_NAME.test(s.name))
   .map((s) => s.ticker);
 console.log(`ユニバース: マスタ ${master.length} → ETF等除外後 ${tickers.length} 銘柄`);
+
+// 業種マップ (セクター相対の分母)
+const industryOf = new Map<string, string>();
+{
+  const snap = await fsdb.collection("meta").doc("industry_map").get();
+  const map = (snap.data()?.map ?? {}) as Record<string, string>;
+  for (const [t, ind] of Object.entries(map)) industryOf.set(t, ind);
+  console.log(`業種マップ: ${industryOf.size}銘柄`);
+}
 
 async function fetchBars(symbol: string) {
   // 期間は引数で変更可: npx tsx scripts/daily-features-backfill-full.mts 5y
@@ -91,7 +101,7 @@ for (let i = 0; i < tickers.length; i += CONCURRENCY) {
     batch.map(async (t) => {
       const bars = await fetchBars(`${t}.T`);
       if (bars.length === 0) return { t, rows: [] as DailyFeatureRow[], sector: null as string | null };
-      const sector = getSectorsForTicker(t)[0]?.id ?? null;
+      const sector = industryOf.get(t) ?? null;
       return { t, rows: computeDailyFeatures(t, sector, bars), sector };
     }),
   );

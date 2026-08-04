@@ -3,7 +3,9 @@ import { BigQuery } from "@google-cloud/bigquery";
 import { NIKKEI225 } from "@/lib/nikkei225";
 import { STOCK_LIST } from "@/lib/stock-list";
 import { getCachedJpStocks } from "@/lib/jp-stocks-cache";
-import { getSectorsForTicker } from "@/lib/jp-themes";
+// セクターは meta/industry_map (1,846銘柄/130業種) を使う。
+// 旧 jp-themes は25分類・139銘柄しか無く、実測カバー率3.1%でセクター相対が
+// ほぼ機能していなかった (2026-08-04 に判明し全銘柄業種へ差し替え)
 import { getAdminDb } from "@/lib/firebase-admin";
 import { computeGaugeFromRows, type RegimePoint } from "@/lib/regime-gauge";
 import {
@@ -76,6 +78,16 @@ export async function GET(req: NextRequest) {
   for (const s of STOCK_LIST) if (s.market === "JP") universe.set(s.ticker, s.name);
   const tickers = Array.from(universe.keys());
 
+  // ── 業種マップ (セクター相対の分母) ──
+  const industryOf = new Map<string, string>();
+  try {
+    const snap = await getAdminDb().collection("meta").doc("industry_map").get();
+    const map = (snap.data()?.map ?? {}) as Record<string, string>;
+    for (const [t, ind] of Object.entries(map)) industryOf.set(t, ind);
+  } catch (e) {
+    console.error("[daily-features] industry_map 取得失敗 — セクター相対は空になります:", e);
+  }
+
   // ── 日経平均 (地合い) ──
   const nikkeiBars = await fetchBars("^N225");
   const nikkeiByDate = new Map<string, number>();
@@ -102,7 +114,7 @@ export async function GET(req: NextRequest) {
         // 対象日のバーが末尾に来るよう切り詰め (再計算対応)
         const idx = bars.findIndex((b) => b.date === targetDate);
         if (idx === -1) return [];
-        const sector = getSectorsForTicker(t)[0]?.id ?? null;
+        const sector = industryOf.get(t) ?? null;
         return computeDailyFeatures(t, sector, bars.slice(0, idx + 1), { onlyLastDay: true });
       }),
     );

@@ -9,6 +9,8 @@ import { StockRow } from "@/components/StockRow";
 import AgentPanels from "./AgentPanels";
 import CrashAlertBanner from "@/components/CrashAlertBanner";
 import RegimeGauge from "@/components/RegimeGauge";
+import MarketCompass from "@/components/MarketCompass";
+import EventHorizon from "@/components/EventHorizon";
 import {
   fetcher,
   fetchIndicesUrl,
@@ -166,6 +168,12 @@ export default function MarketOverview() {
     <div className="space-y-6">
       {/* 🚨 暴落緊急警報 (ポートフォリオに重大な下落サインがある時だけ最上部に出る) */}
       <CrashAlertBanner />
+
+      {/* 🧭 現在地コンパス (潮・温度・傾き・割安の水位を1行で) */}
+      <MarketCompass />
+
+      {/* 📅 イベント地平線 (確定した未来 = マクロ日程と過去の実測反応) */}
+      <EventHorizon />
 
       {/* 🌊 レジーム測定器 (breadth washout — 洗い流しの深さを常時測定) */}
       <RegimeGauge />

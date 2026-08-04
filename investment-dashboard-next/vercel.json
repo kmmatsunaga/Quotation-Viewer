@@ -72,7 +72,7 @@
     },
     {
       "path": "/api/cron/score-rankings",
-      "schedule": "0 16 * * *"
+      "schedule": "30 8 * * 1-5"
     },
     {
       "path": "/api/cron/portfolio-alerts",
@@ -137,6 +137,10 @@
     {
       "path": "/api/cron/net-cash",
       "schedule": "0 23 * * 5"
+    },
+    {
+      "path": "/api/cron/evening-preview",
+      "schedule": "45 8 * * 1-5"
     }
   ]
 }

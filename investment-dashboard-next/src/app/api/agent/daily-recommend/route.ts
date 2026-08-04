@@ -278,14 +278,37 @@ export async function POST(req: NextRequest) {
     currentPrice: p.price ?? 0, changePct: 0, suggestedAction: "",
   }));
 
-  const today = new Date().toISOString().slice(0, 10);
+  // 保存先は【その候補で売買する営業日】。
+  // ・朝 (07:00) の生成 = 当日ぶん → today
+  // ・夕方 (17:45) の生成 = 翌営業日ぶん → ?for=YYYY-MM-DD で指定
+  // 同じ文書を朝の第二陣が更新するので、夕方版を wave1Horizons に残して差分を出せるようにする。
+  const forParam = req.nextUrl.searchParams.get("for");
+  const wave = req.nextUrl.searchParams.get("wave") === "evening" ? "evening" : "morning";
+  const today = forParam && /^\d{4}-\d{2}-\d{2}$/.test(forParam)
+    ? forParam
+    : new Date().toISOString().slice(0, 10);
+
   const horizons: Record<string, HorizonPick[]> = { short: shortList, mid: midList, long: longList, kiyohara: kiyoharaList };
-  await db.collection("users").doc(uid).collection("dailyRecommendations").doc(today).set({
+  const docRef = db.collection("users").doc(uid).collection("dailyRecommendations").doc(today);
+  const prev = (await docRef.get()).data() ?? {};
+  const waveFields =
+    wave === "evening"
+      ? { wave1Horizons: horizons, wave1At: new Date(), wave: "evening" }
+      : {
+          // 朝の第二陣: 夕方版は上書きせず残す (差分表示と、配信の答え合わせに使う)
+          wave1Horizons: prev.wave1Horizons ?? null,
+          wave1At: prev.wave1At ?? null,
+          wave2At: new Date(),
+          wave: prev.wave1At ? "morning_after_evening" : "morning",
+        };
+
+  await docRef.set({
     date: today,
     version: 2,
     horizons,
     controls,
     recommendations: legacy,
+    ...waveFields,
     generatedAt: new Date(),
     meta: {
       featuresScanned: features.length,

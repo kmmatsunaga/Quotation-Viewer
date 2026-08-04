@@ -72,9 +72,19 @@ export async function GET(req: NextRequest) {
   const bq = getBq();
   const startedAt = Date.now();
 
-  // ── 1. ラベル付きテーブルを最新日で再構築 ──
-  await bq.query({
-    query: `CREATE OR REPLACE TABLE ${SRC.replace(/`/g, "")} AS
+  // ── 1. ラベル付きテーブルを更新 (差分。全期間の作り直しはしない) ──
+  //
+  // 2026-08-04: daily_features を4.7年(430万行)へ拡張したのを機に差分化。
+  // 5年前の行の「翌日リターン」はもう変わらないので、毎晩作り直すのは無駄で、
+  // cron の maxDuration=120秒 に対する時間リスクにもなる。
+  //
+  // 【正しさの要件】最長の目的変数は fwd60dPct (60営業日先)。
+  // 日付 X の行の値が確定するのは X の60営業日後 ≈ 85暦日後なので、
+  // 更新窓を 100暦日 にしておけば、行が窓から出るまでに必ず確定値になる。
+  // (窓を60暦日などに縮めると fwd60dPct が NULL のまま固定される)
+  const REFRESH_DAYS = 100;
+  const LABELED = `\`${BQ_PROJECT}.${BQ_DATASET}.daily_features_labeled\``;
+  const selectLabeled = (whereClause: string) => `
       SELECT *, LEAD(openToClosePct) OVER w AS nextO2C, LEAD(gapPct) OVER w AS nextGap,
         LEAD(close) OVER w / NULLIF(close,0) * 100 - 100 AS nextC2C,
         -- 中長期の目的変数 (5/20/60営業日先の終値リターン%)
@@ -82,8 +92,45 @@ export async function GET(req: NextRequest) {
         LEAD(close, 20) OVER w / NULLIF(close,0) * 100 - 100 AS fwd20dPct,
         LEAD(close, 60) OVER w / NULLIF(close,0) * 100 - 100 AS fwd60dPct
       FROM \`${BQ_PROJECT}.${BQ_DATASET}.daily_features\`
-      WINDOW w AS (PARTITION BY ticker ORDER BY date)`,
-  });
+      ${whereClause}
+      WINDOW w AS (PARTITION BY ticker ORDER BY date)`;
+
+  // 差分更新が成立する前提: labeled が存在し、元テーブルと同じ期間を覆っていること。
+  // 覆っていなければ (初回・元データ拡張後・長期停止後) 全量で作り直す。
+  let rebuildMode: "full" | "incremental" = "full";
+  try {
+    const [[cov]] = await bq.query({
+      query: `SELECT
+        (SELECT MIN(date) FROM ${LABELED}) AS lab_min,
+        (SELECT MAX(date) FROM ${LABELED}) AS lab_max,
+        (SELECT MIN(date) FROM \`${BQ_PROJECT}.${BQ_DATASET}.daily_features\`) AS src_min`,
+    });
+    const labMin = dateStr(cov.lab_min), labMax = dateStr(cov.lab_max), srcMin = dateStr(cov.src_min);
+    const staleDays = labMax ? (Date.now() - new Date(labMax).getTime()) / 86400000 : Infinity;
+    if (labMin && srcMin && labMin <= srcMin && staleDays < REFRESH_DAYS - 10) {
+      rebuildMode = "incremental";
+    }
+  } catch { /* テーブル未作成 → full */ }
+
+  if (rebuildMode === "full") {
+    await bq.query({ query: `CREATE OR REPLACE TABLE ${SRC.replace(/`/g, "")} PARTITION BY date AS ${selectLabeled("")}` });
+  } else {
+    // 更新窓を消してから入れ直す (append-only ではなく置換)
+    //
+    // INSERT ... SELECT * は【列順】で対応するため、元テーブルの列順が変わると
+    // 型不一致で落ちる (2026-08-04 に sector 列の位置を変えて実際に踏んだ)。
+    // 送り先の列名を実行時に読み、名前で射影して列順非依存にする。
+    const [labMeta] = await bq.dataset(BQ_DATASET).table("daily_features_labeled").getMetadata();
+    const cols: string[] = (labMeta.schema?.fields ?? []).map((f: { name: string }) => `\`${f.name}\``);
+    if (cols.length === 0) throw new Error("daily_features_labeled のスキーマを取得できません");
+    const colList = cols.join(", ");
+    const where = `WHERE date >= DATE_SUB(CURRENT_DATE('Asia/Tokyo'), INTERVAL ${REFRESH_DAYS} DAY)`;
+    await bq.query({ query: `DELETE FROM ${LABELED} ${where}` });
+    await bq.query({
+      query: `INSERT INTO ${LABELED} (${colList})
+        SELECT ${colList} FROM (${selectLabeled(where)})`,
+    });
+  }
 
   // ベースライン
   const [[base]] = await bq.query({

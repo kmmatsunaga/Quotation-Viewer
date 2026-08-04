@@ -147,8 +147,38 @@ export async function POST(req: NextRequest) {
   const featuresMap = new Map(features.map((f) => [f.ticker, f]));
 
   // ── 2. 時間軸別スコアランキング (毎晩731銘柄を insights で採点済み) ──
-  const rankSnap = await db.collection("meta").doc("score_rankings_latest").get();
-  const rankEntries: RankEntry[] = (rankSnap.data()?.entries as RankEntry[]) ?? [];
+  //
+  // 【2026-08-04 修正】score_rankings_latest は entries を持たない【ポインタ文書】
+  // ({dateKey, ref, processed}) で、実体は score_rankings_YYYYMMDD 側にある。
+  // ここで entries を直読みしていたため常に空になり、**中期・長期の候補が
+  // 毎日ゼロ件**になっていた (短期と清原式だけが出ていた)。
+  // ポインタを辿る実装に変更し、辿れない時は日付付きの最新を直接探す。
+  let rankEntries: RankEntry[] = [];
+  try {
+    const latestSnap = await db.collection("meta").doc("score_rankings_latest").get();
+    const latest = latestSnap.data() ?? {};
+    const refId = (latest.ref as string) ?? (latest.dateKey ? `score_rankings_${latest.dateKey}` : null);
+    if (Array.isArray(latest.entries) && latest.entries.length > 0) {
+      rankEntries = latest.entries as RankEntry[];      // 旧形式 (実体入り) にも対応
+    } else if (refId) {
+      const refSnap = await db.collection("meta").doc(refId).get();
+      rankEntries = (refSnap.data()?.entries as RankEntry[]) ?? [];
+    }
+    // ポインタが壊れている/古い場合の保険: 日付付き文書を新しい順に探す
+    if (rankEntries.length === 0) {
+      for (let back = 0; back < 5 && rankEntries.length === 0; back++) {
+        const d = new Date(Date.now() - back * 86400000 + 9 * 3600 * 1000);
+        const key = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
+        const s = await db.collection("meta").doc(`score_rankings_${key}`).get();
+        rankEntries = (s.data()?.entries as RankEntry[]) ?? [];
+      }
+    }
+  } catch (e) {
+    console.error("[daily-recommend] score_rankings の取得に失敗:", e);
+  }
+  if (rankEntries.length === 0) {
+    console.error("[daily-recommend] ⚠ ランキングが空です — 中期・長期の候補が出せません");
+  }
   const ranksMap = new Map(rankEntries.map((e) => [e.ticker, e]));
 
   // 銘柄名の解決 (features 由来の銘柄はランキング外のことがある)

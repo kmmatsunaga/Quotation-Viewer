@@ -876,3 +876,24 @@ export async function getProfileHistory(uid: string, limitN = 30): Promise<(Inve
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as InvestorProfileDoc) }));
 }
+
+// ============================================================
+// 🎯 if-then ルール (users/{uid}/ifThenRules)
+//   平常時に書いた「こうなったらこうする」を保存し、条件成立時に本人の言葉を返す
+// ============================================================
+export async function getIfThenRules(uid: string) {
+  const snap = await getDocs(query(userCol(uid, "ifThenRules"), orderBy("createdAt", "desc")));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function addIfThenRule(uid: string, rule: Record<string, unknown>) {
+  return addDoc(userCol(uid, "ifThenRules"), { ...rule, createdAt: serverTimestamp(), fireCount: 0, lastFiredAt: null });
+}
+
+export async function updateIfThenRule(uid: string, id: string, patch: Record<string, unknown>) {
+  return updateDoc(doc(db, "users", uid, "ifThenRules", id), patch);
+}
+
+export async function deleteIfThenRule(uid: string, id: string) {
+  return deleteDoc(doc(db, "users", uid, "ifThenRules", id));
+}

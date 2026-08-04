@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { sendLineMessage } from "@/lib/line-notify";
+import { evaluateRules, type IfThenRule, type IfThenContext } from "@/lib/if-then";
 import { getCronOrigin } from "@/lib/cron-origin";
 import {
   assessCrashRisk,
@@ -279,12 +280,63 @@ export async function GET(req: NextRequest) {
           }
         }
 
+        // ── 🎯 if-then ルールの判定 (平常時に本人が書いた条件) ──
+        // 予測ではなく、本人の言葉をそのまま返すための仕組み。
+        // 専用 cron は作らず、既に相場データが揃っているここに相乗りする。
+        let ifThenFired = 0;
+        try {
+          const rulesSnap = await db.collection("users").doc(uid).collection("ifThenRules").get();
+          const rules: IfThenRule[] = rulesSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<IfThenRule, "id">) }));
+          if (rules.length > 0) {
+            // 現金比率 (弾薬の残量)
+            let cashRatioPct: number | null = null;
+            try {
+              const balSnap = await db.collection("users").doc(uid).collection("settings").doc("accountBalance").get();
+              const cash = Number(balSnap.data()?.cashJpy ?? 0);
+              const total = totalValue + cash;
+              if (total > 0) cashRatioPct = (cash / total) * 100;
+            } catch {}
+            // レジーム測定器
+            let regimeLow60Pct: number | null = null;
+            try {
+              regimeLow60Pct = (await db.collection("meta").doc("regime_gauge").get()).data()?.low60Pct ?? null;
+            } catch {}
+
+            const positions: IfThenContext["positions"] = {};
+            for (const q of quotes) {
+              positions[q.ticker] = { price: q.price, pnlPct: q.changePct ?? null, name: q.name };
+            }
+            const ctx: IfThenContext = {
+              nikkeiLevel: null,           // 水準はこの cron では未取得 (騰落率のみ)
+              nikkeiChangePct: market.nikkeiChangePct,
+              regimeLow60Pct,
+              cashRatioPct,
+              positions,
+            };
+            const fired = evaluateRules(rules, ctx);
+            for (const f of fired) {
+              if (channelAccessToken && lineUserId) {
+                await sendLineMessage(channelAccessToken, lineUserId, f.message);
+              }
+              await db.collection("users").doc(uid).collection("ifThenRules").doc(f.rule.id!).update({
+                lastFiredAt: nowIso,
+                fireCount: (f.rule.fireCount ?? 0) + 1,
+                lastFiredValue: f.value,
+              });
+              ifThenFired++;
+            }
+          }
+        } catch (e) {
+          console.error("[crash-sentinel] if-then 判定に失敗:", e);
+        }
+
         results.push({
           email, uid, ok: true,
           level: assessment.level,
           signals: assessment.signals.length,
           affected: assessment.affectedTickers,
           lineSent: sent,
+          ifThenFired,
         });
       }
     } catch (err) {

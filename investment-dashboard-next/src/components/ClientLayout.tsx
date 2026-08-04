@@ -42,6 +42,7 @@ const navItems = [
   // 📊 資産と記録 — 自分のもの
   { href: "/portfolio", label: "ポートフォリオ", shortLabel: "資産", icon: "wallet", group: "📊資産" },
   { href: "/profile", label: "🩺 投資家問診票 (自分を知る)", shortLabel: "🩺問診", icon: "clipboard", group: "📊資産" },
+  { href: "/if-then", label: "🎯 if-then ルール (自分との約束)", shortLabel: "🎯if", icon: "bell", group: "📊資産" },
   { href: "/buyplan", label: "買い方の設計 (プラン)", shortLabel: "🧭", icon: "clipboard", group: "📊資産" },
   { href: "/earnings-guard", label: "決算またぎ (リスク管理)", shortLabel: "🛡", icon: "calendar", group: "📊資産" },
   { href: "/favorites", label: "お気に入り", shortLabel: "お気に入り", icon: "star", group: "📊資産" },

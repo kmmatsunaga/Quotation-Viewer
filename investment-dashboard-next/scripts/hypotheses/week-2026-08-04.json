@@ -1,0 +1,25 @@
+[
+  { "id": "sox_up2_semi_d1",      "title": "前夜SOX +2%以上 → 半導体の翌日",                    "family": "macro_lag", "trigger": "sox >= 2.0",  "target": "industry:Semiconductor", "lagDays": 1, "horizonDays": 1, "createdAt": "2026-08-04" },
+  { "id": "sox_up2_semi_d5",      "title": "前夜SOX +2%以上 → 半導体の5日 (遅れて効くか)",       "family": "macro_lag", "trigger": "sox >= 2.0",  "target": "industry:Semiconductor", "lagDays": 1, "horizonDays": 5, "createdAt": "2026-08-04" },
+  { "id": "sox_dn2_semi_d5",      "title": "前夜SOX -2%以下 → 半導体の5日",                      "family": "macro_lag", "trigger": "sox <= -2.0", "target": "industry:Semiconductor", "lagDays": 1, "horizonDays": 5, "createdAt": "2026-08-04" },
+  { "id": "sox5_up8_semi_d10",    "title": "SOX5日累積 +8%以上 → 半導体の10日 (サイクル追随)",   "family": "macro_lag", "trigger": "sox5 >= 8.0", "target": "industry:Semiconductor", "lagDays": 1, "horizonDays": 10, "createdAt": "2026-08-04" },
+
+  { "id": "yen_weak_auto_d5",     "title": "円安 (USDJPY +0.8%以上) → 自動車の5日",              "family": "sector_driver", "trigger": "usdjpy >= 0.8", "target": "industry:Auto Manufacturers", "lagDays": 1, "horizonDays": 5, "createdAt": "2026-08-04" },
+  { "id": "yen5_weak_auto_d10",   "title": "円安が5日で+2%以上進行 → 自動車の10日",              "family": "sector_driver", "trigger": "usdjpy5 >= 2.0", "target": "industry:Auto Manufacturers", "lagDays": 1, "horizonDays": 10, "createdAt": "2026-08-04" },
+  { "id": "yen_strong_retail_d5", "title": "円高 (USDJPY -0.8%以下) → 小売の5日",                "family": "sector_driver", "trigger": "usdjpy <= -0.8", "target": "industry:Specialty Retail", "lagDays": 1, "horizonDays": 5, "createdAt": "2026-08-04" },
+  { "id": "ust10_up_bank_d5",     "title": "米10年金利 +2%以上上昇 → 銀行の5日",                 "family": "sector_driver", "trigger": "ust10 >= 2.0", "target": "industry:Banks", "lagDays": 1, "horizonDays": 5, "createdAt": "2026-08-04" },
+  { "id": "ust10_dn_reit_d5",     "title": "米10年金利 -2%以下低下 → 不動産の5日",               "family": "sector_driver", "trigger": "ust10 <= -2.0", "target": "industry:Real Estate", "lagDays": 1, "horizonDays": 5, "createdAt": "2026-08-04" },
+  { "id": "copper_up2_machine_d5","title": "銅 +2%以上 → 機械の5日",                             "family": "sector_driver", "trigger": "copper >= 2.0", "target": "industry:Specialty Industrial Machinery", "lagDays": 1, "horizonDays": 5, "createdAt": "2026-08-04" },
+  { "id": "wti_up3_shipping_d5",  "title": "原油 +3%以上 → 海運の5日",                           "family": "sector_driver", "trigger": "wti >= 3.0", "target": "industry:Marine Shipping", "lagDays": 1, "horizonDays": 5, "createdAt": "2026-08-04" },
+
+  { "id": "vix_spike_all_d3",     "title": "VIX +15%以上急騰 → 市場全体の3日 (狼狽の戻り)",      "family": "internals", "trigger": "vix >= 15.0", "target": "all", "lagDays": 1, "horizonDays": 3, "createdAt": "2026-08-04" },
+  { "id": "vix_spike_all_d10",    "title": "VIX +15%以上急騰 → 市場全体の10日",                  "family": "internals", "trigger": "vix >= 15.0", "target": "all", "lagDays": 1, "horizonDays": 10, "createdAt": "2026-08-04" },
+  { "id": "washout25_all_d20",    "title": "60日安値が25%超 (洗い流し) → 市場全体の20日",        "family": "internals", "trigger": "low60 >= 25", "target": "all", "lagDays": 1, "horizonDays": 20, "createdAt": "2026-08-04" },
+  { "id": "washout25_semi_d20",   "title": "洗い流し25%超 → 半導体の20日 (高ベータの戻り)",      "family": "internals", "trigger": "low60 >= 25", "target": "industry:Semiconductor", "lagDays": 1, "horizonDays": 20, "createdAt": "2026-08-04" },
+  { "id": "froth_high30_all_d10", "title": "60日高値が30%超 (過熱) → 市場全体の10日",            "family": "internals", "trigger": "high60 >= 30", "target": "all", "lagDays": 1, "horizonDays": 10, "createdAt": "2026-08-04" },
+  { "id": "nikkei_dn3_all_d5",    "title": "日経 -3%以上の急落 → 市場全体の5日",                 "family": "internals", "trigger": "nikkei <= -3.0", "target": "all", "lagDays": 1, "horizonDays": 5, "createdAt": "2026-08-04" },
+
+  { "id": "monthend_all_d3",      "title": "月末 (25日以降) → 市場全体の3日 (リバランス)",        "family": "calendar", "trigger": "isMonthEnd >= 1", "target": "all", "lagDays": 1, "horizonDays": 3, "createdAt": "2026-08-04" },
+  { "id": "monday_all_d1",        "title": "月曜 → 市場全体の当日 (曜日効果)",                   "family": "calendar", "trigger": "dayOfWeek == 1", "target": "all", "lagDays": 0, "horizonDays": 1, "createdAt": "2026-08-04" },
+  { "id": "friday_all_d1",        "title": "金曜 → 市場全体の当日",                              "family": "calendar", "trigger": "dayOfWeek == 5", "target": "all", "lagDays": 0, "horizonDays": 1, "createdAt": "2026-08-04" }
+]

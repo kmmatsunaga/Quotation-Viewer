@@ -1,0 +1,208 @@
+[
+  {
+    "id": "wash15_nk_d20",
+    "title": "A1 洗い流し15%超 → 日経20日 (閾値を下げても効くか)",
+    "family": "internals",
+    "source": "2026-08-04: wash25/20d が窓+4.22% p=0.072 で唯一の生存。閾値耐性を見る",
+    "trigger": "low60 >= 15",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "wash20_nk_d20",
+    "title": "A2 洗い流し20%超 → 日経20日",
+    "family": "internals",
+    "trigger": "low60 >= 20",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "wash25_nk_d10",
+    "title": "A3 洗い流し25%超 → 日経10日 (効果は早く出るか遅く出るか)",
+    "family": "internals",
+    "trigger": "low60 >= 25",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "wash25_nk_d40",
+    "title": "A4 洗い流し25%超 → 日経40日",
+    "family": "internals",
+    "trigger": "low60 >= 25",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 40,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "wash25_semi_d20",
+    "title": "A5 洗い流し25%超 → 半導体20日 (高ベータが余計に戻るか)",
+    "family": "internals",
+    "trigger": "low60 >= 25",
+    "target": "industry:Semiconductor",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "wash_recover_nk_d20",
+    "title": "B1 洗い流しが和らいだ直後 (low60が15%未満に戻る) → 日経20日",
+    "family": "state_change",
+    "source": "底そのものでなく回復の始まりを狙う",
+    "trigger": "low60 <= 15 && low20 >= 25",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "froth_end_nk_d10",
+    "title": "B2 過熱の終わり (高値更新が明確に細る) → 日経10日",
+    "family": "state_change",
+    "trigger": "high60 <= 15 && high20 <= 10",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "ma200_up_nk_d20",
+    "title": "B3 日経が200日線を上抜けた直後 → 20日",
+    "family": "state_change",
+    "trigger": "nk200 >= 0 && nk200prev < 0",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "ma200_dn_nk_d20",
+    "title": "B4 日経が200日線を下抜けた直後 → 20日",
+    "family": "state_change",
+    "trigger": "nk200 <= 0 && nk200prev > 0",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "split_nk_d10",
+    "title": "C1 分裂相場 (高値更新も安値更新も同時に多い) → 日経10日",
+    "family": "internals",
+    "source": "市場が割れている時。清原の『人が見ていない場所』の定量版",
+    "trigger": "high60 >= 8 && low60 >= 8",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "split_semi_d10",
+    "title": "C2 分裂相場 → 半導体10日",
+    "family": "internals",
+    "trigger": "high60 >= 8 && low60 >= 8",
+    "target": "industry:Semiconductor",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "breadth_gap_nk_d10",
+    "title": "C3 指数は上げたのに安値更新が多い日 (見かけの強さ) → 日経10日",
+    "family": "internals",
+    "trigger": "nikkei >= 0.5 && low60 >= 10",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "semi_low_pos_d20",
+    "title": "D1 半導体が60日レンジの底にいる時 → 半導体20日",
+    "family": "sector_state",
+    "source": "外部ドライバーでなく業種の内部位置で測る",
+    "trigger": "semiPos <= 8",
+    "target": "industry:Semiconductor",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "semi_high_pos_d20",
+    "title": "D2 半導体が60日レンジの天井にいる時 → 半導体20日",
+    "family": "sector_state",
+    "trigger": "semiPos >= 92",
+    "target": "industry:Semiconductor",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "auto_low_pos_d20",
+    "title": "D3 自動車が60日レンジの底にいる時 → 自動車20日",
+    "family": "sector_state",
+    "trigger": "autoPos <= 8",
+    "target": "industry:Auto Manufacturers",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "placebo_monday_nk",
+    "title": "E1 反証枠: 月曜 → 日経当日 (効いてはいけない)",
+    "family": "placebo",
+    "source": "カレンダー効果が無いことの確認。他の発見の信頼性の土台",
+    "trigger": "dayOfWeek == 1",
+    "target": "index:nikkei",
+    "lagDays": 0,
+    "horizonDays": 1,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "placebo_monthend_nk",
+    "title": "E2 反証枠: 月末 → 日経2日 (効いてはいけない)",
+    "family": "placebo",
+    "trigger": "isMonthEnd >= 1",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 2,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "placebo_sqweek_nk",
+    "title": "E3 反証枠: SQ週 → 日経当日 (効いてはいけない)",
+    "family": "placebo",
+    "trigger": "isSqWeek >= 1",
+    "target": "index:nikkei",
+    "lagDays": 0,
+    "horizonDays": 1,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "semi_runaway_d5",
+    "title": "F1 半導体が寄りから独走した日 (7/31型) → 半導体の翌5日",
+    "family": "experience",
+    "source": "2026-07-31 の体験を仮説化。あの日が法則か特異日か",
+    "trigger": "semiRel >= 3.0",
+    "target": "industry:Semiconductor",
+    "lagDays": 1,
+    "horizonDays": 5,
+    "createdAt": "2026-08-11"
+  },
+  {
+    "id": "semi_runaway_d20",
+    "title": "F2 半導体が独走した日 → 半導体の翌20日",
+    "family": "experience",
+    "trigger": "semiRel >= 3.0",
+    "target": "industry:Semiconductor",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-11"
+  }
+]

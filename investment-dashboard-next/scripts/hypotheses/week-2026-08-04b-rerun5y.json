@@ -1,0 +1,209 @@
+[
+  {
+    "id": "vix_spike10_nk_d3",
+    "title": "VIX +10%以上急騰 → 市場全体の3日 (5年で再検定)",
+    "family": "internals",
+    "source": "初回は2年でn=18の不足",
+    "trigger": "vix >= 10.0",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 3,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "vix_spike10_nk_d10",
+    "title": "VIX +10%以上急騰 → 市場全体の10日",
+    "family": "internals",
+    "source": "初回 n=13 t=-4.5 と符号強",
+    "trigger": "vix >= 10.0",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "vix_spike15_nk_d10",
+    "title": "VIX +15%以上急騰 → 市場全体の10日",
+    "family": "internals",
+    "trigger": "vix >= 15.0",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "vix_spike15_semi_d10",
+    "title": "VIX +15%以上急騰 → 半導体の10日 (高ベータの戻り)",
+    "family": "internals",
+    "trigger": "vix >= 15.0",
+    "target": "industry:Semiconductor",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "washout20_nk_d20",
+    "title": "60日安値20%超 → 市場全体の20日",
+    "family": "internals",
+    "source": "初回は25%でn=2",
+    "trigger": "low60 >= 20",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "washout25_nk_d20",
+    "title": "60日安値25%超 → 市場全体の20日",
+    "family": "internals",
+    "trigger": "low60 >= 25",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "washout25_nk_d60",
+    "title": "60日安値25%超 → 市場全体の60日 (清原のレジーム級)",
+    "family": "kiyohara",
+    "trigger": "low60 >= 25",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 60,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "washout20_semi_d20",
+    "title": "60日安値20%超 → 半導体の20日",
+    "family": "internals",
+    "trigger": "low60 >= 20",
+    "target": "industry:Semiconductor",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "froth25_nk_d10",
+    "title": "60日高値25%超 (過熱) → 市場全体の10日",
+    "family": "internals",
+    "source": "初回は30%でn=5",
+    "trigger": "high60 >= 25",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "froth30_nk_d20",
+    "title": "60日高値30%超 → 市場全体の20日",
+    "family": "internals",
+    "trigger": "high60 >= 30",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "nikkei_dn2_nk_d5",
+    "title": "日経 -2%以上の下げ → 市場全体の5日",
+    "family": "internals",
+    "source": "初回は-3%でn=8",
+    "trigger": "nikkei <= -2.0",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 5,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "nikkei_dn3_nk_d10",
+    "title": "日経 -3%以上の急落 → 市場全体の10日",
+    "family": "internals",
+    "trigger": "nikkei <= -3.0",
+    "target": "index:nikkei",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "ust10_up3_bank_d10",
+    "title": "米10年金利 +3%以上上昇 → 銀行の10日",
+    "family": "sector_driver",
+    "source": "初回は+2%/5日でn=16",
+    "trigger": "ust10 >= 3.0",
+    "target": "industry:Banks",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "ust10_dn3_reit_d10",
+    "title": "米10年金利 -3%以上低下 → 不動産の10日",
+    "family": "sector_driver",
+    "trigger": "ust10 <= -3.0",
+    "target": "industry:Real Estate",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "yen_weak1_auto_d10",
+    "title": "円安 +1%以上 → 自動車の10日",
+    "family": "sector_driver",
+    "source": "初回は+0.8%/5日でn=26",
+    "trigger": "usdjpy >= 1.0",
+    "target": "industry:Auto Manufacturers",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "yen5_weak3_auto_d20",
+    "title": "円安が5日で+3%以上進行 → 自動車の20日",
+    "family": "sector_driver",
+    "trigger": "usdjpy5 >= 3.0",
+    "target": "industry:Auto Manufacturers",
+    "lagDays": 1,
+    "horizonDays": 20,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "wti_up5_shipping_d10",
+    "title": "原油 +5%以上 → 海運の10日",
+    "family": "sector_driver",
+    "trigger": "wti >= 5.0",
+    "target": "industry:Marine Shipping",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "copper_up3_machine_d10",
+    "title": "銅 +3%以上 → 機械の10日",
+    "family": "sector_driver",
+    "trigger": "copper >= 3.0",
+    "target": "industry:Specialty Industrial Machinery",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "sox_dn3_semi_d10",
+    "title": "前夜SOX -3%以上下落 → 半導体の10日 (押し目か continuation か)",
+    "family": "macro_lag",
+    "trigger": "sox <= -3.0",
+    "target": "industry:Semiconductor",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-04"
+  },
+  {
+    "id": "sox5_dn8_semi_d10",
+    "title": "SOX5日累積 -8%以下 → 半導体の10日",
+    "family": "macro_lag",
+    "trigger": "sox5 <= -8.0",
+    "target": "industry:Semiconductor",
+    "lagDays": 1,
+    "horizonDays": 10,
+    "createdAt": "2026-08-04"
+  }
+]
